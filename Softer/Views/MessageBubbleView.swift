@@ -53,10 +53,14 @@ private struct LightwardGlassModifier: ViewModifier {
     let isLightward: Bool
 
     func body(content: Content) -> some View {
+        #if compiler(>=6.1)
         if #available(iOS 26.0, *), isLightward {
             content.glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 18))
         } else {
             content
         }
+        #else
+        content
+        #endif
     }
 }
