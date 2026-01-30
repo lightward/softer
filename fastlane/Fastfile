@@ -1,0 +1,35 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build and deploy to TestFlight"
+  lane :deploy do
+    setup_ci
+
+    app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_content: ENV["ASC_KEY_CONTENT"],
+      is_key_content_base64: true
+    )
+
+    match(type: "appstore", readonly: true)
+
+    build_app(
+      project: "Softer.xcodeproj",
+      scheme: "Softer",
+      export_method: "app-store"
+    )
+
+    upload_to_testflight(skip_waiting_for_build_processing: true)
+  end
+
+  desc "Run tests"
+  lane :test do
+    run_tests(
+      project: "Softer.xcodeproj",
+      scheme: "Softer",
+      device: "iPhone 16",
+      code_coverage: true
+    )
+  end
+end
