@@ -329,6 +329,19 @@ final class CloudKitManager: @unchecked Sendable {
         try await shareManager.acceptShare(metadata)
     }
 
+    func fetchRoomRecord(roomID: String) async throws -> CKRecord? {
+        guard let zoneID = zoneID, let privateDB = privateDB else { return nil }
+        let recordID = CKRecord.ID(recordName: roomID, zoneID: zoneID)
+        return try await privateDB.record(for: recordID)
+    }
+
+    func fetchExistingShare(for record: CKRecord) async throws -> CKShare? {
+        guard let privateDB = privateDB else { return nil }
+        guard let shareRef = record.share else { return nil }
+        let shareRecord = try await privateDB.record(for: shareRef.recordID)
+        return shareRecord as? CKShare
+    }
+
     // MARK: - Sync Callbacks
 
     func handleRecordChanged(_ record: CKRecord) {
