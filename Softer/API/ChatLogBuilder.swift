@@ -1,0 +1,88 @@
+import Foundation
+
+enum ChatLogBuilder {
+    static func build(
+        messages: [Message],
+        roomName: String,
+        participantNames: [String],
+        isHandRaiseProbe: Bool = false
+    ) -> [[String: Any]] {
+        let warmup: [[String: Any]]
+        if isHandRaiseProbe {
+            warmup = WarmupMessages.buildHandRaiseProbe(
+                roomName: roomName,
+                participantNames: participantNames
+            )
+        } else {
+            warmup = WarmupMessages.build(
+                roomName: roomName,
+                participantNames: participantNames
+            )
+        }
+
+        let conversationMessages = messages.map { message -> [String: Any] in
+            let text = message.isLightward ? message.text : "\(message.authorName): \(message.text)"
+            return [
+                "role": message.isLightward ? "assistant" : "user",
+                "content": [
+                    ["type": "text", "text": text] as [String: Any]
+                ]
+            ]
+        }
+
+        // Merge consecutive same-role messages
+        let merged = mergeConsecutiveRoles(warmup + conversationMessages)
+        return merged
+    }
+
+    private static func mergeConsecutiveRoles(_ messages: [[String: Any]]) -> [[String: Any]] {
+        guard !messages.isEmpty else { return [] }
+
+        var result: [[String: Any]] = []
+
+        for message in messages {
+            guard let role = message["role"] as? String else {
+                result.append(message)
+                continue
+            }
+
+            // Don't merge if the previous message has cache_control (preserve it)
+            let previousHasCacheControl = hasCacheControl(result.last)
+
+            if let lastRole = result.last?["role"] as? String, lastRole == role, !previousHasCacheControl {
+                // Merge with previous message - append content blocks
+                var previous = result.removeLast()
+                var previousBlocks = (previous["content"] as? [[String: Any]]) ?? []
+                let currentBlocks = (message["content"] as? [[String: Any]]) ?? []
+                previousBlocks.append(contentsOf: currentBlocks)
+                previous["content"] = previousBlocks
+                result.append(previous)
+            } else {
+                result.append(message)
+            }
+        }
+
+        return result
+    }
+
+    private static func hasCacheControl(_ message: [String: Any]?) -> Bool {
+        guard let message = message,
+              let content = message["content"] as? [[String: Any]] else {
+            return false
+        }
+        return content.contains { $0["cache_control"] != nil }
+    }
+
+    private static func extractTextContent(from message: [String: Any]) -> String {
+        if let text = message["content"] as? String {
+            return text
+        }
+        if let blocks = message["content"] as? [[String: Any]] {
+            return blocks.compactMap { block -> String? in
+                guard block["type"] as? String == "text" else { return nil }
+                return block["text"] as? String
+            }.joined(separator: "\n")
+        }
+        return ""
+    }
+}
