@@ -49,7 +49,7 @@ platform :ios do
     run_tests(
       project: "Softer.xcodeproj",
       scheme: "Softer",
-      device: "iPhone 16",
+      device: "iPhone 17",
       code_coverage: true
     )
   end

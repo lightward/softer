@@ -21,7 +21,7 @@ jobs:
       - name: Run Tests
         run: |
           xcodebuild -project Softer.xcodeproj -scheme Softer \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
             -resultBundlePath TestResults \
             test CODE_SIGN_IDENTITY=-
 
