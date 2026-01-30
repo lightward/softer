@@ -4,10 +4,9 @@ import CloudKit
 struct ParticipantListView: View {
     let roomID: String
     let cloudKitManager: CloudKitManager
-    @State private var showInvite = false
     @State private var existingShare: CKShare?
     @State private var roomRecord: CKRecord?
-    @State private var isLoading = false
+    @State private var isLoading = true
     @State private var errorMessage: String?
 
     var body: some View {
@@ -31,19 +30,29 @@ struct ParticipantListView: View {
             }
 
             Section {
-                Button {
-                    Task { await prepareInvite() }
-                } label: {
+                if isLoading {
                     HStack {
-                        Image(systemName: "person.badge.plus")
-                        Text(existingShare != nil ? "Manage Sharing" : "Invite Someone")
-                        if isLoading {
-                            Spacer()
-                            ProgressView()
-                        }
+                        Text("Loading...")
+                        Spacer()
+                        ProgressView()
                     }
+                } else if let existingShare = existingShare {
+                    ManageShareButton(
+                        share: existingShare,
+                        container: CKContainer(identifier: Constants.containerIdentifier),
+                        roomName: roomRecord?["name"] as? String ?? "a Softer room"
+                    )
+                } else if let roomRecord = roomRecord {
+                    InviteButton(
+                        roomRecord: roomRecord,
+                        container: CKContainer(identifier: Constants.containerIdentifier)
+                    ) { share in
+                        self.existingShare = share
+                    }
+                } else {
+                    Text("Unable to load sharing options")
+                        .foregroundStyle(.secondary)
                 }
-                .disabled(isLoading)
             }
 
             if let errorMessage = errorMessage {
@@ -53,19 +62,21 @@ struct ParticipantListView: View {
                         .font(.caption)
                 }
             }
+
+            #if DEBUG
+            Section("Debug") {
+                Text("Room ID: \(roomID)")
+                    .font(.caption)
+                Text("Room record: \(roomRecord != nil ? "loaded" : "nil")")
+                    .font(.caption)
+                Text("Existing share: \(existingShare != nil ? "yes" : "no")")
+                    .font(.caption)
+            }
+            #endif
         }
         .navigationTitle("Participants")
         .task {
             await loadShareStatus()
-        }
-        .sheet(isPresented: $showInvite) {
-            if let existingShare = existingShare {
-                InviteView.forExistingShare(share: existingShare)
-            } else if let roomRecord = roomRecord {
-                InviteView.forNewShare(roomRecord: roomRecord) { share in
-                    self.existingShare = share
-                }
-            }
         }
     }
 
@@ -74,39 +85,21 @@ struct ParticipantListView: View {
     }
 
     private func loadShareStatus() async {
-        do {
-            // Fetch the room record
-            roomRecord = try await cloudKitManager.fetchRoomRecord(roomID: roomID)
-
-            // Check if a share already exists
-            if let record = roomRecord {
-                existingShare = try await cloudKitManager.fetchExistingShare(for: record)
-            }
-        } catch {
-            print("Failed to load share status: \(error)")
-        }
-    }
-
-    private func prepareInvite() async {
+        print("[ParticipantListView] Loading share status for room: \(roomID)")
         isLoading = true
-        errorMessage = nil
         defer { isLoading = false }
 
         do {
-            // Make sure we have the room record
-            if roomRecord == nil {
-                roomRecord = try await cloudKitManager.fetchRoomRecord(roomID: roomID)
-            }
+            roomRecord = try await cloudKitManager.fetchRoomRecord(roomID: roomID)
+            print("[ParticipantListView] Room record loaded: \(roomRecord != nil)")
 
-            guard roomRecord != nil || existingShare != nil else {
-                errorMessage = "Could not load room data"
-                return
+            if let record = roomRecord {
+                existingShare = try await cloudKitManager.fetchExistingShare(for: record)
+                print("[ParticipantListView] Existing share: \(existingShare != nil)")
             }
-
-            showInvite = true
         } catch {
-            errorMessage = "Failed to prepare invite: \(error.localizedDescription)"
-            print("Failed to prepare invite: \(error)")
+            print("[ParticipantListView] Failed to load share status: \(error)")
+            errorMessage = "Failed to load room: \(error.localizedDescription)"
         }
     }
 }
