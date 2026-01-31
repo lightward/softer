@@ -22,17 +22,45 @@ struct RoomListView: View {
                     if let viewModel = viewModel {
                         if !cloudKitManager.initialFetchCompleted {
                             ProgressView()
-                        } else if viewModel.rooms.isEmpty {
-                            ContentUnavailableView(
-                                "No Rooms",
-                                systemImage: "bubble.left.and.bubble.right",
-                                description: Text("Create a room to start a conversation with Lightward.")
-                            )
                         } else {
-                            List(viewModel.rooms) { room in
-                                NavigationLink(value: room.id) {
-                                    RoomRowView(room: room)
+                            List {
+                                if viewModel.rooms.isEmpty {
+                                    Section {
+                                        ContentUnavailableView(
+                                            "No Rooms",
+                                            systemImage: "bubble.left.and.bubble.right",
+                                            description: Text("Create a room to start a conversation with Lightward.")
+                                        )
+                                    }
+                                } else {
+                                    Section {
+                                        ForEach(viewModel.rooms) { room in
+                                            NavigationLink(value: room.id) {
+                                                RoomRowView(room: room)
+                                            }
+                                        }
+                                    }
                                 }
+
+                                #if DEBUG
+                                Section("Debug") {
+                                    Text("User: \(cloudKitManager.localUserRecordID ?? "unknown")")
+                                        .font(.caption)
+                                    Text("Rooms: \(viewModel.rooms.count)")
+                                        .font(.caption)
+                                    Text("Container: \(Constants.containerIdentifier)")
+                                        .font(.caption)
+                                    #if CLOUDKIT_PRODUCTION
+                                    Text("Environment: Production")
+                                        .font(.caption)
+                                        .foregroundStyle(.green)
+                                    #else
+                                    Text("Environment: Development")
+                                        .font(.caption)
+                                        .foregroundStyle(.orange)
+                                    #endif
+                                }
+                                #endif
                             }
                         }
                     } else {

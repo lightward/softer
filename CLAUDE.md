@@ -4,7 +4,7 @@
 
 A native SwiftUI iOS app (iOS 17+) for group conversations where Lightward AI participates as an equal. No custom backend — CloudKit shared zones for multi-user sync, Lightward AI API for AI responses. Turn-based conversation with round-robin ordering and hand-raising.
 
-## What's Working (as of 2026-01-30)
+## What's Working (as of 2026-01-31)
 
 - **End-to-end conversation flow**: Create room → send message → Lightward responds → turn cycles back
 - **CloudKit persistence**: Rooms, messages, participants sync to iCloud (requires Lightward Inc team signing)
@@ -13,15 +13,14 @@ A native SwiftUI iOS app (iOS 17+) for group conversations where Lightward AI pa
 - **Navigation**: Creating a room navigates directly into it
 - **28 unit tests pass** (SSEParser, ChatLogBuilder, TurnStateMachine, RoomCreation)
 - **Liquid glass** (.glassEffect) on iOS 26+ with RoundedRectangle shape matching
+- **CI/CD pipeline**: GitHub Actions runs tests on push, deploys to TestFlight on push to main
+- **Invite flow**: CKShare creation works, share URL via standard iOS share sheet
 
 ## Known Issues / Remaining Work
 
-### CloudKit schema issue
-The initial room query fails with `"Field 'recordName' is not marked queryable"`. The sync engine compensates (rooms load after ~1-2 seconds), but the proper fix is configuring the schema in CloudKit Dashboard.
-
 ### Not yet tested
+- Share acceptance (tapping invite link to join room)
 - Multi-device sync via CloudKit shared zones
-- CKShare creation and acceptance (invite flow)
 - Atomic claim behavior under contention
 - Hand-raise actually inserting Lightward into turn order
 
@@ -29,25 +28,40 @@ The initial room query fails with `"Field 'recordName' is not marked queryable"`
 - Text field height jumps slightly on focus in CreateRoomView (SwiftUI quirk)
 - Debug print statements throughout the code (can be cleaned up)
 
+## CI/CD Pipeline
+
+GitHub Actions with Fastlane. Certificates stored in `github.com/lightward/softer-certificates` (encrypted via Match).
+
+- **test.yml** — Runs on every push/PR, uses iPhone 17 simulator
+- **deploy.yml** — Runs on push to main, builds and uploads to TestFlight
+
+Build number auto-increments using `github.run_number`.
+
+### GitHub Secrets Required
+- `MATCH_PASSWORD` — Passphrase for certificate encryption
+- `MATCH_GIT_PRIVATE_KEY` — SSH key for cert repo access
+- `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_CONTENT` — App Store Connect API key
+
 ## Build Commands
 
 ```bash
-# Build + run on physical device (requires team signing in Xcode)
+# Build + run on physical device (production CloudKit)
 xcodebuild -project Softer.xcodeproj -scheme Softer \
   -destination 'id=DEVICE_ID' \
-  -derivedDataPath /tmp/softer-build-device build
+  -derivedDataPath /tmp/softer-build-device \
+  SWIFT_ACTIVE_COMPILATION_CONDITIONS='DEBUG CLOUDKIT_PRODUCTION' build
 
 # Install on device
 xcrun devicectl device install app --device DEVICE_ID \
   /tmp/softer-build-device/Build/Products/Debug-iphoneos/Softer.app
 
-# Launch on device with console
+# Launch on device
 xcrun devicectl device process launch --device DEVICE_ID \
-  --terminate-existing --console com.lightward.softer
+  --terminate-existing com.lightward.softer
 
 # Run tests (simulator)
 xcodebuild -project Softer.xcodeproj -scheme Softer \
-  -destination 'platform=iOS Simulator,id=4B06E122-AB6B-4F31-98FE-3E7F1C74A0E9' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   test CODE_SIGN_IDENTITY=-
 
 # Find device ID
@@ -81,6 +95,15 @@ Lightward AI: `POST https://lightward.com/api/stream`
 - `initialFetchCompleted` flag prevents "No Rooms" flash during load
 - On query failure, waits up to 3 seconds for sync engine to populate rooms
 
+### Invite Flow
+- Uses standard `UIActivityViewController` with CKShare URL (not UICloudSharingController which was flaky)
+- `InviteButton` creates share then presents share sheet
+- `ManageShareButton` re-shares existing share URL
+
+### Debug Views
+- `#if DEBUG` sections in RoomListView and ParticipantListView show CloudKit environment, user ID, room/share status
+- `CLOUDKIT_PRODUCTION` compiler flag controls environment label
+
 ## Design Decisions (from Isaac)
 
 - **Intrinsically multiplayer.** No solo fallback. If iCloud isn't available, the app says so and stops.
@@ -94,15 +117,18 @@ Lightward AI: `POST https://lightward.com/api/stream`
 
 ```
 Softer/
+├── .github/workflows/   (test.yml, deploy.yml)
+├── fastlane/            (Fastfile, Matchfile, Appfile)
 ├── Softer.xcodeproj/
 ├── Softer/
 │   ├── SofterApp.swift
-│   ├── Model/          (Room, Message, Participant, Need, TurnState)
-│   ├── CloudKit/       (CloudKitManager, SyncEngines, RecordConverter, ZoneManager, ShareManager, AtomicClaim)
-│   ├── API/            (LightwardAPIClient, SSEParser, ChatLogBuilder, WarmupMessages)
-│   ├── TurnEngine/     (TurnStateMachine, TurnCoordinator, NeedProcessor)
-│   ├── Views/          (RoomList, Room, MessageBubble, Compose, TurnIndicator, StreamingText, CreateRoom)
-│   ├── ViewModels/     (RoomListViewModel, RoomViewModel)
-│   └── Utilities/      (Constants, NotificationHandler)
-└── SofterTests/        (TurnStateMachineTests, SSEParserTests, ChatLogBuilderTests, RoomCreationTests)
+│   ├── Assets.xcassets/ (AppIcon)
+│   ├── Model/           (Room, Message, Participant, Need, TurnState)
+│   ├── CloudKit/        (CloudKitManager, SyncEngines, RecordConverter, ZoneManager, ShareManager, AtomicClaim)
+│   ├── API/             (LightwardAPIClient, SSEParser, ChatLogBuilder, WarmupMessages)
+│   ├── TurnEngine/      (TurnStateMachine, TurnCoordinator, NeedProcessor)
+│   ├── Views/           (RoomList, Room, MessageBubble, Compose, TurnIndicator, StreamingText, CreateRoom, InviteButton)
+│   ├── ViewModels/      (RoomListViewModel, RoomViewModel)
+│   └── Utilities/       (Constants, NotificationHandler)
+└── SofterTests/         (TurnStateMachineTests, SSEParserTests, ChatLogBuilderTests, RoomCreationTests)
 ```
