@@ -1,17 +1,24 @@
 import Foundation
 
-actor LightwardAPIClient {
-    private let session: URLSession
+/// Protocol for Lightward API interaction, enabling testing.
+protocol LightwardAPI: Sendable {
+    /// Streams a response from Lightward given a chat log.
+    func stream(chatLog: [[String: Any]]) -> AsyncThrowingStream<String, Error>
+}
+
+actor LightwardAPIClient: LightwardAPI {
+    private nonisolated let session: URLSession
 
     init(session: URLSession = .shared) {
         self.session = session
     }
 
-    func stream(chatLog: [[String: Any]]) -> AsyncThrowingStream<String, Error> {
-        AsyncThrowingStream { continuation in
+    nonisolated func stream(chatLog: [[String: Any]]) -> AsyncThrowingStream<String, Error> {
+        let session = self.session
+        return AsyncThrowingStream { continuation in
             Task {
                 do {
-                    let request = try buildRequest(chatLog: chatLog)
+                    let request = try Self.buildRequest(chatLog: chatLog)
                     let (bytes, response) = try await session.bytes(for: request)
 
                     guard let httpResponse = response as? HTTPURLResponse else {
@@ -74,7 +81,7 @@ actor LightwardAPIClient {
         return result
     }
 
-    private func buildRequest(chatLog: [[String: Any]]) throws -> URLRequest {
+    private static func buildRequest(chatLog: [[String: Any]]) throws -> URLRequest {
         var request = URLRequest(url: Constants.lightwardAPIURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

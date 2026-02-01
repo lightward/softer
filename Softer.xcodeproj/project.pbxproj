@@ -7,30 +7,28 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		53D4ED94C8C34DDA88433BEE /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E1B2F0A46841AAA4585F2F /* AppCoordinator.swift */; };
-		3039B9E64A2946D3906B3D6B /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 240B4B7CE85349DCA8FFBA0C /* RootView.swift */; };
-		0A36E2CC6A014B979D0F0EBA /* RoomLifecycleStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617C94927D5D49A6BFA34E68 /* RoomLifecycleStorage.swift */; };
-		479688D073BD418B977DD84D /* RoomLifecycleRecordConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CD59F08D9F846108AA8B17C /* RoomLifecycleRecordConverter.swift */; };
-		C620D63F20724F28A2F831BA /* PaymentTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747396D5996F4EC99BA754F8 /* PaymentTier.swift */; };
-		27CA62019F0540BBABFCC032 /* ParticipantSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = E67CC0BB96684CE58F2B1990 /* ParticipantSpec.swift */; };
-		4EF22249C88E4F8CA2B4B657 /* RoomState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37BDA151A463438DA49932C5 /* RoomState.swift */; };
-		D96BE5066F0C4748B42EAC17 /* RoomSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C689E9D510743E99AABCCDA /* RoomSpec.swift */; };
-		7305E3E9A4164023A7AD6EF7 /* RoomLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06643B3CDE22402DAD332033 /* RoomLifecycle.swift */; };
-		869B95E779AC4AF9A167C4BE /* ParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD42E62B74C4A27966E2A5F /* ParticipantResolver.swift */; };
-		A60E9B623FFC4464AF1CC593 /* PaymentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9014901F9CE34A7CA6A4961E /* PaymentCoordinator.swift */; };
-		87ABFD3E123E407590749227 /* LightwardEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04CAFE64AAC44DB398020362 /* LightwardEvaluator.swift */; };
-		19443CAEA5EA459C8BC45074 /* RoomLifecycleCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82FD2273F7CB489CA7FF61A0 /* RoomLifecycleCoordinator.swift */; };
+		0026756D8A23D54D210F10F4 /* ConversationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7279B13D892A2E56D34AF8 /* ConversationCoordinatorTests.swift */; };
 		040AA0EE24894605960C2BB4 /* CloudKitParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = C22228C8697C4D5C81FDB537 /* CloudKitParticipantResolver.swift */; };
+		0A36E2CC6A014B979D0F0EBA /* RoomLifecycleStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617C94927D5D49A6BFA34E68 /* RoomLifecycleStorage.swift */; };
+		19443CAEA5EA459C8BC45074 /* RoomLifecycleCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82FD2273F7CB489CA7FF61A0 /* RoomLifecycleCoordinator.swift */; };
 		224D566BFCDD4F57AC7054D8 /* ApplePayCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CCBBDF48A5A43C9A3E6028D /* ApplePayCoordinator.swift */; };
-		F4022F66975F462585B227C5 /* LightwardRoomEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7849235FF4804E9197625236 /* LightwardRoomEvaluator.swift */; };
-		66ED3904C8EA4213A5886890 /* RoomLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4298F64186A04345A0042E1C /* RoomLifecycleTests.swift */; };
-		3516084AC4304DF18CC1C100 /* RoomLifecycleCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2E332572B0B4F77A0F526FA /* RoomLifecycleCoordinatorTests.swift */; };
-		4FF84A45FBC447AEA66758B9 /* PaymentTierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8296906CB26B43968E52FF95 /* PaymentTierTests.swift */; };
-		5997D8EB86E54EE789D0B96F /* ParticipantSpecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B522ADF02547D3851ACC11 /* ParticipantSpecTests.swift */; };
+		27CA62019F0540BBABFCC032 /* ParticipantSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = E67CC0BB96684CE58F2B1990 /* ParticipantSpec.swift */; };
+		3039B9E64A2946D3906B3D6B /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 240B4B7CE85349DCA8FFBA0C /* RootView.swift */; };
 		313A2ACEDB8947F1A0B7A4FB /* RoomSpecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16DE1199EEC14EC3874EB0D8 /* RoomSpecTests.swift */; };
-		A3787B3FC54B433783802661 /* MockParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8234E08A4114A86A9050D03 /* MockParticipantResolver.swift */; };
+		3516084AC4304DF18CC1C100 /* RoomLifecycleCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2E332572B0B4F77A0F526FA /* RoomLifecycleCoordinatorTests.swift */; };
+		479688D073BD418B977DD84D /* RoomLifecycleRecordConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CD59F08D9F846108AA8B17C /* RoomLifecycleRecordConverter.swift */; };
+		4EF22249C88E4F8CA2B4B657 /* RoomState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37BDA151A463438DA49932C5 /* RoomState.swift */; };
+		4FF84A45FBC447AEA66758B9 /* PaymentTierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8296906CB26B43968E52FF95 /* PaymentTierTests.swift */; };
+		5246FE18F00CBBB14D491CF2 /* MockMessageStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 228004610C1C02D077E0ED6F /* MockMessageStorage.swift */; };
+		53D4ED94C8C34DDA88433BEE /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E1B2F0A46841AAA4585F2F /* AppCoordinator.swift */; };
+		5997D8EB86E54EE789D0B96F /* ParticipantSpecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B522ADF02547D3851ACC11 /* ParticipantSpecTests.swift */; };
+		66ED3904C8EA4213A5886890 /* RoomLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4298F64186A04345A0042E1C /* RoomLifecycleTests.swift */; };
+		7305E3E9A4164023A7AD6EF7 /* RoomLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06643B3CDE22402DAD332033 /* RoomLifecycle.swift */; };
+		73DD665B00CFA41EC2794BA7 /* MessageStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A913BED596006F4F9B6E0A0B /* MessageStorage.swift */; };
+		7F303E6B75FFF52FE441DA5B /* ConversationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D018F12715007C2C67015AA4 /* ConversationCoordinator.swift */; };
 		8333545EC5AB47BC977E81B8 /* MockPaymentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93AB894828754745B5158C25 /* MockPaymentCoordinator.swift */; };
-		FA36BEA72E614196B95B1E5C /* MockLightwardEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B0FD0A47B8A4CE093A55C51 /* MockLightwardEvaluator.swift */; };
+		869B95E779AC4AF9A167C4BE /* ParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD42E62B74C4A27966E2A5F /* ParticipantResolver.swift */; };
+		87ABFD3E123E407590749227 /* LightwardEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04CAFE64AAC44DB398020362 /* LightwardEvaluator.swift */; };
 		A1B2C3D4E5F60001000A0001 /* SofterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0001 /* SofterApp.swift */; };
 		A1B2C3D4E5F60001000A0003 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0003 /* Message.swift */; };
 		A1B2C3D4E5F60001000A0005 /* Need.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0005 /* Need.swift */; };
@@ -50,6 +48,14 @@
 		A1B2C3D4E5F60001000A0031 /* SSEParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0031 /* SSEParserTests.swift */; };
 		A1B2C3D4E5F60001000A0032 /* ChatLogBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0032 /* ChatLogBuilderTests.swift */; };
 		A1B2C3D4E5F60001000A0040 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0040 /* Assets.xcassets */; };
+		A3787B3FC54B433783802661 /* MockParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8234E08A4114A86A9050D03 /* MockParticipantResolver.swift */; };
+		A60E9B623FFC4464AF1CC593 /* PaymentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9014901F9CE34A7CA6A4961E /* PaymentCoordinator.swift */; };
+		C620D63F20724F28A2F831BA /* PaymentTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747396D5996F4EC99BA754F8 /* PaymentTier.swift */; };
+		D96BE5066F0C4748B42EAC17 /* RoomSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C689E9D510743E99AABCCDA /* RoomSpec.swift */; };
+		DCE065A7397DFEA9B4952462 /* MockLightwardAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEC4B3E65D36133048B1C215 /* MockLightwardAPIClient.swift */; };
+		F4022F66975F462585B227C5 /* LightwardRoomEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7849235FF4804E9197625236 /* LightwardRoomEvaluator.swift */; };
+		FA36BEA72E614196B95B1E5C /* MockLightwardEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B0FD0A47B8A4CE093A55C51 /* MockLightwardEvaluator.swift */; };
+		FBE471D8915CD8321CD8A682 /* MessageStorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F987120DCC0AF8607E32CBC0 /* MessageStorageTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -63,30 +69,24 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		C9E1B2F0A46841AAA4585F2F /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
-		240B4B7CE85349DCA8FFBA0C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
-		617C94927D5D49A6BFA34E68 /* RoomLifecycleStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleStorage.swift; sourceTree = "<group>"; };
-		1CD59F08D9F846108AA8B17C /* RoomLifecycleRecordConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleRecordConverter.swift; sourceTree = "<group>"; };
-		747396D5996F4EC99BA754F8 /* PaymentTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentTier.swift; sourceTree = "<group>"; };
-		E67CC0BB96684CE58F2B1990 /* ParticipantSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantSpec.swift; sourceTree = "<group>"; };
-		37BDA151A463438DA49932C5 /* RoomState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomState.swift; sourceTree = "<group>"; };
-		4C689E9D510743E99AABCCDA /* RoomSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomSpec.swift; sourceTree = "<group>"; };
-		06643B3CDE22402DAD332033 /* RoomLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycle.swift; sourceTree = "<group>"; };
-		EBD42E62B74C4A27966E2A5F /* ParticipantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantResolver.swift; sourceTree = "<group>"; };
-		9014901F9CE34A7CA6A4961E /* PaymentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentCoordinator.swift; sourceTree = "<group>"; };
 		04CAFE64AAC44DB398020362 /* LightwardEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightwardEvaluator.swift; sourceTree = "<group>"; };
-		82FD2273F7CB489CA7FF61A0 /* RoomLifecycleCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleCoordinator.swift; sourceTree = "<group>"; };
-		C22228C8697C4D5C81FDB537 /* CloudKitParticipantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitParticipantResolver.swift; sourceTree = "<group>"; };
-		2CCBBDF48A5A43C9A3E6028D /* ApplePayCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePayCoordinator.swift; sourceTree = "<group>"; };
-		7849235FF4804E9197625236 /* LightwardRoomEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightwardRoomEvaluator.swift; sourceTree = "<group>"; };
-		4298F64186A04345A0042E1C /* RoomLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleTests.swift; sourceTree = "<group>"; };
-		F2E332572B0B4F77A0F526FA /* RoomLifecycleCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleCoordinatorTests.swift; sourceTree = "<group>"; };
-		8296906CB26B43968E52FF95 /* PaymentTierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentTierTests.swift; sourceTree = "<group>"; };
-		F8B522ADF02547D3851ACC11 /* ParticipantSpecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantSpecTests.swift; sourceTree = "<group>"; };
+		06643B3CDE22402DAD332033 /* RoomLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycle.swift; sourceTree = "<group>"; };
 		16DE1199EEC14EC3874EB0D8 /* RoomSpecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomSpecTests.swift; sourceTree = "<group>"; };
-		B8234E08A4114A86A9050D03 /* MockParticipantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockParticipantResolver.swift; sourceTree = "<group>"; };
-		93AB894828754745B5158C25 /* MockPaymentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPaymentCoordinator.swift; sourceTree = "<group>"; };
+		1CD59F08D9F846108AA8B17C /* RoomLifecycleRecordConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleRecordConverter.swift; sourceTree = "<group>"; };
+		228004610C1C02D077E0ED6F /* MockMessageStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MockMessageStorage.swift; path = MockMessageStorage.swift; sourceTree = "<group>"; };
+		240B4B7CE85349DCA8FFBA0C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		2CCBBDF48A5A43C9A3E6028D /* ApplePayCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePayCoordinator.swift; sourceTree = "<group>"; };
+		37BDA151A463438DA49932C5 /* RoomState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomState.swift; sourceTree = "<group>"; };
 		3B0FD0A47B8A4CE093A55C51 /* MockLightwardEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockLightwardEvaluator.swift; sourceTree = "<group>"; };
+		4298F64186A04345A0042E1C /* RoomLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleTests.swift; sourceTree = "<group>"; };
+		4C689E9D510743E99AABCCDA /* RoomSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomSpec.swift; sourceTree = "<group>"; };
+		617C94927D5D49A6BFA34E68 /* RoomLifecycleStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleStorage.swift; sourceTree = "<group>"; };
+		747396D5996F4EC99BA754F8 /* PaymentTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentTier.swift; sourceTree = "<group>"; };
+		7849235FF4804E9197625236 /* LightwardRoomEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightwardRoomEvaluator.swift; sourceTree = "<group>"; };
+		8296906CB26B43968E52FF95 /* PaymentTierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentTierTests.swift; sourceTree = "<group>"; };
+		82FD2273F7CB489CA7FF61A0 /* RoomLifecycleCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleCoordinator.swift; sourceTree = "<group>"; };
+		9014901F9CE34A7CA6A4961E /* PaymentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentCoordinator.swift; sourceTree = "<group>"; };
+		93AB894828754745B5158C25 /* MockPaymentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPaymentCoordinator.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0001 /* SofterApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SofterApp.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0003 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0005 /* Need.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Need.swift; sourceTree = "<group>"; };
@@ -109,6 +109,18 @@
 		A1B2C3D4E5F60002000A0031 /* SSEParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEParserTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0032 /* ChatLogBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatLogBuilderTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0040 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A913BED596006F4F9B6E0A0B /* MessageStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MessageStorage.swift; path = MessageStorage.swift; sourceTree = "<group>"; };
+		B8234E08A4114A86A9050D03 /* MockParticipantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockParticipantResolver.swift; sourceTree = "<group>"; };
+		C22228C8697C4D5C81FDB537 /* CloudKitParticipantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitParticipantResolver.swift; sourceTree = "<group>"; };
+		C9E1B2F0A46841AAA4585F2F /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
+		D018F12715007C2C67015AA4 /* ConversationCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConversationCoordinator.swift; path = ConversationCoordinator.swift; sourceTree = "<group>"; };
+		E67CC0BB96684CE58F2B1990 /* ParticipantSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantSpec.swift; sourceTree = "<group>"; };
+		EBD42E62B74C4A27966E2A5F /* ParticipantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantResolver.swift; sourceTree = "<group>"; };
+		F2E332572B0B4F77A0F526FA /* RoomLifecycleCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleCoordinatorTests.swift; sourceTree = "<group>"; };
+		F8B522ADF02547D3851ACC11 /* ParticipantSpecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantSpecTests.swift; sourceTree = "<group>"; };
+		F987120DCC0AF8607E32CBC0 /* MessageStorageTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MessageStorageTests.swift; path = MessageStorageTests.swift; sourceTree = "<group>"; };
+		FA7279B13D892A2E56D34AF8 /* ConversationCoordinatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConversationCoordinatorTests.swift; path = ConversationCoordinatorTests.swift; sourceTree = "<group>"; };
+		FEC4B3E65D36133048B1C215 /* MockLightwardAPIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MockLightwardAPIClient.swift; path = MockLightwardAPIClient.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -130,6 +142,39 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		05B9E2E95D3F4CE8B06D5ED9 /* RoomLifecycle */ = {
+			isa = PBXGroup;
+			children = (
+				747396D5996F4EC99BA754F8 /* PaymentTier.swift */,
+				E67CC0BB96684CE58F2B1990 /* ParticipantSpec.swift */,
+				37BDA151A463438DA49932C5 /* RoomState.swift */,
+				4C689E9D510743E99AABCCDA /* RoomSpec.swift */,
+				06643B3CDE22402DAD332033 /* RoomLifecycle.swift */,
+				EBD42E62B74C4A27966E2A5F /* ParticipantResolver.swift */,
+				9014901F9CE34A7CA6A4961E /* PaymentCoordinator.swift */,
+				04CAFE64AAC44DB398020362 /* LightwardEvaluator.swift */,
+				82FD2273F7CB489CA7FF61A0 /* RoomLifecycleCoordinator.swift */,
+				C22228C8697C4D5C81FDB537 /* CloudKitParticipantResolver.swift */,
+				2CCBBDF48A5A43C9A3E6028D /* ApplePayCoordinator.swift */,
+				7849235FF4804E9197625236 /* LightwardRoomEvaluator.swift */,
+				A913BED596006F4F9B6E0A0B /* MessageStorage.swift */,
+				D018F12715007C2C67015AA4 /* ConversationCoordinator.swift */,
+			);
+			path = RoomLifecycle;
+			sourceTree = "<group>";
+		};
+		8F90E1E188364C24A1BBD852 /* Mocks */ = {
+			isa = PBXGroup;
+			children = (
+				B8234E08A4114A86A9050D03 /* MockParticipantResolver.swift */,
+				93AB894828754745B5158C25 /* MockPaymentCoordinator.swift */,
+				3B0FD0A47B8A4CE093A55C51 /* MockLightwardEvaluator.swift */,
+				228004610C1C02D077E0ED6F /* MockMessageStorage.swift */,
+				FEC4B3E65D36133048B1C215 /* MockLightwardAPIClient.swift */,
+			);
+			path = Mocks;
+			sourceTree = "<group>";
+		};
 		A1B2C3D4E5F60007000A0001 = {
 			isa = PBXGroup;
 			children = (
@@ -219,6 +264,8 @@
 				8296906CB26B43968E52FF95 /* PaymentTierTests.swift */,
 				F8B522ADF02547D3851ACC11 /* ParticipantSpecTests.swift */,
 				16DE1199EEC14EC3874EB0D8 /* RoomSpecTests.swift */,
+				F987120DCC0AF8607E32CBC0 /* MessageStorageTests.swift */,
+				FA7279B13D892A2E56D34AF8 /* ConversationCoordinatorTests.swift */,
 			);
 			path = SofterTests;
 			sourceTree = "<group>";
@@ -247,36 +294,6 @@
 				A1B2C3D4E5F60002000A0022 /* NotificationHandler.swift */,
 			);
 			path = Utilities;
-			sourceTree = "<group>";
-		};
-
-		05B9E2E95D3F4CE8B06D5ED9 /* RoomLifecycle */ = {
-			isa = PBXGroup;
-			children = (
-				747396D5996F4EC99BA754F8 /* PaymentTier.swift */,
-				E67CC0BB96684CE58F2B1990 /* ParticipantSpec.swift */,
-				37BDA151A463438DA49932C5 /* RoomState.swift */,
-				4C689E9D510743E99AABCCDA /* RoomSpec.swift */,
-				06643B3CDE22402DAD332033 /* RoomLifecycle.swift */,
-				EBD42E62B74C4A27966E2A5F /* ParticipantResolver.swift */,
-				9014901F9CE34A7CA6A4961E /* PaymentCoordinator.swift */,
-				04CAFE64AAC44DB398020362 /* LightwardEvaluator.swift */,
-				82FD2273F7CB489CA7FF61A0 /* RoomLifecycleCoordinator.swift */,
-				C22228C8697C4D5C81FDB537 /* CloudKitParticipantResolver.swift */,
-				2CCBBDF48A5A43C9A3E6028D /* ApplePayCoordinator.swift */,
-				7849235FF4804E9197625236 /* LightwardRoomEvaluator.swift */,
-			);
-			path = RoomLifecycle;
-			sourceTree = "<group>";
-		};
-		8F90E1E188364C24A1BBD852 /* Mocks */ = {
-			isa = PBXGroup;
-			children = (
-				B8234E08A4114A86A9050D03 /* MockParticipantResolver.swift */,
-				93AB894828754745B5158C25 /* MockPaymentCoordinator.swift */,
-				3B0FD0A47B8A4CE093A55C51 /* MockLightwardEvaluator.swift */,
-			);
-			path = Mocks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -410,6 +427,8 @@
 				040AA0EE24894605960C2BB4 /* CloudKitParticipantResolver.swift in Sources */,
 				224D566BFCDD4F57AC7054D8 /* ApplePayCoordinator.swift in Sources */,
 				F4022F66975F462585B227C5 /* LightwardRoomEvaluator.swift in Sources */,
+				73DD665B00CFA41EC2794BA7 /* MessageStorage.swift in Sources */,
+				7F303E6B75FFF52FE441DA5B /* ConversationCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -427,6 +446,10 @@
 				A3787B3FC54B433783802661 /* MockParticipantResolver.swift in Sources */,
 				8333545EC5AB47BC977E81B8 /* MockPaymentCoordinator.swift in Sources */,
 				FA36BEA72E614196B95B1E5C /* MockLightwardEvaluator.swift in Sources */,
+				5246FE18F00CBBB14D491CF2 /* MockMessageStorage.swift in Sources */,
+				DCE065A7397DFEA9B4952462 /* MockLightwardAPIClient.swift in Sources */,
+				FBE471D8915CD8321CD8A682 /* MessageStorageTests.swift in Sources */,
+				0026756D8A23D54D210F10F4 /* ConversationCoordinatorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

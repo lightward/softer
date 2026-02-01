@@ -10,7 +10,7 @@ A native SwiftUI iOS app (iOS 17+) for group conversations where Lightward AI pa
 - **CloudKit persistence**: Rooms, messages, participants sync to iCloud (requires Lightward Inc team signing)
 - **Lightward API integration**: SSE streaming works, responses appear in real-time
 - **Turn coordination**: TurnStateMachine, TurnCoordinator, NeedProcessor all functioning
-- **63 unit tests pass** — includes new RoomLifecycle layer
+- **68 unit tests pass** — includes RoomLifecycle layer and ConversationCoordinator
 - **CI/CD pipeline**: GitHub Actions runs tests on push, deploys to TestFlight on push to main
 
 ## Active Work: New Room Creation Flow
@@ -47,33 +47,45 @@ The room creation model is being redesigned. The old invite-via-share flow is be
 - `RoomState` — draft → pendingLightward → pendingHumans → pendingCapture → active → locked | defunct
 - `RoomSpec` — complete room specification
 - `RoomLifecycle` — the state machine, takes events, returns effects
+- `TurnState` — current turn index, raised hands, pending need
 
 **Coordinator layer** (executes effects):
 - `ParticipantResolver` protocol — resolves identifiers to CloudKit identities
 - `PaymentCoordinator` protocol — Apple Pay authorize/capture/release
 - `LightwardEvaluator` protocol — asks Lightward if it wants to join
-- `RoomLifecycleCoordinator` — actor that orchestrates the full flow
+- `RoomLifecycleCoordinator` — actor that orchestrates the full creation flow
+
+**Conversation layer** (active room messaging):
+- `MessageStorage` protocol — save/fetch/observe messages
+- `LightwardAPI` protocol — stream responses from Lightward (in API/LightwardAPIClient.swift)
+- `ConversationCoordinator` — actor that handles message sending, turn advancement, Lightward responses
 
 **Mocks** (SofterTests/Mocks/):
 - MockParticipantResolver, MockPaymentCoordinator, MockLightwardEvaluator
+- MockMessageStorage, MockLightwardAPIClient
 
 **Tests**:
 - RoomLifecycleTests — 11 tests for state machine
 - RoomLifecycleCoordinatorTests — 9 tests for coordinator
+- ConversationCoordinatorTests — 10 tests for conversation flow
+- MessageStorageTests — 7 tests for message storage
 - PaymentTierTests, ParticipantSpecTests, RoomSpecTests
 
 ### What's Next
 
 1. **Real implementations** of the protocols:
+   - `CloudKitMessageStorage` — stores messages via CloudKit (ConversationCoordinator is ready to use it)
    - `CloudKitParticipantResolver` — uses CKUserIdentityLookupInfo
    - `ApplePayCoordinator` — PKPaymentAuthorizationController
    - `LightwardRoomEvaluator` — calls Lightward API with roster
 
 2. **CloudKit storage** for new room model (RoomSpec, RoomLifecycle state)
 
-3. **UI** — new room creation flow using the RoomLifecycleCoordinator
+3. **Wire ConversationCoordinator to UI** — replace old TurnCoordinator/NeedProcessor with new ConversationCoordinator
 
-4. **Deprecate old model** — Room, Participant, existing share flow
+4. **UI** — new room creation flow using the RoomLifecycleCoordinator
+
+5. **Deprecate old model** — Room, Participant, existing share flow, old TurnEngine/
 
 ### Old Model (to be deprecated)
 
@@ -181,16 +193,18 @@ Softer/
 │   ├── Model/           (Room, Message, Participant, Need, TurnState) — OLD, to be deprecated
 │   ├── RoomLifecycle/   (PaymentTier, ParticipantSpec, RoomState, RoomSpec, RoomLifecycle,
 │   │                     ParticipantResolver, PaymentCoordinator, LightwardEvaluator,
-│   │                     RoomLifecycleCoordinator) — NEW
+│   │                     RoomLifecycleCoordinator, MessageStorage, ConversationCoordinator) — NEW
 │   ├── CloudKit/        (CloudKitManager, SyncEngines, RecordConverter, ZoneManager, ShareManager, AtomicClaim)
-│   ├── API/             (LightwardAPIClient, SSEParser, ChatLogBuilder, WarmupMessages)
+│   ├── API/             (LightwardAPIClient + LightwardAPI protocol, SSEParser, ChatLogBuilder, WarmupMessages)
 │   ├── TurnEngine/      (TurnStateMachine, TurnCoordinator, NeedProcessor)
 │   ├── Views/           (RoomList, Room, MessageBubble, Compose, TurnIndicator, StreamingText, CreateRoom, InviteButton)
 │   ├── ViewModels/      (RoomListViewModel, RoomViewModel)
 │   └── Utilities/       (Constants, NotificationHandler)
 └── SofterTests/
-    ├── Mocks/           (MockParticipantResolver, MockPaymentCoordinator, MockLightwardEvaluator)
+    ├── Mocks/           (MockParticipantResolver, MockPaymentCoordinator, MockLightwardEvaluator,
+    │                     MockMessageStorage, MockLightwardAPIClient)
     └── *.swift          (TurnStateMachineTests, SSEParserTests, ChatLogBuilderTests,
                           RoomCreationTests, RoomLifecycleTests, RoomLifecycleCoordinatorTests,
-                          PaymentTierTests, ParticipantSpecTests, RoomSpecTests)
+                          PaymentTierTests, ParticipantSpecTests, RoomSpecTests,
+                          MessageStorageTests, ConversationCoordinatorTests)
 ```

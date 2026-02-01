@@ -8,7 +8,7 @@ actor ConversationCoordinator {
     private var turnState: TurnState
 
     private let messageStorage: MessageStorage
-    private let apiClient: LightwardAPIClient
+    private let apiClient: any LightwardAPI
 
     private let onTurnChange: @Sendable (TurnState) -> Void
     private let onStreamingText: @Sendable (String) -> Void
@@ -18,7 +18,7 @@ actor ConversationCoordinator {
         spec: RoomSpec,
         initialTurnState: TurnState = .initial,
         messageStorage: MessageStorage,
-        apiClient: LightwardAPIClient,
+        apiClient: any LightwardAPI,
         onTurnChange: @escaping @Sendable (TurnState) -> Void = { _ in },
         onStreamingText: @escaping @Sendable (String) -> Void = { _ in }
     ) {

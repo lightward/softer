@@ -19,7 +19,18 @@ final class ConversationCoordinatorTests: XCTestCase {
     func testSendMessageSavesToStorage() async throws {
         let storage = MockMessageStorage()
         let api = MockLightwardAPIClient()
-        let spec = makeSpec()
+        // Use a spec where the next participant after Jax is human (Mira), not Lightward
+        // This way we only test the message saving, not the Lightward response
+        let spec = RoomSpec(
+            originatorID: "jax-id",
+            participants: [
+                ParticipantSpec(identifier: .email("jax@example.com"), nickname: "Jax"),
+                ParticipantSpec(identifier: .email("mira@example.com"), nickname: "Mira"),
+                ParticipantSpec.lightward(nickname: "Lightward"),
+            ],
+            tier: .ten,
+            isFirstRoom: false
+        )
 
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
@@ -93,14 +104,13 @@ final class ConversationCoordinatorTests: XCTestCase {
             text: "Hello Lightward"
         )
 
-        let apiCallCount = await api.streamCallCount
-        XCTAssertEqual(apiCallCount, 1)
+        XCTAssertEqual(api.streamCallCount, 1)
     }
 
     func testLightwardResponseIsSaved() async throws {
         let storage = MockMessageStorage()
         let api = MockLightwardAPIClient()
-        await api.setResponse(["Hello from Lightward!"])
+        api.responseChunks = ["Hello from Lightward!"]
         let spec = makeSpec()
 
         let coordinator = ConversationCoordinator(
@@ -129,7 +139,7 @@ final class ConversationCoordinatorTests: XCTestCase {
     func testStreamingTextUpdates() async throws {
         let storage = MockMessageStorage()
         let api = MockLightwardAPIClient()
-        await api.setResponse(["Hello ", "world!"])
+        api.responseChunks = ["Hello ", "world!"]
         let spec = makeSpec()
 
         var streamingUpdates: [String] = []
@@ -257,18 +267,10 @@ final class ConversationCoordinatorTests: XCTestCase {
         )
 
         // API should NOT have been called since it's Mira's turn, not Lightward's
-        let apiCallCount = await api.streamCallCount
-        XCTAssertEqual(apiCallCount, 0)
+        XCTAssertEqual(api.streamCallCount, 0)
 
         // Should be Mira's turn
         let finalTurn = await coordinator.currentTurnState
         XCTAssertEqual(finalTurn.currentTurnIndex, 1)
-    }
-}
-
-// Extension to configure mock API
-extension MockLightwardAPIClient {
-    func setResponse(_ chunks: [String]) {
-        responseChunks = chunks
     }
 }
