@@ -41,4 +41,4 @@ jobs:
           ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
-          fastlane deploy
+          bundle exec fastlane deploy
