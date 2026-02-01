@@ -20,8 +20,8 @@ actor CloudKitMessageStorage: MessageStorage {
         let record = Self.record(from: message, zoneID: zoneID)
         try await database.save(record)
 
-        // Notify observers of the updated message list
-        await notifyObservers(roomID: roomID)
+        // Notify observers, ensuring the just-saved message is included
+        await notifyObservers(roomID: roomID, includingMessage: message)
     }
 
     func fetchMessages(roomID: String) async throws -> [Message] {
@@ -79,16 +79,28 @@ actor CloudKitMessageStorage: MessageStorage {
         observers[roomID]?.removeValue(forKey: id)
     }
 
-    private func notifyObservers(roomID: String) async {
+    private func notifyObservers(roomID: String, includingMessage newMessage: Message? = nil) async {
         guard let handlers = observers[roomID], !handlers.isEmpty else { return }
 
         do {
-            let messages = try await fetchMessages(roomID: roomID)
+            var messages = try await fetchMessages(roomID: roomID)
+
+            // Ensure the just-saved message is included (CloudKit eventual consistency)
+            if let newMessage = newMessage, !messages.contains(where: { $0.id == newMessage.id }) {
+                messages.append(newMessage)
+                messages.sort { $0.createdAt < $1.createdAt }
+            }
+
             for handler in handlers.values {
                 handler(messages)
             }
         } catch {
-            // Silently fail - observers get notified on next successful fetch
+            // If fetch fails but we have a new message, at least notify with that
+            if let newMessage = newMessage {
+                for handler in handlers.values {
+                    handler([newMessage])
+                }
+            }
         }
     }
 

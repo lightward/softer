@@ -1,23 +1,23 @@
 import SwiftUI
 
 struct RootView: View {
-    @State private var coordinator = AppCoordinator()
+    @State private var store = SofterStore()
 
     var body: some View {
         Group {
-            switch coordinator.status {
-            case .loading:
+            switch store.syncStatus {
+            case .idle:
                 ProgressView("Connecting to iCloud...")
 
-            case .unavailable(let message):
+            case .error(let message):
                 ContentUnavailableView {
                     Label("iCloud Required", systemImage: "icloud.slash")
                 } description: {
                     Text(message)
                 }
 
-            case .available:
-                RoomListView(coordinator: coordinator)
+            case .syncing, .synced, .offline:
+                RoomListView(store: store)
             }
         }
     }

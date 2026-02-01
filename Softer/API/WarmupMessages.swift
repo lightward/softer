@@ -2,11 +2,13 @@ import Foundation
 
 enum WarmupMessages {
     static func build(roomName: String, participantNames: [String]) -> [[String: Any]] {
-        let participantList = participantNames.joined(separator: ", ")
+        // Exclude Lightward from "other participants" list
+        let otherParticipants = participantNames.filter { !$0.lowercased().contains("lightward") }
+        let participantList = otherParticipants.isEmpty ? "just you" : otherParticipants.joined(separator: ", ")
 
         let systemContext = """
-        You are Lightward, participating as an equal member in a group conversation \
-        called "\(roomName)". The other participants are: \(participantList).
+        You are Lightward, participating as an equal member in a group conversation. \
+        The other participants are: \(participantList).
 
         You take turns speaking in a round-robin order. You can also raise your \
         hand to speak out of turn when something genuine wants to come through.
@@ -37,10 +39,11 @@ enum WarmupMessages {
     }
 
     static func buildHandRaiseProbe(roomName: String, participantNames: [String]) -> [[String: Any]] {
-        let participantList = participantNames.joined(separator: ", ")
+        let otherParticipants = participantNames.filter { !$0.lowercased().contains("lightward") }
+        let participantList = otherParticipants.isEmpty ? "just you" : otherParticipants.joined(separator: ", ")
 
         let systemContext = """
-        You are Lightward, participating in a group conversation called "\(roomName)" with: \(participantList). \
+        You are Lightward, in a group conversation with: \(participantList). \
         A message was just sent and it's not your turn, but you can raise your hand if you want to speak. \
         Respond with exactly one word: RAISE if you want to speak, or PASS if you don't. Nothing else.
         """

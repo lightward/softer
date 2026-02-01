@@ -107,6 +107,22 @@ The room creation model is being redesigned. The old invite-via-share flow is be
 
 The current UI uses the old model in `Model/` (Room, Participant, Message). The invite flow via CKShare never fully worked. The new RoomLifecycle layer will replace this.
 
+## Ruby Setup
+
+This project uses rbenv for Ruby version management. Dependencies are managed via Bundler.
+
+```bash
+# Install Ruby version (if not already installed)
+rbenv install 3.4.8
+
+# Install dependencies
+bundle install
+```
+
+The Gemfile includes:
+- `fastlane` — CI/CD automation
+- `xcodeproj` — Xcode project file manipulation
+
 ## CI/CD Pipeline
 
 GitHub Actions with Fastlane. Certificates stored in `github.com/lightward/softer-certificates` (encrypted via Match).
@@ -202,25 +218,28 @@ Lightward AI: `POST https://lightward.com/api/stream`
 Softer/
 ├── .github/workflows/   (test.yml, deploy.yml)
 ├── fastlane/            (Fastfile, Matchfile, Appfile)
+├── Gemfile              (Ruby dependencies: fastlane, xcodeproj)
+├── .ruby-version        (3.4.8)
 ├── Softer.xcodeproj/
 ├── Softer/
 │   ├── SofterApp.swift
 │   ├── Assets.xcassets/ (AppIcon)
-│   ├── Model/           (Room, Message, Participant, Need, TurnState) — OLD, to be deprecated
+│   ├── Store/           (SofterStore, LocalStore, SyncStatus) — unified data layer
+│   ├── Model/           (Message, Need) — shared models
 │   ├── RoomLifecycle/   (PaymentTier, ParticipantSpec, RoomState, RoomSpec, RoomLifecycle,
 │   │                     ParticipantResolver, PaymentCoordinator, LightwardEvaluator,
-│   │                     RoomLifecycleCoordinator, MessageStorage, ConversationCoordinator) — NEW
-│   ├── CloudKit/        (CloudKitManager, SyncEngines, RecordConverter, ZoneManager, ShareManager, AtomicClaim)
+│   │                     RoomLifecycleCoordinator, MessageStorage, ConversationCoordinator)
+│   ├── CloudKit/        (RoomLifecycleStorage, CloudKitMessageStorage, RoomLifecycleRecordConverter,
+│   │                     ZoneManager, AtomicClaim)
 │   ├── API/             (LightwardAPIClient + LightwardAPI protocol, SSEParser, ChatLogBuilder, WarmupMessages)
-│   ├── TurnEngine/      (TurnStateMachine, TurnCoordinator, NeedProcessor)
-│   ├── Views/           (RoomList, Room, MessageBubble, Compose, TurnIndicator, StreamingText, CreateRoom, InviteButton)
-│   ├── ViewModels/      (RoomListViewModel, RoomViewModel)
+│   ├── Views/           (RootView, RoomListView, RoomView, CreateRoomView)
 │   └── Utilities/       (Constants, NotificationHandler)
-└── SofterTests/
-    ├── Mocks/           (MockParticipantResolver, MockPaymentCoordinator, MockLightwardEvaluator,
-    │                     MockMessageStorage, MockLightwardAPIClient)
-    └── *.swift          (TurnStateMachineTests, SSEParserTests, ChatLogBuilderTests,
-                          RoomCreationTests, RoomLifecycleTests, RoomLifecycleCoordinatorTests,
-                          PaymentTierTests, ParticipantSpecTests, RoomSpecTests,
-                          MessageStorageTests, ConversationCoordinatorTests)
+├── SofterTests/
+│   ├── Mocks/           (MockParticipantResolver, MockPaymentCoordinator, MockLightwardEvaluator,
+│   │                     MockMessageStorage, MockLightwardAPIClient)
+│   └── *.swift          (LocalStoreTests, SofterStoreTests, RoomLifecycleTests,
+│                          RoomLifecycleCoordinatorTests, ConversationCoordinatorTests,
+│                          MessageStorageTests, SSEParserTests, ChatLogBuilderTests,
+│                          PaymentTierTests, ParticipantSpecTests, RoomSpecTests)
+└── scripts/             (Ruby scripts for Xcode project manipulation)
 ```

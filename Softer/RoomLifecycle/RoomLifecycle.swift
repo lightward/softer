@@ -13,6 +13,12 @@ struct RoomLifecycle: Sendable {
         self.modifiedAt = modifiedAt
     }
 
+    /// Creates a copy with the specified turn state. Only valid for active rooms.
+    func withTurnState(_ newTurn: TurnState) -> RoomLifecycle {
+        guard case .active = state else { return self }
+        return RoomLifecycle(spec: spec, state: .active(turn: newTurn), modifiedAt: Date())
+    }
+
     /// Apply an event to the lifecycle, returning any effects that should be executed.
     mutating func apply(event: RoomEvent) -> [RoomEffect] {
         modifiedAt = Date()

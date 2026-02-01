@@ -90,6 +90,24 @@ actor ConversationCoordinator {
         turnState
     }
 
+    /// If it's Lightward's turn, generate their response.
+    /// Call this when entering a room to resume conversation if Lightward was mid-turn.
+    /// If the last message is already from Lightward (stale turn state), just advances the turn.
+    func triggerLightwardIfTheirTurn() async throws {
+        guard isLightwardTurn else { return }
+
+        // Check if last message is already from Lightward (turn state out of sync)
+        let messages = try await messageStorage.fetchMessages(roomID: roomID)
+        if let lastMessage = messages.last, lastMessage.isLightward {
+            // Turn state is stale — Lightward already responded, just advance
+            print("Turn state repair: last message is from Lightward, advancing turn")
+            advanceTurn()
+            return
+        }
+
+        try await generateLightwardResponse()
+    }
+
     // MARK: - Private
 
     private func advanceTurn() {
@@ -104,9 +122,11 @@ actor ConversationCoordinator {
 
         // Build chat log for API
         let participantNames = spec.participants.map { $0.nickname }
+        // Use simple participant list for room context (not the UI display string with depth)
+        let roomContext = participantNames.joined(separator: ", ")
         let chatLog = ChatLogBuilder.build(
             messages: messages,
-            roomName: spec.displayString(depth: messages.count, lastSpeaker: nil),
+            roomName: roomContext,
             participantNames: participantNames
         )
 

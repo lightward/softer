@@ -1,8 +1,9 @@
 import SwiftUI
 
 struct CreateRoomView: View {
-    let coordinator: AppCoordinator
+    let store: SofterStore
     @Binding var isPresented: Bool
+    var onCreated: ((String) -> Void)? = nil
 
     // Form state
     @State private var myNickname = ""
@@ -112,7 +113,7 @@ struct CreateRoomView: View {
     }
 
     private var isFirstRoom: Bool {
-        coordinator.rooms.filter { $0.isActive || $0.isLocked }.isEmpty
+        store.rooms.filter { $0.isActive || $0.isLocked }.isEmpty
     }
 
     private var isValid: Bool {
@@ -157,12 +158,13 @@ struct CreateRoomView: View {
         }
 
         do {
-            _ = try await coordinator.createRoom(
+            let lifecycle = try await store.createRoom(
                 participants: participants,
                 tier: selectedTier,
                 originatorNickname: myNickname
             )
             isPresented = false
+            onCreated?(lifecycle.spec.id)
         } catch let error as RoomLifecycleError {
             errorMessage = describeError(error)
         } catch {

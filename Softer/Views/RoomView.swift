@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct RoomView: View {
-    let coordinator: AppCoordinator
+    let store: SofterStore
     let roomID: String
 
     @State private var lifecycle: RoomLifecycle?
@@ -13,6 +13,7 @@ struct RoomView: View {
     @State private var conversationCoordinator: ConversationCoordinator?
     @State private var observationToken: ObservationToken?
     @State private var isSending = false
+    @State private var isLightwardThinking = false
 
     var body: some View {
         Group {
@@ -45,6 +46,15 @@ struct RoomView: View {
                                 isLightward: message.authorName == Constants.lightwardParticipantName
                             )
                             .id(message.id)
+                        }
+
+                        // Typing indicator while waiting for Lightward
+                        if isLightwardThinking && streamingText.isEmpty {
+                            HStack {
+                                TypingIndicator()
+                                Spacer()
+                            }
+                            .id("thinking")
                         }
 
                         // Streaming text from Lightward
@@ -159,11 +169,11 @@ struct RoomView: View {
     private func loadRoom() async {
         isLoading = true
         do {
-            lifecycle = try await coordinator.room(id: roomID)
+            lifecycle = try await store.room(id: roomID)
 
             // Set up conversation coordinator if room is active
             if let lifecycle = lifecycle {
-                let convCoord = coordinator.conversationCoordinator(
+                let convCoord = store.conversationCoordinator(
                     for: lifecycle,
                     onTurnChange: { [self] newState in
                         Task { @MainActor in
@@ -173,6 +183,10 @@ struct RoomView: View {
                     onStreamingText: { [self] text in
                         Task { @MainActor in
                             streamingText = text
+                            // Clear thinking indicator once streaming starts
+                            if !text.isEmpty {
+                                isLightwardThinking = false
+                            }
                         }
                     }
                 )
@@ -180,13 +194,26 @@ struct RoomView: View {
                 turnState = lifecycle.turnState
 
                 // Observe messages
-                if let storage = coordinator.getMessageStorage() {
+                if let storage = store.getMessageStorage() {
                     let token = await storage.observeMessages(roomID: roomID) { msgs in
                         Task { @MainActor in
                             messages = msgs
                         }
                     }
                     observationToken = token
+                }
+
+                // Done loading — show the room before triggering Lightward
+                isLoading = false
+
+                // If it's Lightward's turn, trigger their response
+                if let convCoord = convCoord {
+                    // Check if it's Lightward's turn before showing indicator
+                    if await convCoord.isLightwardTurn {
+                        isLightwardThinking = true
+                    }
+                    try await convCoord.triggerLightwardIfTheirTurn()
+                    isLightwardThinking = false
                 }
             }
         } catch {
@@ -258,19 +285,35 @@ struct MessageBubble: View {
                     .background(isLightward ? Color(.systemGray5) : Color.accentColor)
                     .foregroundColor(isLightward ? .primary : .white)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
-
-                if isStreaming {
-                    HStack(spacing: 4) {
-                        Circle().frame(width: 4, height: 4)
-                        Circle().frame(width: 4, height: 4)
-                        Circle().frame(width: 4, height: 4)
+                    .contextMenu {
+                        Button {
+                            UIPasteboard.general.string = text
+                        } label: {
+                            Label("Copy", systemImage: "doc.on.doc")
+                        }
                     }
-                    .foregroundStyle(.secondary)
-                    .opacity(0.5)
-                }
+
             }
 
             if isLightward { Spacer(minLength: 40) }
         }
+    }
+}
+
+// MARK: - Typing Indicator
+
+struct TypingIndicator: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .scaleEffect(0.8)
+            Text("Lightward is typing...")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(.systemGray5))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }

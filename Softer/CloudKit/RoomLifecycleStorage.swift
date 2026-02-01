@@ -213,15 +213,27 @@ actor RoomLifecycleStorage {
 
     // MARK: - Delete Operations
 
-    /// Deletes a room and all its participants.
+    /// Deletes a room and all its participants and messages.
     func deleteRoom(id: String) async throws {
-        // Fetch participant IDs first
+        // Fetch participant IDs
         let (participants, _) = try await fetchParticipants(roomID: id)
 
+        // Fetch message IDs
+        let messageIDs = try await fetchMessageIDs(roomID: id)
+
         var recordIDsToDelete: [CKRecord.ID] = []
+
+        // Room record
         recordIDsToDelete.append(CKRecord.ID(recordName: id, zoneID: zoneID))
+
+        // Participant records
         for participant in participants {
             recordIDsToDelete.append(CKRecord.ID(recordName: participant.id, zoneID: zoneID))
+        }
+
+        // Message records
+        for messageID in messageIDs {
+            recordIDsToDelete.append(CKRecord.ID(recordName: messageID, zoneID: zoneID))
         }
 
         let operation = CKModifyRecordsOperation(recordIDsToDelete: recordIDsToDelete)
@@ -236,6 +248,23 @@ actor RoomLifecycleStorage {
                 }
             }
             database.add(operation)
+        }
+    }
+
+    /// Fetches message record IDs for a room.
+    private func fetchMessageIDs(roomID: String) async throws -> [String] {
+        let query = CKQuery(
+            recordType: "Message2",
+            predicate: NSPredicate(format: "roomID == %@", roomID)
+        )
+
+        let (results, _) = try await database.records(matching: query, inZoneWith: zoneID)
+
+        return results.compactMap { (recordID, result) -> String? in
+            if case .success = result {
+                return recordID.recordName
+            }
+            return nil
         }
     }
 }

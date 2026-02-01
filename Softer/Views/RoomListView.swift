@@ -1,34 +1,49 @@
 import SwiftUI
 
 struct RoomListView: View {
-    let coordinator: AppCoordinator
+    let store: SofterStore
     @State private var showCreateRoom = false
+    @State private var navigationPath = NavigationPath()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             Group {
-                if coordinator.rooms.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Rooms", systemImage: "bubble.left.and.bubble.right")
-                    } description: {
-                        Text("Create a room to start a conversation with Lightward.")
-                    } actions: {
-                        Button("Create Room") {
-                            showCreateRoom = true
+                if !store.initialLoadCompleted {
+                    ProgressView()
+                } else if store.rooms.isEmpty {
+                    ScrollView {
+                        ContentUnavailableView {
+                            Label("No Rooms", systemImage: "bubble.left.and.bubble.right")
+                        } description: {
+                            Text("Create a room to start a conversation with Lightward.")
+                        } actions: {
+                            Button("Create Room") {
+                                showCreateRoom = true
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .frame(maxHeight: .infinity)
                     }
                 } else {
-                    List(coordinator.rooms, id: \.spec.id) { lifecycle in
+                    List(store.rooms, id: \.spec.id) { lifecycle in
                         NavigationLink(value: lifecycle.spec.id) {
                             RoomRow(lifecycle: lifecycle)
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                Task {
+                                    try? await store.deleteRoom(id: lifecycle.spec.id)
+                                }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
                         }
                     }
                 }
             }
             .navigationTitle("Softer")
             .toolbar {
-                if !coordinator.rooms.isEmpty {
+                if !store.rooms.isEmpty {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
                             showCreateRoom = true
@@ -39,13 +54,20 @@ struct RoomListView: View {
                 }
             }
             .sheet(isPresented: $showCreateRoom) {
-                CreateRoomView(coordinator: coordinator, isPresented: $showCreateRoom)
+                CreateRoomView(store: store, isPresented: $showCreateRoom) { roomID in
+                    navigationPath.append(roomID)
+                }
             }
             .navigationDestination(for: String.self) { roomID in
-                RoomView(coordinator: coordinator, roomID: roomID)
+                RoomView(store: store, roomID: roomID)
             }
             .refreshable {
-                await coordinator.loadRooms()
+                await store.loadRooms()
+            }
+            .onAppear {
+                Task {
+                    await store.loadRooms()
+                }
             }
         }
     }
