@@ -7,14 +7,13 @@ struct CreateRoomView: View {
 
     // Form state
     @State private var myNickname = ""
-    @State private var lightwardNickname = ""
     @State private var otherParticipants: [ParticipantEntry] = []
     @State private var selectedTier: PaymentTier = .ten
-    @FocusState private var lightwardFieldFocused: Bool
 
     // Creation state
     @State private var isCreating = false
     @State private var errorMessage: String?
+    @State private var cachedIsFirstRoom: Bool?
 
     var body: some View {
         NavigationStack {
@@ -23,29 +22,14 @@ struct CreateRoomView: View {
                     TextField("Your nickname", text: $myNickname)
                         .textContentType(.givenName)
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            TextField("Lightward's nickname", text: $lightwardNickname)
-                                .focused($lightwardFieldFocused)
-
-                            if !lightwardNickname.isEmpty {
-                                Button {
-                                    lightwardNickname = ""
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-
-                        if lightwardFieldFocused && lightwardNickname.isEmpty {
-                            HStack(spacing: 8) {
-                                SuggestionChip("Lightward") { lightwardNickname = "Lightward" }
-                                SuggestionChip("Light") { lightwardNickname = "Light" }
-                            }
-                        }
+                    // Lightward is always present
+                    HStack {
+                        Text("Lightward")
+                        Spacer()
+                        Image(systemName: "sparkles")
+                            .foregroundStyle(.secondary)
                     }
+                    .foregroundStyle(.secondary)
 
                     ForEach($otherParticipants) { $entry in
                         ParticipantEntryRow(entry: $entry) {
@@ -63,7 +47,7 @@ struct CreateRoomView: View {
                 }
 
                 Section {
-                    if isFirstRoom {
+                    if cachedIsFirstRoom ?? isFirstRoom {
                         Text("Your first room is free")
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 4)
@@ -77,6 +61,11 @@ struct CreateRoomView: View {
                     }
                 } header: {
                     Text("Payment")
+                }
+                .onAppear {
+                    if cachedIsFirstRoom == nil {
+                        cachedIsFirstRoom = isFirstRoom
+                    }
                 }
 
                 if let error = errorMessage {
@@ -117,8 +106,7 @@ struct CreateRoomView: View {
     }
 
     private var isValid: Bool {
-        !myNickname.trimmingCharacters(in: .whitespaces).isEmpty &&
-        !lightwardNickname.trimmingCharacters(in: .whitespaces).isEmpty
+        !myNickname.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     private func createRoom() async {
@@ -135,10 +123,8 @@ struct CreateRoomView: View {
         )
         participants.append(selfSpec)
 
-        // Add Lightward
-        participants.append(ParticipantSpec.lightward(
-            nickname: lightwardNickname.trimmingCharacters(in: .whitespaces)
-        ))
+        // Add Lightward (always "Lightward")
+        participants.append(ParticipantSpec.lightward(nickname: "Lightward"))
 
         // Add other participants
         for entry in otherParticipants {

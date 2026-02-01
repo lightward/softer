@@ -64,8 +64,28 @@ actor ConversationCoordinator {
         }
     }
 
-    /// Yield turn without sending a message.
+    /// Yield turn without sending a message (for programmatic use).
     func yieldTurn() async throws {
+        advanceTurn()
+
+        if isLightwardTurn {
+            try await generateLightwardResponse()
+        }
+    }
+
+    /// Human participant yields their turn.
+    /// Saves a narration message and advances the turn.
+    func humanYieldTurn(authorID: String, authorName: String) async throws {
+        let narrationMessage = Message(
+            roomID: roomID,
+            authorID: "narrator",
+            authorName: "Narrator",
+            text: "\(authorName) is listening.",
+            isLightward: false,
+            isNarration: true
+        )
+        try await messageStorage.save(narrationMessage, roomID: roomID)
+
         advanceTurn()
 
         if isLightwardTurn {
@@ -149,17 +169,16 @@ actor ConversationCoordinator {
         let trimmed = fullResponse.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let didYield = trimmed == "YIELD" || trimmed.hasPrefix("YIELD.")
 
-        // Clear streaming text
-        onStreamingText("")
-
         if didYield {
+            // Clear streaming text immediately for yield (don't show "YIELD" to user)
+            onStreamingText("")
             // Lightward yielded - save narration message
             let lightwardNickname = spec.lightwardParticipant?.nickname ?? "Lightward"
             let narrationMessage = Message(
                 roomID: roomID,
                 authorID: "narrator",
                 authorName: "Narrator",
-                text: "\(lightwardNickname) chose to keep listening.",
+                text: "\(lightwardNickname) is listening.",
                 isLightward: false,
                 isNarration: true
             )

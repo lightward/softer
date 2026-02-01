@@ -193,6 +193,32 @@ final class SofterStore {
         await localStore.upsertRoom(lifecycle)
         rooms = await localStore.allRooms
 
+        // Save opening narration
+        let originatorName = spec.participants.first { $0.id == spec.originatorID }?.nickname ?? "Someone"
+        let narrationText: String
+        if spec.isFirstRoom {
+            narrationText = "\(originatorName) opened their first room."
+        } else {
+            narrationText = "\(originatorName) opened the room with \(spec.tier.displayString)."
+        }
+
+        let openingMessage = Message(
+            roomID: lifecycle.spec.id,
+            authorID: "narrator",
+            authorName: "Narrator",
+            text: narrationText,
+            isLightward: false,
+            isNarration: true
+        )
+
+        // Add to local store immediately so it's visible right away
+        await localStore.addMessage(openingMessage)
+
+        // Also persist to CloudKit
+        if let messageStorage = messageStorage {
+            try await messageStorage.save(openingMessage, roomID: lifecycle.spec.id)
+        }
+
         return lifecycle
     }
 
@@ -227,13 +253,25 @@ final class SofterStore {
     // MARK: - Public API: Messages
 
     /// Fetches messages for a room.
+    /// Returns local messages immediately merged with remote, so locally-created messages appear right away.
     func fetchMessages(roomID: String) async throws -> [Message] {
+        // Get any local messages first (e.g., opening narration just created)
+        let localMessages = await localStore.messages(roomID: roomID)
+
         guard let messageStorage = messageStorage else {
-            throw StoreError.notConfigured
+            return localMessages
         }
-        let messages = try await messageStorage.fetchMessages(roomID: roomID)
-        await localStore.setMessages(messages, roomID: roomID)
-        return messages
+
+        // Fetch from CloudKit
+        let remoteMessages = try await messageStorage.fetchMessages(roomID: roomID)
+
+        // Merge: use remote as base, add any local messages not in remote
+        let remoteIDs = Set(remoteMessages.map { $0.id })
+        let uniqueLocalMessages = localMessages.filter { !remoteIDs.contains($0.id) }
+        let merged = (remoteMessages + uniqueLocalMessages).sorted { $0.createdAt < $1.createdAt }
+
+        await localStore.setMessages(merged, roomID: roomID)
+        return merged
     }
 
     /// Observes messages for a room.
@@ -297,11 +335,17 @@ final class SofterStore {
             }
         }
 
+        // Create a wrapper that updates both local and remote
+        let localAwareStorage = LocalAwareMessageStorage(
+            localStore: localStore,
+            cloudKitStorage: messageStorage
+        )
+
         return ConversationCoordinator(
             roomID: lifecycle.spec.id,
             spec: lifecycle.spec,
             initialTurnState: turnState,
-            messageStorage: messageStorage,
+            messageStorage: localAwareStorage,
             apiClient: apiClient,
             onTurnChange: wrappedOnTurnChange,
             onStreamingText: onStreamingText
@@ -311,6 +355,62 @@ final class SofterStore {
     /// Returns the message storage (for backward compatibility during migration).
     func getMessageStorage() -> CloudKitMessageStorage? {
         messageStorage
+    }
+
+    /// Merges remote messages with local-only messages.
+    /// Used by observation callbacks to preserve locally-created messages.
+    func mergeMessages(remote: [Message], roomID: String) async -> [Message] {
+        let localMessages = await localStore.messages(roomID: roomID)
+        let remoteIDs = Set(remote.map { $0.id })
+        let uniqueLocalMessages = localMessages.filter { !remoteIDs.contains($0.id) }
+        let merged = (remote + uniqueLocalMessages).sorted { $0.createdAt < $1.createdAt }
+        await localStore.setMessages(merged, roomID: roomID)
+        return merged
+    }
+}
+
+// MARK: - Local-Aware Message Storage
+
+/// Wrapper that updates LocalStore immediately when messages are saved,
+/// ensuring UI consistency before CloudKit sync completes.
+private final class LocalAwareMessageStorage: MessageStorage, @unchecked Sendable {
+    private let localStore: LocalStore
+    private let cloudKitStorage: CloudKitMessageStorage
+
+    init(localStore: LocalStore, cloudKitStorage: CloudKitMessageStorage) {
+        self.localStore = localStore
+        self.cloudKitStorage = cloudKitStorage
+    }
+
+    func save(_ message: Message, roomID: String) async throws {
+        // Update local store immediately for instant UI update
+        await localStore.addMessage(message)
+
+        // Then persist to CloudKit
+        try await cloudKitStorage.save(message, roomID: roomID)
+    }
+
+    func fetchMessages(roomID: String) async throws -> [Message] {
+        // Get local messages first
+        let localMessages = await localStore.messages(roomID: roomID)
+
+        // Fetch from CloudKit
+        let remoteMessages = try await cloudKitStorage.fetchMessages(roomID: roomID)
+
+        // Merge: remote as base, add unique local messages
+        let remoteIDs = Set(remoteMessages.map { $0.id })
+        let uniqueLocalMessages = localMessages.filter { !remoteIDs.contains($0.id) }
+        let merged = (remoteMessages + uniqueLocalMessages).sorted { $0.createdAt < $1.createdAt }
+
+        // Update local store with merged result
+        await localStore.setMessages(merged, roomID: roomID)
+
+        return merged
+    }
+
+    func observeMessages(roomID: String, handler: @escaping @Sendable ([Message]) -> Void) async -> ObservationToken {
+        // Delegate to CloudKit storage for observation
+        await cloudKitStorage.observeMessages(roomID: roomID, handler: handler)
     }
 }
 

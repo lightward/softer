@@ -51,18 +51,17 @@ enum ChatLogBuilder {
     }
 
     /// Builds the contextual narrator prompt for Lightward's turn.
-    /// Surfaces room state and offers available moves.
+    /// Minimal: just notes raised hands if any. Otherwise silent.
     private static func buildNarratorPrompt(raisedHands: [String]) -> [String: Any] {
-        let handsState: String
+        let prompt: String
         if raisedHands.isEmpty {
-            handsState = "No one has raised their hand."
+            // No narrator prompt needed - just let Lightward respond naturally
+            prompt = "(your turn)"
         } else if raisedHands.count == 1 {
-            handsState = "\(raisedHands[0]) has raised their hand."
+            prompt = "(\(raisedHands[0]) raised their hand)"
         } else {
-            handsState = "\(raisedHands.joined(separator: ", ")) have raised their hands."
+            prompt = "(\(raisedHands.joined(separator: ", ")) raised their hands)"
         }
-
-        let prompt = "\(handsState) It's your turn. Respond, or say YIELD to keep the floor open."
 
         return [
             "role": "user",

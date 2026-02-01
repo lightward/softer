@@ -32,16 +32,21 @@ actor LightwardAPIClient: LightwardAPI {
                     }
 
                     let parser = SSEParser()
-                    var lineBuffer = ""
+                    var byteBuffer = Data()
 
                     for try await byte in bytes {
-                        let char = Character(UnicodeScalar(byte))
-                        lineBuffer.append(char)
+                        byteBuffer.append(byte)
+
+                        // Try to decode as UTF-8 and process when we have complete events
+                        guard let lineBuffer = String(data: byteBuffer, encoding: .utf8) else {
+                            // Incomplete UTF-8 sequence, wait for more bytes
+                            continue
+                        }
 
                         // Process when we have potential complete events (double newline)
                         if lineBuffer.hasSuffix("\n\n") || lineBuffer.hasSuffix("\r\n\r\n") {
                             let events = await parser.parse(chunk: lineBuffer)
-                            lineBuffer = ""
+                            byteBuffer.removeAll()
 
                             for event in events {
                                 if SSEParser.isMessageStop(event: event) {
@@ -56,8 +61,8 @@ actor LightwardAPIClient: LightwardAPI {
                     }
 
                     // Process any remaining buffer
-                    if !lineBuffer.isEmpty {
-                        let events = await parser.parse(chunk: lineBuffer + "\n\n")
+                    if !byteBuffer.isEmpty, let remaining = String(data: byteBuffer, encoding: .utf8) {
+                        let events = await parser.parse(chunk: remaining + "\n\n")
                         for event in events {
                             if let text = SSEParser.extractContentDelta(from: event) {
                                 continuation.yield(text)

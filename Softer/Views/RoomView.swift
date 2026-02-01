@@ -14,6 +14,7 @@ struct RoomView: View {
     @State private var observationToken: ObservationToken?
     @State private var isSending = false
     @State private var isLightwardThinking = false
+    @State private var showYieldConfirmation = false
 
     var body: some View {
         Group {
@@ -39,7 +40,7 @@ struct RoomView: View {
             // Messages
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 12) {
+                    LazyVStack(alignment: .leading, spacing: 12) {
                         ForEach(messages) { message in
                             MessageBubble(
                                 message: message,
@@ -69,7 +70,10 @@ struct RoomView: View {
                         }
                     }
                     .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .scrollBounceBehavior(.basedOnSize)
+                .defaultScrollAnchor(.bottom)
                 .onChange(of: messages.count) {
                     if let last = messages.last {
                         withAnimation {
@@ -84,6 +88,7 @@ struct RoomView: View {
                         }
                     }
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
 
             Divider()
@@ -95,45 +100,124 @@ struct RoomView: View {
                 lockedBanner(lifecycle: lifecycle)
             }
         }
-        .navigationTitle(navigationTitle(for: lifecycle))
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                navigationTitleView(lifecycle: lifecycle)
+            }
+        }
     }
 
-    private func navigationTitle(for lifecycle: RoomLifecycle) -> String {
-        lifecycle.spec.participants.map { $0.nickname }.joined(separator: ", ")
+    @ViewBuilder
+    private func navigationTitleView(lifecycle: RoomLifecycle) -> some View {
+        let currentIndex = turnState?.currentTurnIndex ?? 0
+        let participants = lifecycle.spec.participants
+
+        HStack(spacing: 0) {
+            ForEach(Array(participants.enumerated()), id: \.element.id) { index, participant in
+                if index > 0 {
+                    Text(", ")
+                        .foregroundStyle(.secondary)
+                }
+                let isCurrent = index == currentIndex % participants.count
+                HStack(spacing: 3) {
+                    if isCurrent {
+                        Circle()
+                            .fill(Color.accentColor)
+                            .frame(width: 6, height: 6)
+                    }
+                    Text(participant.nickname)
+                        .foregroundStyle(isCurrent ? .primary : .secondary)
+                }
+            }
+        }
+        .font(.headline)
     }
 
     @ViewBuilder
     private func composeArea(lifecycle: RoomLifecycle) -> some View {
-        VStack(spacing: 8) {
-            // Turn indicator
-            if let turnIdx = turnState?.currentTurnIndex,
-               turnIdx < lifecycle.spec.participants.count {
-                let current = lifecycle.spec.participants[turnIdx]
-                Text("\(current.nickname)'s turn")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        let myTurn = isMyTurn(lifecycle: lifecycle)
+
+        HStack(alignment: .bottom, spacing: 8) {
+            // Hand raise toggle (always visible, disabled when your turn)
+            let isHandRaised = isMyHandRaised(lifecycle: lifecycle)
+            Button {
+                Task {
+                    await toggleHandRaise(lifecycle: lifecycle, currentlyRaised: isHandRaised)
+                }
+            } label: {
+                Image(systemName: isHandRaised ? "hand.raised.fill" : "hand.raised")
+                    .font(.system(size: 20))
+                    .foregroundStyle(isHandRaised ? Color.accentColor : (myTurn ? Color(.systemGray4) : .secondary))
+                    .frame(width: 36, height: 36)
             }
+            .disabled(myTurn || isSending)
 
-            HStack(spacing: 12) {
+            // Text field with embedded buttons
+            HStack(alignment: .bottom, spacing: 0) {
                 TextField("Message...", text: $composeText, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(1...5)
-                    .disabled(!isMyTurn(lifecycle: lifecycle) || isSending)
+                    .textFieldStyle(.plain)
+                    .padding(.leading, 14)
+                    .padding(.vertical, 10)
+                    .lineLimit(1...6)
 
+                // Send button inside the pill
                 Button {
                     Task {
                         await sendMessage(lifecycle: lifecycle)
                     }
                 } label: {
-                    Image(systemName: isSending ? "ellipsis.circle" : "arrow.up.circle.fill")
-                        .font(.title2)
+                    Image(systemName: isSending ? "ellipsis.circle.fill" : "arrow.up.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(canSend(myTurn: myTurn) ? Color.accentColor : Color(.systemGray4))
                 }
-                .disabled(composeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !isMyTurn(lifecycle: lifecycle) || isSending)
+                .disabled(!canSend(myTurn: myTurn))
+                .padding(.bottom, 4)
+
+                // Pass button inside the pill (only when it's your turn)
+                if myTurn && !isSending {
+                    Button {
+                        showYieldConfirmation = true
+                    } label: {
+                        Text("Pass")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.accentColor)
+                            .clipShape(Capsule())
+                    }
+                    .padding(.trailing, 4)
+                    .padding(.bottom, 4)
+                }
             }
-            .padding()
+            .background(Color(.systemGray6))
+            .clipShape(RoundedRectangle(cornerRadius: 22))
         }
-        .background(.bar)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .onChange(of: composeText) { _, newValue in
+            saveDraft(newValue)
+        }
+        .alert("Pass?", isPresented: $showYieldConfirmation) {
+            Button("Pass") {
+                Task {
+                    await yieldTurn(lifecycle: lifecycle)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Skip your turn. Others will see that you're listening.")
+        }
+    }
+
+    private func currentTurnParticipant(lifecycle: RoomLifecycle) -> ParticipantSpec? {
+        guard let turnIdx = turnState?.currentTurnIndex,
+              turnIdx < lifecycle.spec.participants.count else { return nil }
+        return lifecycle.spec.participants[turnIdx]
+    }
+
+    private func canSend(myTurn: Bool) -> Bool {
+        myTurn && !isSending && !composeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     @ViewBuilder
@@ -170,6 +254,7 @@ struct RoomView: View {
         isLoading = true
         do {
             lifecycle = try await store.room(id: roomID)
+            loadDraft()
 
             // Set up conversation coordinator if room is active
             if let lifecycle = lifecycle {
@@ -201,11 +286,26 @@ struct RoomView: View {
                 conversationCoordinator = convCoord
                 turnState = lifecycle.turnState
 
-                // Observe messages
+                // Fetch initial messages (merges local + remote), then observe
+                messages = try await store.fetchMessages(roomID: roomID)
+
                 if let storage = store.getMessageStorage() {
-                    let token = await storage.observeMessages(roomID: roomID) { msgs in
-                        Task { @MainActor in
-                            messages = msgs
+                    let token = await storage.observeMessages(roomID: roomID) { remoteMessages in
+                        Task { @MainActor [self] in
+                            // Merge remote with any local-only messages
+                            let merged = await self.store.mergeMessages(
+                                remote: remoteMessages,
+                                roomID: self.roomID
+                            )
+
+                            // Only clear streaming if the new message is in the array
+                            if !self.streamingText.isEmpty {
+                                let streamingContent = self.streamingText
+                                if merged.contains(where: { $0.text == streamingContent }) {
+                                    self.streamingText = ""
+                                }
+                            }
+                            self.messages = merged
                         }
                     }
                     observationToken = token
@@ -215,13 +315,19 @@ struct RoomView: View {
                 isLoading = false
 
                 // If it's Lightward's turn, trigger their response
+                // Only show typing indicator if Lightward hasn't already responded
                 if let convCoord = convCoord {
-                    // Check if it's Lightward's turn before showing indicator
-                    if await convCoord.isLightwardTurn {
+                    let isLightwardNext = await convCoord.isLightwardTurn
+                    let lastMessageIsLightward = messages.last?.isLightward ?? false
+
+                    if isLightwardNext && !lastMessageIsLightward {
                         isLightwardThinking = true
+                        try await convCoord.triggerLightwardIfTheirTurn()
+                        isLightwardThinking = false
+                    } else if isLightwardNext && lastMessageIsLightward {
+                        // Turn state is stale, repair it
+                        try await convCoord.triggerLightwardIfTheirTurn()
                     }
-                    try await convCoord.triggerLightwardIfTheirTurn()
-                    isLightwardThinking = false
                 }
             }
         } catch {
@@ -240,6 +346,7 @@ struct RoomView: View {
         let authorID = lifecycle.spec.humanParticipants.first?.id ?? "unknown"
 
         composeText = ""
+        clearDraft()
         isSending = true
 
         do {
@@ -254,6 +361,84 @@ struct RoomView: View {
 
         isSending = false
     }
+
+    private func yieldTurn(lifecycle: RoomLifecycle) async {
+        guard let convCoord = conversationCoordinator else { return }
+
+        let authorName = lifecycle.spec.humanParticipants.first?.nickname ?? "Me"
+        let authorID = lifecycle.spec.humanParticipants.first?.id ?? "unknown"
+
+        isSending = true
+
+        do {
+            try await convCoord.humanYieldTurn(
+                authorID: authorID,
+                authorName: authorName
+            )
+        } catch {
+            print("Failed to yield turn: \(error)")
+        }
+
+        isSending = false
+    }
+
+    private func isMyHandRaised(lifecycle: RoomLifecycle) -> Bool {
+        guard let myID = lifecycle.spec.humanParticipants.first?.id else { return false }
+        return turnState?.raisedHands.contains(myID) ?? false
+    }
+
+    private func toggleHandRaise(lifecycle: RoomLifecycle, currentlyRaised: Bool) async {
+        guard let convCoord = conversationCoordinator else { return }
+
+        let authorName = lifecycle.spec.humanParticipants.first?.nickname ?? "Me"
+        let authorID = lifecycle.spec.humanParticipants.first?.id ?? "unknown"
+
+        if currentlyRaised {
+            await convCoord.lowerHand(participantID: authorID)
+            // Save narration via store (updates local + remote)
+            let narration = Message(
+                roomID: roomID,
+                authorID: "narrator",
+                authorName: "Narrator",
+                text: "\(authorName) lowered their hand.",
+                isLightward: false,
+                isNarration: true
+            )
+            try? await store.saveMessage(narration)
+        } else {
+            await convCoord.raiseHand(participantID: authorID)
+            // Save narration via store (updates local + remote)
+            let narration = Message(
+                roomID: roomID,
+                authorID: "narrator",
+                authorName: "Narrator",
+                text: "\(authorName) raised their hand.",
+                isLightward: false,
+                isNarration: true
+            )
+            try? await store.saveMessage(narration)
+        }
+    }
+
+    // MARK: - Draft Persistence
+
+    private var draftKey: String { "draft_\(roomID)" }
+
+    private func saveDraft(_ text: String) {
+        if text.isEmpty {
+            UserDefaults.standard.removeObject(forKey: draftKey)
+        } else {
+            UserDefaults.standard.set(text, forKey: draftKey)
+        }
+    }
+
+    private func loadDraft() {
+        composeText = UserDefaults.standard.string(forKey: draftKey) ?? ""
+    }
+
+    private func clearDraft() {
+        UserDefaults.standard.removeObject(forKey: draftKey)
+    }
 }
 
 // MARK: - Message Bubble
@@ -262,23 +447,44 @@ struct MessageBubble: View {
     let text: String
     let authorName: String
     let isLightward: Bool
+    let isNarration: Bool
     var isStreaming: Bool = false
 
     init(message: Message, isLightward: Bool) {
         self.text = message.text
         self.authorName = message.authorName
         self.isLightward = isLightward
+        self.isNarration = message.isNarration
         self.isStreaming = false
     }
 
-    init(text: String, authorName: String, isLightward: Bool, isStreaming: Bool = false) {
+    init(text: String, authorName: String, isLightward: Bool, isNarration: Bool = false, isStreaming: Bool = false) {
         self.text = text
         self.authorName = authorName
         self.isLightward = isLightward
+        self.isNarration = isNarration
         self.isStreaming = isStreaming
     }
 
     var body: some View {
+        if isNarration {
+            narrationView
+        } else {
+            bubbleView
+        }
+    }
+
+    private var narrationView: some View {
+        Text(text)
+            .font(.subheadline)
+            .italic()
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+    }
+
+    private var bubbleView: some View {
         HStack {
             if !isLightward { Spacer(minLength: 40) }
 

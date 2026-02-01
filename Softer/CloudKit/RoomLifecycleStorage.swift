@@ -23,12 +23,13 @@ actor RoomLifecycleStorage {
         let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
 
         var participantRecords: [CKRecord] = []
-        for resolved in resolvedParticipants {
+        for (index, resolved) in resolvedParticipants.enumerated() {
             let record = RoomLifecycleRecordConverter.record(
                 from: resolved.spec,
                 roomID: lifecycle.spec.id,
                 userRecordID: resolved.userRecordID,
                 hasSignaledHere: false,
+                orderIndex: index,
                 zoneID: zoneID
             )
             participantRecords.append(record)
@@ -194,19 +195,23 @@ actor RoomLifecycleStorage {
 
         let (results, _) = try await database.records(matching: query, inZoneWith: zoneID)
 
-        var participants: [ParticipantSpec] = []
+        var participantsWithOrder: [(spec: ParticipantSpec, order: Int)] = []
         var signaledIDs: Set<String> = []
 
         for (_, result) in results {
             if case .success(let record) = result {
                 if let spec = RoomLifecycleRecordConverter.participantSpec(from: record) {
-                    participants.append(spec)
+                    let order = RoomLifecycleRecordConverter.orderIndex(from: record)
+                    participantsWithOrder.append((spec, order))
                     if RoomLifecycleRecordConverter.hasSignaledHere(from: record) {
                         signaledIDs.insert(spec.id)
                     }
                 }
             }
         }
+
+        // Sort by orderIndex to preserve original creation order
+        let participants = participantsWithOrder.sorted { $0.order < $1.order }.map { $0.spec }
 
         return (participants, signaledIDs)
     }

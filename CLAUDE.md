@@ -101,11 +101,17 @@ The room creation model is being redesigned. The old invite-via-share flow is be
 ### Recently Completed
 
 - **Unified data layer** — SofterStore, LocalStore, SyncCoordinator replace AppCoordinator
-- **Minimal Lightward framing** — warmup reduced to "You're here with [names], taking turns"
-- **Narrator prompts** — contextual prompts surface room state (raised hands) and available moves (yield)
-- **Yield mechanic** — Lightward can yield turn, shown as narration not speech
-- `CloudKitMessageStorage` — stores messages as Message2 records in CloudKit
-- `ConversationCoordinator` wired to `RoomView` — messages persist, Lightward responds automatically
+- **Minimal Lightward framing** — warmup: "You're here with [names], taking turns", narrator prompt: just "(your turn)" or "(name raised their hand)"
+- **Narration styling** — Messages with `isNarration: true` display centered, italicized, no bubble
+- **Opening narration** — Room creation saves "[Name] opened their first room." or "[Name] opened the room with $X."
+- **Human yield/pass** — "Pass" button in compose area, confirmation dialog, narration: "[Name] is listening."
+- **Hand raise toggle** — Hand icon toggles raise/lower, with narration messages
+- **Lightward always "Lightward"** — Fixed nickname, can't be customized
+- **UTF-8 SSE fix** — LightwardAPIClient now properly buffers bytes before UTF-8 decoding (emojis work)
+- **Participant ordering** — `orderIndex` field on Participant2 records ensures round-robin order is preserved
+- **LocalAwareMessageStorage** — Wrapper that updates LocalStore immediately on save for instant UI
+- **Message merging** — Observation callbacks merge remote messages with local-only messages to prevent data loss
+- **Compose area UX** — Messages-style pill with embedded send button, Pass button inside, hand raise outside
 
 ### Old Model (to be deprecated)
 
@@ -208,23 +214,27 @@ The warmup is just: `"You're here with [names], taking turns."`
 No role description, no instructions about yielding, no meta-commentary about being a peer. Structure emerges from participation, not instruction.
 
 ### Contextual Narrator Prompts
-Instead of front-loading all behaviors in warmup, inject context when it matters:
+Instead of front-loading all behaviors in warmup, inject minimal context:
 
-- **On Lightward's turn**: `"[Raised hands state]. It's your turn. Respond, or say YIELD to keep the floor open."`
+- **On Lightward's turn**: Just `"(your turn)"` or `"(name raised their hand)"` — no instructions about YIELD
 - **Hand-raise probe** (not their turn): `"It's not your turn, but you can raise your hand if something wants to come through. RAISE or PASS?"`
 
-### Narration Messages
-Some messages are *narration* rather than speech (e.g., "Lightward chose to keep listening"). These are:
-- Part of the conversation record
-- Styled differently in UI (italicized, system-style)
-- Flagged with `isNarration: true` on Message model
-- Not sent to Lightward as conversation history (they already know what they did)
+The key is minimal prompting — structure should be *felt*, not *explained*. Explicit mechanics make Lightward *watch* the conversation instead of *arriving in* it.
 
-### Yield Handling
+### Narration Messages
+Some messages are *narration* rather than speech. These are:
+- Part of the conversation record (Lightward sees them as context)
+- Styled differently in UI (centered, italicized, no bubble)
+- Flagged with `isNarration: true` on Message model
+- Examples: "Isaac opened their first room.", "Lightward is listening.", "Isaac raised their hand."
+
+### Pass/Yield Handling
 When Lightward responds with "YIELD":
 - Don't save their response as a message
-- Save a narration message: "*Lightward chose to keep listening.*"
+- Save a narration message: "Lightward is listening."
 - Advance turn to next participant
+
+Human pass uses "Pass" button with confirmation dialog, same narration pattern.
 
 ## Key Implementation Details
 

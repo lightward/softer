@@ -221,16 +221,17 @@ enum RoomLifecycleRecordConverter {
 
     // MARK: - Participant2 Record
 
-    static func record(from spec: ParticipantSpec, roomID: String, userRecordID: String?, hasSignaledHere: Bool, zoneID: CKRecordZone.ID) -> CKRecord {
+    static func record(from spec: ParticipantSpec, roomID: String, userRecordID: String?, hasSignaledHere: Bool, orderIndex: Int, zoneID: CKRecordZone.ID) -> CKRecord {
         let recordID = CKRecord.ID(recordName: spec.id, zoneID: zoneID)
         let record = CKRecord(recordType: participantRecordType, recordID: recordID)
-        apply(spec: spec, roomID: roomID, userRecordID: userRecordID, hasSignaledHere: hasSignaledHere, to: record)
+        apply(spec: spec, roomID: roomID, userRecordID: userRecordID, hasSignaledHere: hasSignaledHere, orderIndex: orderIndex, to: record)
         return record
     }
 
-    static func apply(spec: ParticipantSpec, roomID: String, userRecordID: String?, hasSignaledHere: Bool, to record: CKRecord) {
+    static func apply(spec: ParticipantSpec, roomID: String, userRecordID: String?, hasSignaledHere: Bool, orderIndex: Int, to record: CKRecord) {
         record["roomID"] = roomID as NSString
         record["nickname"] = spec.nickname as NSString
+        record["orderIndex"] = orderIndex as NSNumber
 
         let (identifierType, identifierValue) = encodeIdentifier(spec.identifier)
         record["identifierType"] = identifierType as NSString
@@ -238,6 +239,10 @@ enum RoomLifecycleRecordConverter {
 
         record["userRecordID"] = userRecordID as NSString?
         record["hasSignaledHere"] = (hasSignaledHere ? 1 : 0) as NSNumber
+    }
+
+    static func orderIndex(from record: CKRecord) -> Int {
+        record["orderIndex"] as? Int ?? 0
     }
 
     static func participantSpec(from record: CKRecord) -> ParticipantSpec? {
