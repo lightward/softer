@@ -17,7 +17,9 @@ final class AppCoordinator {
 
     private var container: CKContainer?
     private var storage: RoomLifecycleStorage?
+    private var messageStorage: CloudKitMessageStorage?
     private var zoneID: CKRecordZone.ID?
+    private let apiClient: any LightwardAPI = LightwardAPIClient()
 
     init() {
         Task {
@@ -51,6 +53,10 @@ final class AppCoordinator {
 
             // Create storage
             self.storage = RoomLifecycleStorage(
+                database: ckContainer.privateCloudDatabase,
+                zoneID: zoneID
+            )
+            self.messageStorage = CloudKitMessageStorage(
                 database: ckContainer.privateCloudDatabase,
                 zoneID: zoneID
             )
@@ -157,6 +163,32 @@ final class AppCoordinator {
             throw AppError.notConfigured
         }
         return try await storage.fetchRoom(id: id)
+    }
+
+    /// Creates a ConversationCoordinator for an active room.
+    /// The coordinator handles message sending, turn management, and Lightward responses.
+    func conversationCoordinator(
+        for lifecycle: RoomLifecycle,
+        onTurnChange: @escaping @Sendable (TurnState) -> Void = { _ in },
+        onStreamingText: @escaping @Sendable (String) -> Void = { _ in }
+    ) -> ConversationCoordinator? {
+        guard let messageStorage = messageStorage else { return nil }
+        guard lifecycle.isActive, let turnState = lifecycle.turnState else { return nil }
+
+        return ConversationCoordinator(
+            roomID: lifecycle.spec.id,
+            spec: lifecycle.spec,
+            initialTurnState: turnState,
+            messageStorage: messageStorage,
+            apiClient: apiClient,
+            onTurnChange: onTurnChange,
+            onStreamingText: onStreamingText
+        )
+    }
+
+    /// Returns the message storage for observing messages.
+    func getMessageStorage() -> CloudKitMessageStorage? {
+        messageStorage
     }
 }
 

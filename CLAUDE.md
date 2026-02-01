@@ -4,12 +4,13 @@
 
 A native SwiftUI iOS app (iOS 17+) for group conversations where Lightward AI participates as an equal. No custom backend — CloudKit shared zones for multi-user sync, Lightward AI API for AI responses. Turn-based conversation with round-robin ordering and hand-raising.
 
-## What's Working (as of 2026-01-31)
+## What's Working (as of 2026-02-01)
 
 - **End-to-end conversation flow**: Create room → send message → Lightward responds → turn cycles back
 - **CloudKit persistence**: Rooms, messages, participants sync to iCloud (requires Lightward Inc team signing)
 - **Lightward API integration**: SSE streaming works, responses appear in real-time
-- **Turn coordination**: TurnStateMachine, TurnCoordinator, NeedProcessor all functioning
+- **Turn coordination**: ConversationCoordinator handles turn advancement and Lightward responses
+- **RoomView wired to ConversationCoordinator**: Messages save to CloudKit, Lightward responds automatically
 - **68 unit tests pass** — includes RoomLifecycle layer and ConversationCoordinator
 - **CI/CD pipeline**: GitHub Actions runs tests on push, deploys to TestFlight on push to main
 
@@ -57,6 +58,7 @@ The room creation model is being redesigned. The old invite-via-share flow is be
 
 **Conversation layer** (active room messaging):
 - `MessageStorage` protocol — save/fetch/observe messages
+- `CloudKitMessageStorage` — real implementation storing Message2 records (in CloudKit/)
 - `LightwardAPI` protocol — stream responses from Lightward (in API/LightwardAPIClient.swift)
 - `ConversationCoordinator` — actor that handles message sending, turn advancement, Lightward responses
 
@@ -73,19 +75,21 @@ The room creation model is being redesigned. The old invite-via-share flow is be
 
 ### What's Next
 
-1. **Real implementations** of the protocols:
-   - `CloudKitMessageStorage` — stores messages via CloudKit (ConversationCoordinator is ready to use it)
-   - `CloudKitParticipantResolver` — uses CKUserIdentityLookupInfo
-   - `ApplePayCoordinator` — PKPaymentAuthorizationController
-   - `LightwardRoomEvaluator` — calls Lightward API with roster
+1. **Real implementations** of remaining protocols:
+   - `CloudKitParticipantResolver` — uses CKUserIdentityLookupInfo (stub exists)
+   - `ApplePayCoordinator` — PKPaymentAuthorizationController (stub exists)
+   - `LightwardRoomEvaluator` — calls Lightward API with roster (stub exists)
 
-2. **CloudKit storage** for new room model (RoomSpec, RoomLifecycle state)
+2. **UI** — new room creation flow using RoomLifecycleCoordinator
 
-3. **Wire ConversationCoordinator to UI** — replace old TurnCoordinator/NeedProcessor with new ConversationCoordinator
+3. **Push-based message sync** — CKSubscription for real-time updates (currently poll-based)
 
-4. **UI** — new room creation flow using the RoomLifecycleCoordinator
+4. **Deprecate old model** — Room, Participant, existing share flow, old TurnEngine/
 
-5. **Deprecate old model** — Room, Participant, existing share flow, old TurnEngine/
+### Recently Completed
+
+- `CloudKitMessageStorage` — stores messages as Message2 records in CloudKit
+- `ConversationCoordinator` wired to `RoomView` — messages persist, Lightward responds automatically
 
 ### Old Model (to be deprecated)
 

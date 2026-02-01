@@ -9,6 +9,10 @@ struct RoomView: View {
     @State private var composeText = ""
     @State private var streamingText = ""
     @State private var isLoading = true
+    @State private var turnState: TurnState?
+    @State private var conversationCoordinator: ConversationCoordinator?
+    @State private var observationToken: ObservationToken?
+    @State private var isSending = false
 
     var body: some View {
         Group {
@@ -22,6 +26,9 @@ struct RoomView: View {
         }
         .task {
             await loadRoom()
+        }
+        .onDisappear {
+            observationToken?.cancel()
         }
     }
 
@@ -90,7 +97,9 @@ struct RoomView: View {
     private func composeArea(lifecycle: RoomLifecycle) -> some View {
         VStack(spacing: 8) {
             // Turn indicator
-            if let current = lifecycle.currentTurnParticipant {
+            if let turnIdx = turnState?.currentTurnIndex,
+               turnIdx < lifecycle.spec.participants.count {
+                let current = lifecycle.spec.participants[turnIdx]
                 Text("\(current.nickname)'s turn")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -100,17 +109,17 @@ struct RoomView: View {
                 TextField("Message...", text: $composeText, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(1...5)
-                    .disabled(!isMyTurn(lifecycle: lifecycle))
+                    .disabled(!isMyTurn(lifecycle: lifecycle) || isSending)
 
                 Button {
                     Task {
                         await sendMessage(lifecycle: lifecycle)
                     }
                 } label: {
-                    Image(systemName: "arrow.up.circle.fill")
+                    Image(systemName: isSending ? "ellipsis.circle" : "arrow.up.circle.fill")
                         .font(.title2)
                 }
-                .disabled(composeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !isMyTurn(lifecycle: lifecycle))
+                .disabled(composeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !isMyTurn(lifecycle: lifecycle) || isSending)
             }
             .padding()
         }
@@ -137,7 +146,10 @@ struct RoomView: View {
     }
 
     private func isMyTurn(lifecycle: RoomLifecycle) -> Bool {
-        guard let current = lifecycle.currentTurnParticipant else { return false }
+        guard let turnIdx = turnState?.currentTurnIndex,
+              turnIdx < lifecycle.spec.participants.count else { return false }
+
+        let current = lifecycle.spec.participants[turnIdx]
         // For now, assume local user is the first human participant
         // In production, would match against actual CloudKit user
         let localParticipant = lifecycle.spec.humanParticipants.first
@@ -148,8 +160,35 @@ struct RoomView: View {
         isLoading = true
         do {
             lifecycle = try await coordinator.room(id: roomID)
-            // TODO: Load messages from CloudKit
-            // For now, messages would come from a separate query
+
+            // Set up conversation coordinator if room is active
+            if let lifecycle = lifecycle {
+                let convCoord = coordinator.conversationCoordinator(
+                    for: lifecycle,
+                    onTurnChange: { [self] newState in
+                        Task { @MainActor in
+                            turnState = newState
+                        }
+                    },
+                    onStreamingText: { [self] text in
+                        Task { @MainActor in
+                            streamingText = text
+                        }
+                    }
+                )
+                conversationCoordinator = convCoord
+                turnState = lifecycle.turnState
+
+                // Observe messages
+                if let storage = coordinator.getMessageStorage() {
+                    let token = await storage.observeMessages(roomID: roomID) { msgs in
+                        Task { @MainActor in
+                            messages = msgs
+                        }
+                    }
+                    observationToken = token
+                }
+            }
         } catch {
             print("Failed to load room: \(error)")
         }
@@ -157,28 +196,28 @@ struct RoomView: View {
     }
 
     private func sendMessage(lifecycle: RoomLifecycle) async {
+        guard let convCoord = conversationCoordinator else { return }
+
         let text = composeText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
-        composeText = ""
-
-        // Create message
         let authorName = lifecycle.spec.humanParticipants.first?.nickname ?? "Me"
-        let message = Message(
-            roomID: roomID,
-            authorID: authorName,
-            authorName: authorName,
-            text: text
-        )
+        let authorID = lifecycle.spec.humanParticipants.first?.id ?? "unknown"
 
-        // Add to local state immediately
-        messages.append(message)
+        composeText = ""
+        isSending = true
 
-        // TODO: Save to CloudKit and advance turn
-        // This would involve:
-        // 1. Save message to CloudKit
-        // 2. Apply .messageSent event to lifecycle
-        // 3. If Lightward's turn, trigger response
+        do {
+            try await convCoord.sendMessage(
+                authorID: authorID,
+                authorName: authorName,
+                text: text
+            )
+        } catch {
+            print("Failed to send message: \(error)")
+        }
+
+        isSending = false
     }
 }
 
