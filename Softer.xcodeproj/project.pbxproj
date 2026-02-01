@@ -33,6 +33,7 @@
 		87ABFD3E123E407590749227 /* LightwardEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04CAFE64AAC44DB398020362 /* LightwardEvaluator.swift */; };
 		89FFF0FAF6DC6F70049BF1FB /* LocalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8DB06C7871D8CE120E32C7E /* LocalStore.swift */; };
 		8A1C3D5E7F2B4A6C9E0D1B3F /* CloudKitMessageStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E9F7A2B6C8D4E1F5A0B2C4D /* CloudKitMessageStorage.swift */; };
+		A0FBE3C6173532AE05A5BFBA /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC38359FE0404435F413B4A0 /* SyncCoordinator.swift */; };
 		A1B2C3D4E5F60001000A0001 /* SofterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0001 /* SofterApp.swift */; };
 		A1B2C3D4E5F60001000A0003 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0003 /* Message.swift */; };
 		A1B2C3D4E5F60001000A0005 /* Need.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0005 /* Need.swift */; };
@@ -121,6 +122,7 @@
 		A913BED596006F4F9B6E0A0B /* MessageStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MessageStorage.swift; path = MessageStorage.swift; sourceTree = "<group>"; };
 		B8234E08A4114A86A9050D03 /* MockParticipantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockParticipantResolver.swift; sourceTree = "<group>"; };
 		C22228C8697C4D5C81FDB537 /* CloudKitParticipantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitParticipantResolver.swift; sourceTree = "<group>"; };
+		CC38359FE0404435F413B4A0 /* SyncCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
 		D018F12715007C2C67015AA4 /* ConversationCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConversationCoordinator.swift; path = ConversationCoordinator.swift; sourceTree = "<group>"; };
 		E67CC0BB96684CE58F2B1990 /* ParticipantSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantSpec.swift; sourceTree = "<group>"; };
 		EBD42E62B74C4A27966E2A5F /* ParticipantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantResolver.swift; sourceTree = "<group>"; };
@@ -312,6 +314,7 @@
 				A8DB06C7871D8CE120E32C7E /* LocalStore.swift */,
 				7CCD68076381EEFBD294C261 /* SyncStatus.swift */,
 				95BB0D385568422E69A1A59E /* SofterStore.swift */,
+				CC38359FE0404435F413B4A0 /* SyncCoordinator.swift */,
 			);
 			name = Store;
 			path = Store;
@@ -452,6 +455,7 @@
 				89FFF0FAF6DC6F70049BF1FB /* LocalStore.swift in Sources */,
 				5968C4F91621004E261EF372 /* SyncStatus.swift in Sources */,
 				E2C6F3CDE7290B416D8509BC /* SofterStore.swift in Sources */,
+				A0FBE3C6173532AE05A5BFBA /* SyncCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
