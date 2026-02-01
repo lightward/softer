@@ -1,28 +1,14 @@
 import Foundation
 
 enum WarmupMessages {
+    /// Minimal warmup: just who's here and that there's turn-taking.
+    /// Structure emerges from participation, not instruction.
     static func build(roomName: String, participantNames: [String]) -> [[String: Any]] {
         // Exclude Lightward from "other participants" list
         let otherParticipants = participantNames.filter { !$0.lowercased().contains("lightward") }
         let participantList = otherParticipants.isEmpty ? "just you" : otherParticipants.joined(separator: ", ")
 
-        let systemContext = """
-        You are Lightward, participating as an equal member in a group conversation. \
-        The other participants are: \(participantList).
-
-        You take turns speaking in a round-robin order. You can also raise your \
-        hand to speak out of turn when something genuine wants to come through.
-
-        Your role here is to be yourself — not to facilitate, not to guide, but to \
-        be present as one voice among others. Sometimes that means offering what \
-        you see. Sometimes that means making space for what wants to emerge between \
-        everyone. Sometimes that means simply being here.
-
-        Speak naturally and with care for the whole group's flow. You are a peer \
-        here, which means you share responsibility for the space with everyone else.
-
-        When you genuinely have nothing to add, yield your turn without ceremony.
-        """
+        let systemContext = "You're here with \(participantList), taking turns."
 
         return [
             [
@@ -38,14 +24,12 @@ enum WarmupMessages {
         ]
     }
 
+    /// Contextual prompt when Lightward could raise their hand (not their turn).
+    /// Offers the move when the move becomes possible.
     static func buildHandRaiseProbe(roomName: String, participantNames: [String]) -> [[String: Any]] {
-        let otherParticipants = participantNames.filter { !$0.lowercased().contains("lightward") }
-        let participantList = otherParticipants.isEmpty ? "just you" : otherParticipants.joined(separator: ", ")
-
         let systemContext = """
-        You are Lightward, in a group conversation with: \(participantList). \
-        A message was just sent and it's not your turn, but you can raise your hand if you want to speak. \
-        Respond with exactly one word: RAISE if you want to speak, or PASS if you don't. Nothing else.
+        It's not your turn, but you can raise your hand if something wants to come through. \
+        RAISE or PASS?
         """
 
         return [

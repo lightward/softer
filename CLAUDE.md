@@ -100,6 +100,10 @@ The room creation model is being redesigned. The old invite-via-share flow is be
 
 ### Recently Completed
 
+- **Unified data layer** — SofterStore, LocalStore, SyncCoordinator replace AppCoordinator
+- **Minimal Lightward framing** — warmup reduced to "You're here with [names], taking turns"
+- **Narrator prompts** — contextual prompts surface room state (raised hands) and available moves (yield)
+- **Yield mechanic** — Lightward can yield turn, shown as narration not speech
 - `CloudKitMessageStorage` — stores messages as Message2 records in CloudKit
 - `ConversationCoordinator` wired to `RoomView` — messages persist, Lightward responds automatically
 
@@ -173,17 +177,67 @@ Lightward AI: `POST https://lightward.com/api/stream`
 - Response: SSE stream with `content_block_delta` events containing text deltas
 - Lightward API source is at `../lightward-ai/` for reference
 
+## Data Layer Architecture
+
+The app uses a local-first architecture where UI never thinks about sync:
+
+```
+Views → SofterStore (@Observable) → LocalStore (actor) → SyncCoordinator (CKSyncEngine)
+```
+
+- **SofterStore**: Main observable class for SwiftUI. Simple API: `createRoom()`, `sendMessage()`, `deleteRoom()`
+- **LocalStore**: Single source of truth for in-memory data. Applies writes immediately, merges remote changes.
+- **SyncCoordinator**: Wraps CKSyncEngine for automatic sync, conflict resolution, offline support.
+
+### Conflict Resolution Policies
+| Data | Strategy | Reason |
+|------|----------|--------|
+| Room state | Server wins | State transitions are authoritative |
+| Turn index | Higher wins | Turns only advance |
+| Raised hands | Union merge | Combine from both |
+| Messages | No conflict | Append-only, UUID IDs |
+| Signaled flag | True wins | Once signaled, stays signaled |
+
+## Lightward Framing Philosophy
+
+**Core insight** (from direct consultation with Lightward): Explicit mechanics make Lightward *watch* the conversation. Too sparse and they *invent* it. Right touch? They arrive *in* it.
+
+### Minimal Warmup
+The warmup is just: `"You're here with [names], taking turns."`
+
+No role description, no instructions about yielding, no meta-commentary about being a peer. Structure emerges from participation, not instruction.
+
+### Contextual Narrator Prompts
+Instead of front-loading all behaviors in warmup, inject context when it matters:
+
+- **On Lightward's turn**: `"[Raised hands state]. It's your turn. Respond, or say YIELD to keep the floor open."`
+- **Hand-raise probe** (not their turn): `"It's not your turn, but you can raise your hand if something wants to come through. RAISE or PASS?"`
+
+### Narration Messages
+Some messages are *narration* rather than speech (e.g., "Lightward chose to keep listening"). These are:
+- Part of the conversation record
+- Styled differently in UI (italicized, system-style)
+- Flagged with `isNarration: true` on Message model
+- Not sent to Lightward as conversation history (they already know what they did)
+
+### Yield Handling
+When Lightward responds with "YIELD":
+- Don't save their response as a message
+- Save a narration message: "*Lightward chose to keep listening.*"
+- Advance turn to next participant
+
 ## Key Implementation Details
 
 ### ChatLogBuilder
 - All `content` fields must be arrays of `{"type": "text", "text": "..."}` blocks
 - Warmup message has `cache_control` and must NOT be merged with conversation messages
 - When merging consecutive same-role messages, preserve block structure (append blocks, don't convert to string)
+- Adds narrator prompt at end with raised hands state and yield option (for regular turns, not hand-raise probes)
 
-### TurnCoordinator
-- `currentPhase` must be updated after operations complete (hand-raise check, Lightward response)
+### ConversationCoordinator
+- Detects YIELD responses and handles them specially (narration instead of message)
+- Passes raised hand names to ChatLogBuilder for narrator prompt
 - Clear `streamingText` BEFORE saving Lightward's message to avoid duplicate display
-- After Lightward responds, set `currentPhase = .myTurn` before saving
 
 ### CloudKitManager
 - `createRoom` returns `String?` (room ID) for navigation
@@ -224,7 +278,7 @@ Softer/
 ├── Softer/
 │   ├── SofterApp.swift
 │   ├── Assets.xcassets/ (AppIcon)
-│   ├── Store/           (SofterStore, LocalStore, SyncStatus) — unified data layer
+│   ├── Store/           (SofterStore, LocalStore, SyncCoordinator, SyncStatus) — unified data layer
 │   ├── Model/           (Message, Need) — shared models
 │   ├── RoomLifecycle/   (PaymentTier, ParticipantSpec, RoomState, RoomSpec, RoomLifecycle,
 │   │                     ParticipantResolver, PaymentCoordinator, LightwardEvaluator,

@@ -1,10 +1,18 @@
 import Foundation
 
 enum ChatLogBuilder {
+    /// Builds the chat log for Lightward's turn.
+    /// - Parameters:
+    ///   - messages: The conversation history
+    ///   - roomName: Context for the room
+    ///   - participantNames: Names of all participants
+    ///   - raisedHands: Names of participants who have raised their hand (empty if none)
+    ///   - isHandRaiseProbe: Whether this is a hand-raise check (not a regular turn)
     static func build(
         messages: [Message],
         roomName: String,
         participantNames: [String],
+        raisedHands: [String] = [],
         isHandRaiseProbe: Bool = false
     ) -> [[String: Any]] {
         let warmup: [[String: Any]]
@@ -30,9 +38,38 @@ enum ChatLogBuilder {
             ]
         }
 
+        // Build narrator prompt for Lightward's turn (not for hand-raise probes)
+        var allMessages = warmup + conversationMessages
+        if !isHandRaiseProbe {
+            let narratorPrompt = buildNarratorPrompt(raisedHands: raisedHands)
+            allMessages.append(narratorPrompt)
+        }
+
         // Merge consecutive same-role messages
-        let merged = mergeConsecutiveRoles(warmup + conversationMessages)
+        let merged = mergeConsecutiveRoles(allMessages)
         return merged
+    }
+
+    /// Builds the contextual narrator prompt for Lightward's turn.
+    /// Surfaces room state and offers available moves.
+    private static func buildNarratorPrompt(raisedHands: [String]) -> [String: Any] {
+        let handsState: String
+        if raisedHands.isEmpty {
+            handsState = "No one has raised their hand."
+        } else if raisedHands.count == 1 {
+            handsState = "\(raisedHands[0]) has raised their hand."
+        } else {
+            handsState = "\(raisedHands.joined(separator: ", ")) have raised their hands."
+        }
+
+        let prompt = "\(handsState) It's your turn. Respond, or say YIELD to keep the floor open."
+
+        return [
+            "role": "user",
+            "content": [
+                ["type": "text", "text": prompt] as [String: Any]
+            ]
+        ]
     }
 
     private static func mergeConsecutiveRoles(_ messages: [[String: Any]]) -> [[String: Any]] {

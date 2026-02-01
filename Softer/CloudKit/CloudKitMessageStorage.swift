@@ -116,6 +116,7 @@ actor CloudKitMessageStorage: MessageStorage {
         record["text"] = message.text as NSString
         record["createdAt"] = message.createdAt as NSDate
         record["isLightward"] = (message.isLightward ? 1 : 0) as NSNumber
+        record["isNarration"] = (message.isNarration ? 1 : 0) as NSNumber
 
         return record
     }
@@ -130,6 +131,8 @@ actor CloudKitMessageStorage: MessageStorage {
             return nil
         }
 
+        let isNarrationInt = record["isNarration"] as? Int ?? 0
+
         return Message(
             id: record.recordID.recordName,
             roomID: roomID,
@@ -137,7 +140,8 @@ actor CloudKitMessageStorage: MessageStorage {
             authorName: authorName,
             text: text,
             createdAt: createdAt,
-            isLightward: isLightwardInt == 1
+            isLightward: isLightwardInt == 1,
+            isNarration: isNarrationInt == 1
         )
     }
 }

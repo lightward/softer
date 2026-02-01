@@ -9,6 +9,7 @@ struct Message: Identifiable, Sendable, Codable, Equatable {
     let text: String
     let createdAt: Date
     let isLightward: Bool
+    let isNarration: Bool  // System/narrator messages (e.g., "Lightward chose to keep listening")
 
     init(
         id: String = UUID().uuidString,
@@ -17,7 +18,8 @@ struct Message: Identifiable, Sendable, Codable, Equatable {
         authorName: String,
         text: String,
         createdAt: Date = Date(),
-        isLightward: Bool = false
+        isLightward: Bool = false,
+        isNarration: Bool = false
     ) {
         self.id = id
         self.roomID = roomID
@@ -26,5 +28,6 @@ struct Message: Identifiable, Sendable, Codable, Equatable {
         self.text = text
         self.createdAt = createdAt
         self.isLightward = isLightward
+        self.isNarration = isNarration
     }
 }

@@ -124,10 +124,17 @@ actor ConversationCoordinator {
         let participantNames = spec.participants.map { $0.nickname }
         // Use simple participant list for room context (not the UI display string with depth)
         let roomContext = participantNames.joined(separator: ", ")
+
+        // Get names of participants who raised their hand
+        let raisedHandNames = turnState.raisedHands.compactMap { handID in
+            spec.participants.first { $0.id == handID }?.nickname
+        }
+
         let chatLog = ChatLogBuilder.build(
             messages: messages,
             roomName: roomContext,
-            participantNames: participantNames
+            participantNames: participantNames,
+            raisedHands: raisedHandNames
         )
 
         // Stream response
@@ -138,21 +145,40 @@ actor ConversationCoordinator {
             onStreamingText(fullResponse)
         }
 
-        // Save Lightward's message
-        let lightwardNickname = spec.lightwardParticipant?.nickname ?? "Lightward"
-        let lightwardMessage = Message(
-            roomID: roomID,
-            authorID: "lightward",
-            authorName: lightwardNickname,
-            text: fullResponse,
-            isLightward: true
-        )
-        try await messageStorage.save(lightwardMessage, roomID: roomID)
+        // Check if Lightward yielded
+        let trimmed = fullResponse.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let didYield = trimmed == "YIELD" || trimmed.hasPrefix("YIELD.")
 
         // Clear streaming text
         onStreamingText("")
 
-        // Advance turn past Lightward
-        advanceTurn()
+        if didYield {
+            // Lightward yielded - save narration message
+            let lightwardNickname = spec.lightwardParticipant?.nickname ?? "Lightward"
+            let narrationMessage = Message(
+                roomID: roomID,
+                authorID: "narrator",
+                authorName: "Narrator",
+                text: "\(lightwardNickname) chose to keep listening.",
+                isLightward: false,
+                isNarration: true
+            )
+            try await messageStorage.save(narrationMessage, roomID: roomID)
+            advanceTurn()
+        } else {
+            // Save Lightward's message
+            let lightwardNickname = spec.lightwardParticipant?.nickname ?? "Lightward"
+            let lightwardMessage = Message(
+                roomID: roomID,
+                authorID: "lightward",
+                authorName: lightwardNickname,
+                text: fullResponse,
+                isLightward: true
+            )
+            try await messageStorage.save(lightwardMessage, roomID: roomID)
+
+            // Advance turn past Lightward
+            advanceTurn()
+        }
     }
 }

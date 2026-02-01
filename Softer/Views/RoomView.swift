@@ -178,6 +178,14 @@ struct RoomView: View {
                     onTurnChange: { [self] newState in
                         Task { @MainActor in
                             turnState = newState
+                            // Show thinking indicator if it's now Lightward's turn
+                            let participants = lifecycle.spec.participants
+                            if !participants.isEmpty {
+                                let currentIndex = newState.currentTurnIndex % participants.count
+                                if participants[currentIndex].isLightward {
+                                    isLightwardThinking = true
+                                }
+                            }
                         }
                     },
                     onStreamingText: { [self] text in
