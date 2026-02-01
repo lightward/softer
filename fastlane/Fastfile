@@ -30,6 +30,14 @@ platform :ios do
       code_sign_identity: "Apple Distribution"
     )
 
+    # Switch to Production CloudKit for TestFlight
+    update_plist(
+      plist_path: "Softer/Softer.entitlements",
+      block: proc do |plist|
+        plist["com.apple.developer.icloud-container-environment"] = "Production"
+      end
+    )
+
     build_app(
       project: "Softer.xcodeproj",
       scheme: "Softer",

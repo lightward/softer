@@ -126,7 +126,13 @@ actor RoomLifecycleStorage {
             predicate: NSPredicate(value: true)
         )
 
-        let (results, _) = try await database.records(matching: query, inZoneWith: zoneID)
+        let results: [(CKRecord.ID, Result<CKRecord, Error>)]
+        do {
+            (results, _) = try await database.records(matching: query, inZoneWith: zoneID)
+        } catch let error as CKError where error.code == .unknownItem {
+            // Record type doesn't exist yet — no rooms
+            return []
+        }
 
         var lifecycles: [RoomLifecycle] = []
         for (_, result) in results {
@@ -153,7 +159,13 @@ actor RoomLifecycleStorage {
             predicate: NSPredicate(format: "stateType == %@", "active")
         )
 
-        let (results, _) = try await database.records(matching: query, inZoneWith: zoneID)
+        let results: [(CKRecord.ID, Result<CKRecord, Error>)]
+        do {
+            (results, _) = try await database.records(matching: query, inZoneWith: zoneID)
+        } catch let error as CKError where error.code == .unknownItem {
+            // Record type doesn't exist yet — no rooms
+            return []
+        }
 
         var lifecycles: [RoomLifecycle] = []
         for (_, result) in results {

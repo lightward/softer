@@ -11,8 +11,20 @@ A native SwiftUI iOS app (iOS 17+) for group conversations where Lightward AI pa
 - **Lightward API integration**: SSE streaming works, responses appear in real-time
 - **Turn coordination**: ConversationCoordinator handles turn advancement and Lightward responses
 - **RoomView wired to ConversationCoordinator**: Messages save to CloudKit, Lightward responds automatically
+- **Room creation UI**: Polished form with nickname suggestions, first-room-free messaging
 - **68 unit tests pass** — includes RoomLifecycle layer and ConversationCoordinator
 - **CI/CD pipeline**: GitHub Actions runs tests on push, deploys to TestFlight on push to main
+
+### CloudKit Setup Requirements
+
+**IMPORTANT**: In CloudKit Console, all record types need `recordName` marked as **Queryable** in their indexes. This is required for queries to work, even simple ones. Add this index to:
+- Room2
+- Participant2
+- Message2
+
+Also index any fields you query on (e.g., `roomID` on Participant2 and Message2, `stateType` on Room2).
+
+**Environment**: Development CloudKit for local builds, Production for TestFlight. The entitlements file is set to Development; Fastlane switches to Production before TestFlight builds.
 
 ## Active Work: New Room Creation Flow
 

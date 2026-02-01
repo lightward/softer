@@ -16,6 +16,16 @@ struct CloudKitParticipantResolver: ParticipantResolver {
             return .success(ResolvedParticipant(spec: spec, userRecordID: nil))
         }
 
+        // Current user resolves to the local user's record ID
+        if spec.identifier.isCurrentUser {
+            do {
+                let userRecordID = try await container.userRecordID()
+                return .success(ResolvedParticipant(spec: spec, userRecordID: userRecordID.recordName))
+            } catch {
+                return .failure(.networkError("Could not get current user: \(error.localizedDescription)"))
+            }
+        }
+
         // Create lookup info based on identifier type
         let lookupInfo: CKUserIdentity.LookupInfo
         switch spec.identifier {
@@ -23,7 +33,7 @@ struct CloudKitParticipantResolver: ParticipantResolver {
             lookupInfo = CKUserIdentity.LookupInfo(emailAddress: email)
         case .phone(let phone):
             lookupInfo = CKUserIdentity.LookupInfo(phoneNumber: phone)
-        case .lightward:
+        case .lightward, .currentUser:
             // Already handled above, but Swift requires exhaustive switch
             return .success(ResolvedParticipant(spec: spec, userRecordID: nil))
         }

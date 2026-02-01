@@ -3,7 +3,6 @@ import SwiftUI
 struct RoomListView: View {
     let coordinator: AppCoordinator
     @State private var showCreateRoom = false
-    @State private var selectedRoomID: String?
 
     var body: some View {
         NavigationStack {
@@ -21,11 +20,9 @@ struct RoomListView: View {
                     }
                 } else {
                     List(coordinator.rooms, id: \.spec.id) { lifecycle in
-                        RoomRow(lifecycle: lifecycle)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                selectedRoomID = lifecycle.spec.id
-                            }
+                        NavigationLink(value: lifecycle.spec.id) {
+                            RoomRow(lifecycle: lifecycle)
+                        }
                     }
                 }
             }
@@ -44,7 +41,7 @@ struct RoomListView: View {
             .sheet(isPresented: $showCreateRoom) {
                 CreateRoomView(coordinator: coordinator, isPresented: $showCreateRoom)
             }
-            .navigationDestination(item: $selectedRoomID) { roomID in
+            .navigationDestination(for: String.self) { roomID in
                 RoomView(coordinator: coordinator, roomID: roomID)
             }
             .refreshable {

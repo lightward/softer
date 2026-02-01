@@ -6,9 +6,10 @@ struct CreateRoomView: View {
 
     // Form state
     @State private var myNickname = ""
-    @State private var lightwardNickname = "Lightward"
+    @State private var lightwardNickname = ""
     @State private var otherParticipants: [ParticipantEntry] = []
     @State private var selectedTier: PaymentTier = .ten
+    @FocusState private var lightwardFieldFocused: Bool
 
     // Creation state
     @State private var isCreating = false
@@ -17,16 +18,34 @@ struct CreateRoomView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("You") {
+                Section {
                     TextField("Your nickname", text: $myNickname)
-                        .textContentType(.name)
-                }
+                        .textContentType(.givenName)
 
-                Section("Lightward") {
-                    TextField("Lightward's nickname", text: $lightwardNickname)
-                }
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            TextField("Lightward's nickname", text: $lightwardNickname)
+                                .focused($lightwardFieldFocused)
 
-                Section("Other Participants") {
+                            if !lightwardNickname.isEmpty {
+                                Button {
+                                    lightwardNickname = ""
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+
+                        if lightwardFieldFocused && lightwardNickname.isEmpty {
+                            HStack(spacing: 8) {
+                                SuggestionChip("Lightward") { lightwardNickname = "Lightward" }
+                                SuggestionChip("Light") { lightwardNickname = "Light" }
+                            }
+                        }
+                    }
+
                     ForEach($otherParticipants) { $entry in
                         ParticipantEntryRow(entry: $entry) {
                             otherParticipants.removeAll { $0.id == entry.id }
@@ -36,23 +55,27 @@ struct CreateRoomView: View {
                     Button {
                         otherParticipants.append(ParticipantEntry())
                     } label: {
-                        Label("Add Participant", systemImage: "plus")
+                        Label("Add someone else", systemImage: "plus")
                     }
+                } header: {
+                    Text("Participants")
                 }
 
-                Section("Payment") {
-                    Picker("Amount", selection: $selectedTier) {
-                        ForEach(PaymentTier.allCases, id: \.self) { tier in
-                            Text(tier.displayString).tag(tier)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-
+                Section {
                     if isFirstRoom {
-                        Text("First room is free!")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Text("Your first room is free")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 4)
+                    } else {
+                        Picker("Amount", selection: $selectedTier) {
+                            ForEach(PaymentTier.allCases, id: \.self) { tier in
+                                Text(tier.displayString).tag(tier)
+                            }
+                        }
+                        .pickerStyle(.segmented)
                     }
+                } header: {
+                    Text("Payment")
                 }
 
                 if let error = errorMessage {
@@ -104,10 +127,9 @@ struct CreateRoomView: View {
         // Build participant list
         var participants: [ParticipantSpec] = []
 
-        // Add self (will resolve from local user)
-        // For now, using a placeholder identifier - in production would use actual user email/phone
+        // Add self (resolves to current user's CloudKit record ID)
         let selfSpec = ParticipantSpec(
-            identifier: .email("placeholder@local"),  // Will be resolved from CloudKit user
+            identifier: .currentUser,
             nickname: myNickname.trimmingCharacters(in: .whitespaces)
         )
         participants.append(selfSpec)
@@ -197,5 +219,27 @@ struct ParticipantEntryRow: View {
                 Label("Delete", systemImage: "trash")
             }
         }
+    }
+}
+
+struct SuggestionChip: View {
+    let text: String
+    let action: () -> Void
+
+    init(_ text: String, action: @escaping () -> Void) {
+        self.text = text
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Text(text)
+                .font(.subheadline)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color(.systemGray5))
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }

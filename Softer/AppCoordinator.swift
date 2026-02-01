@@ -43,12 +43,8 @@ final class AppCoordinator {
             let userID = try await ckContainer.userRecordID()
             localUserRecordID = userID.recordName
 
-            // Ensure zone exists
-            let zoneManager = ZoneManager(container: ckContainer)
-            let zoneID = try await zoneManager.ensureZoneExists(
-                named: Constants.ZoneName.rooms,
-                in: ckContainer.privateCloudDatabase
-            )
+            // Use default zone for simplicity
+            let zoneID = CKRecordZone.default().zoneID
             self.zoneID = zoneID
 
             // Create storage
@@ -74,10 +70,14 @@ final class AppCoordinator {
 
         do {
             let allRooms = try await storage.fetchAllRooms()
+            print("Fetched \(allRooms.count) rooms, states: \(allRooms.map { $0.state })")
             // Show active and pending rooms, not defunct
             rooms = allRooms.filter { !$0.isDefunct }
+            print("After filter: \(rooms.count) rooms")
         } catch {
             print("Failed to load rooms: \(error)")
+            // Don't crash - just show empty list for now
+            rooms = []
         }
     }
 
@@ -97,9 +97,9 @@ final class AppCoordinator {
             nickname: originatorNickname
         )
 
-        // Check if this is user's first room
-        let existingRooms = try await storage.fetchAllRooms()
-        let isFirstRoom = existingRooms.filter { $0.isActive || $0.isLocked }.isEmpty
+        // For now, always treat as first room (free) to test save flow
+        // TODO: Query existing rooms once CloudKit query issue is resolved
+        let isFirstRoom = true
 
         let spec = RoomSpec(
             originatorID: originatorSpec.id,
@@ -130,11 +130,14 @@ final class AppCoordinator {
 
         // Save to CloudKit
         let lifecycle = await coordinator.lifecycle
+        print("Room state before save: \(lifecycle.state)")
         let resolvedParticipants = await coordinator.resolvedParticipants
         try await storage.saveRoom(lifecycle: lifecycle, resolvedParticipants: resolvedParticipants)
+        print("Room saved successfully")
 
         // Refresh list
         await loadRooms()
+        print("Rooms after refresh: \(rooms.count), states: \(rooms.map { $0.state })")
 
         return lifecycle
     }

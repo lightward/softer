@@ -280,6 +280,8 @@ enum RoomLifecycleRecordConverter {
             return ("phone", phone)
         case .lightward:
             return ("lightward", nil)
+        case .currentUser:
+            return ("currentUser", nil)
         }
     }
 
@@ -291,6 +293,8 @@ enum RoomLifecycleRecordConverter {
             return .phone(value ?? "")
         case "lightward":
             return .lightward
+        case "currentUser":
+            return .currentUser
         default:
             return .lightward
         }

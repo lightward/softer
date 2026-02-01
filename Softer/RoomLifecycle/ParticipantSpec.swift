@@ -4,18 +4,25 @@ import Foundation
 enum ParticipantIdentifier: Sendable, Codable, Equatable {
     case email(String)
     case phone(String)
-    case lightward  // Special case - not resolved via CloudKit
+    case lightward    // Special case - not resolved via CloudKit
+    case currentUser  // The local user - resolved from CKContainer.userRecordID
 
     var displayString: String {
         switch self {
         case .email(let email): return email
         case .phone(let phone): return phone
         case .lightward: return "Lightward AI"
+        case .currentUser: return "You"
         }
     }
 
     var isLightward: Bool {
         if case .lightward = self { return true }
+        return false
+    }
+
+    var isCurrentUser: Bool {
+        if case .currentUser = self { return true }
         return false
     }
 }
