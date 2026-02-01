@@ -1,76 +1,37 @@
 import SwiftUI
 
 struct RoomListView: View {
-    @Environment(CloudKitManager.self) private var cloudKitManager
-    @State private var viewModel: RoomListViewModel?
+    let coordinator: AppCoordinator
     @State private var showCreateRoom = false
-    @State private var navigationPath = NavigationPath()
+    @State private var selectedRoomID: String?
 
     var body: some View {
-        NavigationStack(path: $navigationPath) {
+        NavigationStack {
             Group {
-                switch cloudKitManager.status {
-                case .loading:
-                    ProgressView()
-                case .unavailable(let message):
-                    ContentUnavailableView(
-                        "iCloud Required",
-                        systemImage: "icloud.slash",
-                        description: Text(message)
-                    )
-                case .available:
-                    if let viewModel = viewModel {
-                        if !cloudKitManager.initialFetchCompleted {
-                            ProgressView()
-                        } else {
-                            List {
-                                if viewModel.rooms.isEmpty {
-                                    Section {
-                                        ContentUnavailableView(
-                                            "No Rooms",
-                                            systemImage: "bubble.left.and.bubble.right",
-                                            description: Text("Create a room to start a conversation with Lightward.")
-                                        )
-                                    }
-                                } else {
-                                    Section {
-                                        ForEach(viewModel.rooms) { room in
-                                            NavigationLink(value: room.id) {
-                                                RoomRowView(room: room)
-                                            }
-                                        }
-                                    }
-                                }
-
-                                #if DEBUG
-                                Section("Debug") {
-                                    Text("User: \(cloudKitManager.localUserRecordID ?? "unknown")")
-                                        .font(.caption)
-                                    Text("Rooms: \(viewModel.rooms.count)")
-                                        .font(.caption)
-                                    Text("Container: \(Constants.containerIdentifier)")
-                                        .font(.caption)
-                                    #if CLOUDKIT_PRODUCTION
-                                    Text("Environment: Production")
-                                        .font(.caption)
-                                        .foregroundStyle(.green)
-                                    #else
-                                    Text("Environment: Development")
-                                        .font(.caption)
-                                        .foregroundStyle(.orange)
-                                    #endif
-                                }
-                                #endif
-                            }
+                if coordinator.rooms.isEmpty {
+                    ContentUnavailableView {
+                        Label("No Rooms", systemImage: "bubble.left.and.bubble.right")
+                    } description: {
+                        Text("Create a room to start a conversation with Lightward.")
+                    } actions: {
+                        Button("Create Room") {
+                            showCreateRoom = true
                         }
-                    } else {
-                        ProgressView()
+                        .buttonStyle(.borderedProminent)
+                    }
+                } else {
+                    List(coordinator.rooms, id: \.spec.id) { lifecycle in
+                        RoomRow(lifecycle: lifecycle)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selectedRoomID = lifecycle.spec.id
+                            }
                     }
                 }
             }
             .navigationTitle("Softer")
             .toolbar {
-                if case .available = cloudKitManager.status {
+                if !coordinator.rooms.isEmpty {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
                             showCreateRoom = true
@@ -81,41 +42,76 @@ struct RoomListView: View {
                 }
             }
             .sheet(isPresented: $showCreateRoom) {
-                CreateRoomView(cloudKitManager: cloudKitManager) { roomID in
-                    showCreateRoom = false
-                    navigationPath.append(roomID)
-                }
+                CreateRoomView(coordinator: coordinator, isPresented: $showCreateRoom)
             }
-            .navigationDestination(for: String.self) { roomID in
-                RoomView(roomID: roomID, cloudKitManager: cloudKitManager)
+            .navigationDestination(item: $selectedRoomID) { roomID in
+                RoomView(coordinator: coordinator, roomID: roomID)
             }
-        }
-        .onAppear {
-            if viewModel == nil {
-                viewModel = RoomListViewModel(cloudKitManager: cloudKitManager)
+            .refreshable {
+                await coordinator.loadRooms()
             }
         }
     }
 }
 
-private struct RoomRowView: View {
-    let room: Room
+struct RoomRow: View {
+    let lifecycle: RoomLifecycle
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(room.name)
+            // Participant names
+            Text(lifecycle.spec.participants.map { $0.nickname }.joined(separator: ", "))
                 .font(.headline)
-            HStack(spacing: 8) {
-                Text("\(room.turnOrder.count) participants")
-                    .font(.caption)
+
+            // Status
+            HStack {
+                statusIndicator
+                Text(statusText)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
-                if room.isLightwardTurn {
-                    Text("Lightward's turn")
-                        .font(.caption)
-                        .foregroundStyle(.blue)
-                }
             }
         }
         .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var statusIndicator: some View {
+        switch lifecycle.state {
+        case .active:
+            Circle()
+                .fill(.green)
+                .frame(width: 8, height: 8)
+        case .locked:
+            Image(systemName: "lock.fill")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        case .pendingLightward, .pendingHumans, .pendingCapture:
+            ProgressView()
+                .scaleEffect(0.6)
+        default:
+            EmptyView()
+        }
+    }
+
+    private var statusText: String {
+        switch lifecycle.state {
+        case .draft:
+            return "Setting up..."
+        case .pendingLightward:
+            return "Waiting for Lightward..."
+        case .pendingHumans(let signaled):
+            let remaining = lifecycle.spec.humanParticipants.count - signaled.count
+            return "Waiting for \(remaining) participant\(remaining == 1 ? "" : "s")..."
+        case .pendingCapture:
+            return "Completing payment..."
+        case .active(let turn):
+            let index = turn.currentTurnIndex % lifecycle.spec.participants.count
+            let participant = lifecycle.spec.participants[index]
+            return "\(participant.nickname)'s turn"
+        case .locked:
+            return "Completed"
+        case .defunct:
+            return "Cancelled"
+        }
     }
 }

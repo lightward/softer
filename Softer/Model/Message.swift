@@ -1,16 +1,14 @@
 import Foundation
 
-struct Message: Identifiable, Sendable {
+/// A message in a room conversation.
+struct Message: Identifiable, Sendable, Codable, Equatable {
     let id: String
     let roomID: String
     let authorID: String
     let authorName: String
-    var text: String
+    let text: String
     let createdAt: Date
-    var isStreaming: Bool
-
-    // CloudKit metadata
-    var recordChangeTag: String?
+    let isLightward: Bool
 
     init(
         id: String = UUID().uuidString,
@@ -19,7 +17,7 @@ struct Message: Identifiable, Sendable {
         authorName: String,
         text: String,
         createdAt: Date = Date(),
-        isStreaming: Bool = false
+        isLightward: Bool = false
     ) {
         self.id = id
         self.roomID = roomID
@@ -27,10 +25,6 @@ struct Message: Identifiable, Sendable {
         self.authorName = authorName
         self.text = text
         self.createdAt = createdAt
-        self.isStreaming = isStreaming
-    }
-
-    var isLightward: Bool {
-        authorID == Constants.lightwardParticipantName
+        self.isLightward = isLightward
     }
 }

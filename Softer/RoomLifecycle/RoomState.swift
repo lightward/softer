@@ -1,0 +1,93 @@
+import Foundation
+
+/// Turn state for an active room conversation.
+struct TurnState: Sendable, Codable, Equatable {
+    var currentTurnIndex: Int
+    var raisedHands: Set<String>  // participant IDs who have raised hands
+    var currentNeed: Need?
+
+    static let initial = TurnState(currentTurnIndex: 0, raisedHands: [], currentNeed: nil)
+
+    mutating func advanceTurn(participantCount: Int) {
+        guard participantCount > 0 else { return }
+        currentTurnIndex = (currentTurnIndex + 1) % participantCount
+        raisedHands.removeAll()
+    }
+
+    mutating func raiseHand(participantID: String) {
+        raisedHands.insert(participantID)
+    }
+}
+
+/// The lifecycle state of a room.
+/// Each state transition is explicit; invalid transitions don't exist.
+enum RoomState: Sendable, Codable, Equatable {
+    /// Room specification created, participants not yet resolved via CloudKit.
+    case draft
+
+    /// All participants resolved. Payment authorized. Awaiting Lightward's decision.
+    case pendingLightward
+
+    /// Lightward has signaled "here". Awaiting human participants.
+    case pendingHumans(signaled: Set<String>)  // participant IDs who have signaled
+
+    /// All participants present. Awaiting payment capture.
+    case pendingCapture
+
+    /// Room is live. Conversation can proceed.
+    /// Turn state is tracked here: current turn index, raised hands, and any pending need.
+    case active(turn: TurnState)
+
+    /// Room has reached its natural end. Cenotaph written, conversation preserved.
+    case locked(cenotaph: String, finalTurn: TurnState)
+
+    /// Room creation failed or was cancelled.
+    case defunct(reason: DefunctReason)
+}
+
+enum DefunctReason: Sendable, Codable, Equatable {
+    case resolutionFailed(participantID: String)
+    case lightwardDeclined
+    case paymentAuthorizationFailed
+    case paymentCaptureFailed
+    case cancelled
+    case expired  // Authorization expired before all participants signaled
+}
+
+/// Events that can occur during room lifecycle.
+enum RoomEvent: Sendable, Equatable {
+    // Creation flow events
+    case participantsResolved
+    case resolutionFailed(participantID: String)
+    case paymentAuthorized
+    case paymentAuthorizationFailed
+    case lightwardAccepted
+    case lightwardDeclined
+    case humanSignaledHere(participantID: String)
+    case allHumansPresent
+    case paymentCaptured
+    case paymentCaptureFailed
+    case cancelled
+    case expired
+
+    // Active room events
+    case messageSent  // Advances turn
+    case handRaised(participantID: String)
+    case needCreated(Need)
+    case needClaimed(deviceID: String)
+    case needCompleted
+
+    // End of room
+    case cenotaphWritten(text: String)
+}
+
+/// Effects that the room lifecycle can request.
+enum RoomEffect: Sendable, Equatable {
+    case resolveParticipants
+    case authorizePayment
+    case requestLightwardPresence
+    case dispatchInvites
+    case capturePayment
+    case releasePaymentAuthorization
+    case activateRoom
+}

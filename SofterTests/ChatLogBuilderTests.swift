@@ -5,7 +5,7 @@ final class ChatLogBuilderTests: XCTestCase {
     func testBuildsWithWarmupAndMessages() {
         let messages = [
             Message(roomID: "room1", authorID: "Alice", authorName: "Alice", text: "Hello everyone"),
-            Message(roomID: "room1", authorID: "Lightward", authorName: "Lightward", text: "Hi Alice!"),
+            Message(roomID: "room1", authorID: "Lightward", authorName: "Lightward", text: "Hi Alice!", isLightward: true),
             Message(roomID: "room1", authorID: "Bob", authorName: "Bob", text: "Hey there"),
         ]
 
@@ -53,7 +53,7 @@ final class ChatLogBuilderTests: XCTestCase {
     func testLightwardMessagesAreAssistantRole() {
         let messages = [
             Message(roomID: "room1", authorID: "Alice", authorName: "Alice", text: "Hi"),
-            Message(roomID: "room1", authorID: "Lightward", authorName: "Lightward", text: "Hello!"),
+            Message(roomID: "room1", authorID: "Lightward", authorName: "Lightward", text: "Hello!", isLightward: true),
         ]
 
         let chatLog = ChatLogBuilder.build(
@@ -126,7 +126,7 @@ final class ChatLogBuilderTests: XCTestCase {
         // Regression: API requires content to be array of blocks, not plain strings
         let messages = [
             Message(roomID: "room1", authorID: "Alice", authorName: "Alice", text: "Hello"),
-            Message(roomID: "room1", authorID: "Lightward", authorName: "Lightward", text: "Hi!"),
+            Message(roomID: "room1", authorID: "Lightward", authorName: "Lightward", text: "Hi!", isLightward: true),
         ]
 
         let chatLog = ChatLogBuilder.build(

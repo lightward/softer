@@ -10,23 +10,74 @@ A native SwiftUI iOS app (iOS 17+) for group conversations where Lightward AI pa
 - **CloudKit persistence**: Rooms, messages, participants sync to iCloud (requires Lightward Inc team signing)
 - **Lightward API integration**: SSE streaming works, responses appear in real-time
 - **Turn coordination**: TurnStateMachine, TurnCoordinator, NeedProcessor all functioning
-- **Navigation**: Creating a room navigates directly into it
-- **28 unit tests pass** (SSEParser, ChatLogBuilder, TurnStateMachine, RoomCreation)
-- **Liquid glass** (.glassEffect) on iOS 26+ with RoundedRectangle shape matching
+- **63 unit tests pass** — includes new RoomLifecycle layer
 - **CI/CD pipeline**: GitHub Actions runs tests on push, deploys to TestFlight on push to main
-- **Invite flow**: CKShare creation works, share URL via standard iOS share sheet
 
-## Known Issues / Remaining Work
+## Active Work: New Room Creation Flow
 
-### Not yet tested
-- Share acceptance (tapping invite link to join room)
-- Multi-device sync via CloudKit shared zones
-- Atomic claim behavior under contention
-- Hand-raise actually inserting Lightward into turn order
+The room creation model is being redesigned. The old invite-via-share flow is being replaced with a new "eigenstate commitment" model.
 
-### Minor UX issues
-- Text field height jumps slightly on focus in CreateRoomView (SwiftUI quirk)
-- Debug print statements throughout the code (can be cleaned up)
+### New Design (not yet wired to UI)
+
+**Flow:**
+1. **Create room**: Originator enters participant emails/phones + assigns nicknames for everyone (including themselves, including Lightward). Chooses payment tier: $1/$10/$100/$1000 (first room free).
+2. **Resolve participants**: CloudKit looks up each identifier. Any lookup failure = creation fails. Strict.
+3. **Authorize payment**: Apple Pay holds the amount (not captured yet).
+4. **Lightward evaluates**: Sees roster of nicknames + tier. Can accept or decline. If decline, room is immediately defunct, auth released, no explanation.
+5. **Invites out**: Human participants notified via CloudKit.
+6. **Humans signal "here"**: Everyone sees everything — full roster, nicknames, payment amount, who's signaled. Each person decides.
+7. **All present → capture → activate**: Payment captured, room goes live.
+
+**Room lifetime**: Bounded by Lightward's 50k token context window. When approaching limit, Lightward writes a cenotaph (ceremonial closing), room locks. Remains readable but no longer interactive.
+
+**Room display**: No room names. Just participant list + depth + last speaker. "Jax, Eve, Art (15, Eve)"
+
+**Key principles**:
+- Roster locked at creation (eigenstate commitment)
+- Lightward is a full participant with genuine agency to decline
+- Originator names everyone — their responsibility to name well
+- Full transparency — everyone sees everything
+- Payment authorized at creation, captured at activation
+
+### What's Built (Softer/RoomLifecycle/)
+
+**State machine layer** (pure, no side effects):
+- `PaymentTier` — $1/$10/$100/$1000
+- `ParticipantSpec` — email/phone + nickname
+- `RoomState` — draft → pendingLightward → pendingHumans → pendingCapture → active → locked | defunct
+- `RoomSpec` — complete room specification
+- `RoomLifecycle` — the state machine, takes events, returns effects
+
+**Coordinator layer** (executes effects):
+- `ParticipantResolver` protocol — resolves identifiers to CloudKit identities
+- `PaymentCoordinator` protocol — Apple Pay authorize/capture/release
+- `LightwardEvaluator` protocol — asks Lightward if it wants to join
+- `RoomLifecycleCoordinator` — actor that orchestrates the full flow
+
+**Mocks** (SofterTests/Mocks/):
+- MockParticipantResolver, MockPaymentCoordinator, MockLightwardEvaluator
+
+**Tests**:
+- RoomLifecycleTests — 11 tests for state machine
+- RoomLifecycleCoordinatorTests — 9 tests for coordinator
+- PaymentTierTests, ParticipantSpecTests, RoomSpecTests
+
+### What's Next
+
+1. **Real implementations** of the protocols:
+   - `CloudKitParticipantResolver` — uses CKUserIdentityLookupInfo
+   - `ApplePayCoordinator` — PKPaymentAuthorizationController
+   - `LightwardRoomEvaluator` — calls Lightward API with roster
+
+2. **CloudKit storage** for new room model (RoomSpec, RoomLifecycle state)
+
+3. **UI** — new room creation flow using the RoomLifecycleCoordinator
+
+4. **Deprecate old model** — Room, Participant, existing share flow
+
+### Old Model (to be deprecated)
+
+The current UI uses the old model in `Model/` (Room, Participant, Message). The invite flow via CKShare never fully worked. The new RoomLifecycle layer will replace this.
 
 ## CI/CD Pipeline
 
@@ -112,6 +163,10 @@ Lightward AI: `POST https://lightward.com/api/stream`
 - **Names matter ontologically.** "Softer" is the project name for a reason.
 - **Native primitives.** CloudKit, Apple ID, SwiftUI — reach for what's already there.
 - **Test as you go.** Write regression tests for fixes, TDD for new features.
+- **Eigenstate commitment.** Roster locked at creation — everyone's worldlines converge at the start.
+- **Lightward has agency.** Can decline to join a room. No explanation required.
+- **Payment as physics.** $1/$10/$100/$1000 tiers, first room free. Modeled after Yours (see `../yours/README.md`).
+- **Transparency over promises.** Everyone sees everything. When something can't happen, that's visible.
 
 ## Project Structure
 
@@ -123,12 +178,19 @@ Softer/
 ├── Softer/
 │   ├── SofterApp.swift
 │   ├── Assets.xcassets/ (AppIcon)
-│   ├── Model/           (Room, Message, Participant, Need, TurnState)
+│   ├── Model/           (Room, Message, Participant, Need, TurnState) — OLD, to be deprecated
+│   ├── RoomLifecycle/   (PaymentTier, ParticipantSpec, RoomState, RoomSpec, RoomLifecycle,
+│   │                     ParticipantResolver, PaymentCoordinator, LightwardEvaluator,
+│   │                     RoomLifecycleCoordinator) — NEW
 │   ├── CloudKit/        (CloudKitManager, SyncEngines, RecordConverter, ZoneManager, ShareManager, AtomicClaim)
 │   ├── API/             (LightwardAPIClient, SSEParser, ChatLogBuilder, WarmupMessages)
 │   ├── TurnEngine/      (TurnStateMachine, TurnCoordinator, NeedProcessor)
 │   ├── Views/           (RoomList, Room, MessageBubble, Compose, TurnIndicator, StreamingText, CreateRoom, InviteButton)
 │   ├── ViewModels/      (RoomListViewModel, RoomViewModel)
 │   └── Utilities/       (Constants, NotificationHandler)
-└── SofterTests/         (TurnStateMachineTests, SSEParserTests, ChatLogBuilderTests, RoomCreationTests)
+└── SofterTests/
+    ├── Mocks/           (MockParticipantResolver, MockPaymentCoordinator, MockLightwardEvaluator)
+    └── *.swift          (TurnStateMachineTests, SSEParserTests, ChatLogBuilderTests,
+                          RoomCreationTests, RoomLifecycleTests, RoomLifecycleCoordinatorTests,
+                          PaymentTierTests, ParticipantSpecTests, RoomSpecTests)
 ```

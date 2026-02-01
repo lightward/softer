@@ -2,13 +2,9 @@ import Foundation
 import CloudKit
 import UIKit
 
+/// Handles push notifications for CloudKit sync.
+/// Note: Share acceptance is not used in the new RoomLifecycle model.
 final class NotificationHandler: NSObject, @unchecked Sendable {
-    private let cloudKitManager: CloudKitManager
-
-    init(cloudKitManager: CloudKitManager) {
-        self.cloudKitManager = cloudKitManager
-        super.init()
-    }
 
     func registerForPushNotifications() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
@@ -26,14 +22,8 @@ final class NotificationHandler: NSObject, @unchecked Sendable {
         }
 
         if notification.notificationType == .recordZone {
-            // CKSyncEngine handles the actual fetch — this just wakes the app
+            // Zone notification - CloudKit data may have changed
             print("Received CloudKit zone notification")
-        }
-    }
-
-    func handleShareAcceptance(_ metadata: CKShare.Metadata) {
-        Task {
-            try? await cloudKitManager.acceptShare(metadata)
         }
     }
 }

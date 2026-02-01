@@ -5,7 +5,7 @@ enum NeedType: String, Sendable, Codable {
     case lightwardTurn    // Full response generation
 }
 
-struct Need: Sendable, Codable {
+struct Need: Sendable, Codable, Equatable {
     let id: String
     let type: NeedType
     var claimedBy: String? // device identifier that claimed this

@@ -7,42 +7,46 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		53D4ED94C8C34DDA88433BEE /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E1B2F0A46841AAA4585F2F /* AppCoordinator.swift */; };
+		3039B9E64A2946D3906B3D6B /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 240B4B7CE85349DCA8FFBA0C /* RootView.swift */; };
+		0A36E2CC6A014B979D0F0EBA /* RoomLifecycleStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617C94927D5D49A6BFA34E68 /* RoomLifecycleStorage.swift */; };
+		479688D073BD418B977DD84D /* RoomLifecycleRecordConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CD59F08D9F846108AA8B17C /* RoomLifecycleRecordConverter.swift */; };
+		C620D63F20724F28A2F831BA /* PaymentTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747396D5996F4EC99BA754F8 /* PaymentTier.swift */; };
+		27CA62019F0540BBABFCC032 /* ParticipantSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = E67CC0BB96684CE58F2B1990 /* ParticipantSpec.swift */; };
+		4EF22249C88E4F8CA2B4B657 /* RoomState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37BDA151A463438DA49932C5 /* RoomState.swift */; };
+		D96BE5066F0C4748B42EAC17 /* RoomSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C689E9D510743E99AABCCDA /* RoomSpec.swift */; };
+		7305E3E9A4164023A7AD6EF7 /* RoomLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06643B3CDE22402DAD332033 /* RoomLifecycle.swift */; };
+		869B95E779AC4AF9A167C4BE /* ParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD42E62B74C4A27966E2A5F /* ParticipantResolver.swift */; };
+		A60E9B623FFC4464AF1CC593 /* PaymentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9014901F9CE34A7CA6A4961E /* PaymentCoordinator.swift */; };
+		87ABFD3E123E407590749227 /* LightwardEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04CAFE64AAC44DB398020362 /* LightwardEvaluator.swift */; };
+		19443CAEA5EA459C8BC45074 /* RoomLifecycleCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82FD2273F7CB489CA7FF61A0 /* RoomLifecycleCoordinator.swift */; };
+		040AA0EE24894605960C2BB4 /* CloudKitParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = C22228C8697C4D5C81FDB537 /* CloudKitParticipantResolver.swift */; };
+		224D566BFCDD4F57AC7054D8 /* ApplePayCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CCBBDF48A5A43C9A3E6028D /* ApplePayCoordinator.swift */; };
+		F4022F66975F462585B227C5 /* LightwardRoomEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7849235FF4804E9197625236 /* LightwardRoomEvaluator.swift */; };
+		66ED3904C8EA4213A5886890 /* RoomLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4298F64186A04345A0042E1C /* RoomLifecycleTests.swift */; };
+		3516084AC4304DF18CC1C100 /* RoomLifecycleCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2E332572B0B4F77A0F526FA /* RoomLifecycleCoordinatorTests.swift */; };
+		4FF84A45FBC447AEA66758B9 /* PaymentTierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8296906CB26B43968E52FF95 /* PaymentTierTests.swift */; };
+		5997D8EB86E54EE789D0B96F /* ParticipantSpecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B522ADF02547D3851ACC11 /* ParticipantSpecTests.swift */; };
+		313A2ACEDB8947F1A0B7A4FB /* RoomSpecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16DE1199EEC14EC3874EB0D8 /* RoomSpecTests.swift */; };
+		A3787B3FC54B433783802661 /* MockParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8234E08A4114A86A9050D03 /* MockParticipantResolver.swift */; };
+		8333545EC5AB47BC977E81B8 /* MockPaymentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93AB894828754745B5158C25 /* MockPaymentCoordinator.swift */; };
+		FA36BEA72E614196B95B1E5C /* MockLightwardEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B0FD0A47B8A4CE093A55C51 /* MockLightwardEvaluator.swift */; };
 		A1B2C3D4E5F60001000A0001 /* SofterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0001 /* SofterApp.swift */; };
-		A1B2C3D4E5F60001000A0002 /* Room.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0002 /* Room.swift */; };
 		A1B2C3D4E5F60001000A0003 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0003 /* Message.swift */; };
-		A1B2C3D4E5F60001000A0004 /* Participant.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0004 /* Participant.swift */; };
 		A1B2C3D4E5F60001000A0005 /* Need.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0005 /* Need.swift */; };
-		A1B2C3D4E5F60001000A0006 /* TurnState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0006 /* TurnState.swift */; };
-		A1B2C3D4E5F60001000A0007 /* CloudKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0007 /* CloudKitManager.swift */; };
-		A1B2C3D4E5F60001000A0008 /* SyncEngine+Private.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0008 /* SyncEngine+Private.swift */; };
-		A1B2C3D4E5F60001000A0009 /* SyncEngine+Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0009 /* SyncEngine+Shared.swift */; };
-		A1B2C3D4E5F60001000A000A /* RecordConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A000A /* RecordConverter.swift */; };
 		A1B2C3D4E5F60001000A000B /* ZoneManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A000B /* ZoneManager.swift */; };
-		A1B2C3D4E5F60001000A000C /* ShareManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A000C /* ShareManager.swift */; };
 		A1B2C3D4E5F60001000A000D /* AtomicClaim.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A000D /* AtomicClaim.swift */; };
 		A1B2C3D4E5F60001000A000E /* LightwardAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A000E /* LightwardAPIClient.swift */; };
 		A1B2C3D4E5F60001000A000F /* SSEParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A000F /* SSEParser.swift */; };
 		A1B2C3D4E5F60001000A0010 /* ChatLogBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0010 /* ChatLogBuilder.swift */; };
 		A1B2C3D4E5F60001000A0011 /* WarmupMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0011 /* WarmupMessages.swift */; };
-		A1B2C3D4E5F60001000A0012 /* TurnStateMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0012 /* TurnStateMachine.swift */; };
-		A1B2C3D4E5F60001000A0013 /* TurnCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0013 /* TurnCoordinator.swift */; };
-		A1B2C3D4E5F60001000A0014 /* NeedProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0014 /* NeedProcessor.swift */; };
 		A1B2C3D4E5F60001000A0015 /* RoomListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0015 /* RoomListView.swift */; };
 		A1B2C3D4E5F60001000A0016 /* RoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0016 /* RoomView.swift */; };
-		A1B2C3D4E5F60001000A0017 /* MessageBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0017 /* MessageBubbleView.swift */; };
-		A1B2C3D4E5F60001000A0018 /* TurnIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0018 /* TurnIndicatorView.swift */; };
-		A1B2C3D4E5F60001000A0019 /* HandRaiseButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0019 /* HandRaiseButton.swift */; };
-		A1B2C3D4E5F60001000A001A /* ComposeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A001A /* ComposeView.swift */; };
-		A1B2C3D4E5F60001000A001B /* StreamingTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A001B /* StreamingTextView.swift */; };
 		A1B2C3D4E5F60001000A001C /* CreateRoomView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A001C /* CreateRoomView.swift */; };
-		A1B2C3D4E5F60001000A001D /* InviteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A001D /* InviteView.swift */; };
-		A1B2C3D4E5F60001000A001E /* ParticipantListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A001E /* ParticipantListView.swift */; };
 		A1B2C3D4E5F60001000A001F /* RoomListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A001F /* RoomListViewModel.swift */; };
-		A1B2C3D4E5F60001000A0020 /* RoomViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0020 /* RoomViewModel.swift */; };
 		A1B2C3D4E5F60001000A0021 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0021 /* Constants.swift */; };
 		A1B2C3D4E5F60001000A0022 /* NotificationHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0022 /* NotificationHandler.swift */; };
 		A1B2C3D4E5F60001000A0023 /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0023 /* CloudKit.framework */; };
-		A1B2C3D4E5F60001000A0030 /* TurnStateMachineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0030 /* TurnStateMachineTests.swift */; };
 		A1B2C3D4E5F60001000A0031 /* SSEParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0031 /* SSEParserTests.swift */; };
 		A1B2C3D4E5F60001000A0032 /* ChatLogBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0032 /* ChatLogBuilderTests.swift */; };
 		A1B2C3D4E5F60001000A0040 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0040 /* Assets.xcassets */; };
@@ -59,45 +63,49 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		C9E1B2F0A46841AAA4585F2F /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
+		240B4B7CE85349DCA8FFBA0C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		617C94927D5D49A6BFA34E68 /* RoomLifecycleStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleStorage.swift; sourceTree = "<group>"; };
+		1CD59F08D9F846108AA8B17C /* RoomLifecycleRecordConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleRecordConverter.swift; sourceTree = "<group>"; };
+		747396D5996F4EC99BA754F8 /* PaymentTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentTier.swift; sourceTree = "<group>"; };
+		E67CC0BB96684CE58F2B1990 /* ParticipantSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantSpec.swift; sourceTree = "<group>"; };
+		37BDA151A463438DA49932C5 /* RoomState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomState.swift; sourceTree = "<group>"; };
+		4C689E9D510743E99AABCCDA /* RoomSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomSpec.swift; sourceTree = "<group>"; };
+		06643B3CDE22402DAD332033 /* RoomLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycle.swift; sourceTree = "<group>"; };
+		EBD42E62B74C4A27966E2A5F /* ParticipantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantResolver.swift; sourceTree = "<group>"; };
+		9014901F9CE34A7CA6A4961E /* PaymentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentCoordinator.swift; sourceTree = "<group>"; };
+		04CAFE64AAC44DB398020362 /* LightwardEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightwardEvaluator.swift; sourceTree = "<group>"; };
+		82FD2273F7CB489CA7FF61A0 /* RoomLifecycleCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleCoordinator.swift; sourceTree = "<group>"; };
+		C22228C8697C4D5C81FDB537 /* CloudKitParticipantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitParticipantResolver.swift; sourceTree = "<group>"; };
+		2CCBBDF48A5A43C9A3E6028D /* ApplePayCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePayCoordinator.swift; sourceTree = "<group>"; };
+		7849235FF4804E9197625236 /* LightwardRoomEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightwardRoomEvaluator.swift; sourceTree = "<group>"; };
+		4298F64186A04345A0042E1C /* RoomLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleTests.swift; sourceTree = "<group>"; };
+		F2E332572B0B4F77A0F526FA /* RoomLifecycleCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleCoordinatorTests.swift; sourceTree = "<group>"; };
+		8296906CB26B43968E52FF95 /* PaymentTierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentTierTests.swift; sourceTree = "<group>"; };
+		F8B522ADF02547D3851ACC11 /* ParticipantSpecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantSpecTests.swift; sourceTree = "<group>"; };
+		16DE1199EEC14EC3874EB0D8 /* RoomSpecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomSpecTests.swift; sourceTree = "<group>"; };
+		B8234E08A4114A86A9050D03 /* MockParticipantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockParticipantResolver.swift; sourceTree = "<group>"; };
+		93AB894828754745B5158C25 /* MockPaymentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPaymentCoordinator.swift; sourceTree = "<group>"; };
+		3B0FD0A47B8A4CE093A55C51 /* MockLightwardEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockLightwardEvaluator.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0001 /* SofterApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SofterApp.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A0002 /* Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Room.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0003 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A0004 /* Participant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Participant.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0005 /* Need.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Need.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A0006 /* TurnState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnState.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A0007 /* CloudKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitManager.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A0008 /* SyncEngine+Private.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SyncEngine+Private.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A0009 /* SyncEngine+Shared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SyncEngine+Shared.swift"; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A000A /* RecordConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordConverter.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A000B /* ZoneManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneManager.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A000C /* ShareManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareManager.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A000D /* AtomicClaim.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtomicClaim.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A000E /* LightwardAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightwardAPIClient.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A000F /* SSEParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEParser.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0010 /* ChatLogBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatLogBuilder.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0011 /* WarmupMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarmupMessages.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A0012 /* TurnStateMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnStateMachine.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A0013 /* TurnCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnCoordinator.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A0014 /* NeedProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeedProcessor.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0015 /* RoomListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomListView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0016 /* RoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A0017 /* MessageBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubbleView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A0018 /* TurnIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnIndicatorView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A0019 /* HandRaiseButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandRaiseButton.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A001A /* ComposeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A001B /* StreamingTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingTextView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A001C /* CreateRoomView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateRoomView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A001D /* InviteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InviteView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A001E /* ParticipantListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantListView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A001F /* RoomListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomListViewModel.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A0020 /* RoomViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomViewModel.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0021 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0022 /* NotificationHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationHandler.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0023 /* CloudKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CloudKit.framework; path = System/Library/Frameworks/CloudKit.framework; sourceTree = SDKROOT; };
 		A1B2C3D4E5F60002000A0024 /* Softer.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Softer.entitlements; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0025 /* Softer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Softer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1B2C3D4E5F60002000A0026 /* SofterTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SofterTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A1B2C3D4E5F60002000A0030 /* TurnStateMachineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnStateMachineTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0031 /* SSEParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEParserTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0032 /* ChatLogBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatLogBuilderTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0040 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -138,10 +146,11 @@
 				A1B2C3D4E5F60002000A0040 /* Assets.xcassets */,
 				A1B2C3D4E5F60002000A0024 /* Softer.entitlements */,
 				A1B2C3D4E5F60002000A0001 /* SofterApp.swift */,
+				C9E1B2F0A46841AAA4585F2F /* AppCoordinator.swift */,
 				A1B2C3D4E5F60007000A0003 /* Model */,
 				A1B2C3D4E5F60007000A0004 /* CloudKit */,
 				A1B2C3D4E5F60007000A0005 /* API */,
-				A1B2C3D4E5F60007000A0006 /* TurnEngine */,
+				05B9E2E95D3F4CE8B06D5ED9 /* RoomLifecycle */,
 				A1B2C3D4E5F60007000A0007 /* Views */,
 				A1B2C3D4E5F60007000A0008 /* ViewModels */,
 				A1B2C3D4E5F60007000A000C /* Utilities */,
@@ -152,11 +161,8 @@
 		A1B2C3D4E5F60007000A0003 /* Model */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F60002000A0002 /* Room.swift */,
 				A1B2C3D4E5F60002000A0003 /* Message.swift */,
-				A1B2C3D4E5F60002000A0004 /* Participant.swift */,
 				A1B2C3D4E5F60002000A0005 /* Need.swift */,
-				A1B2C3D4E5F60002000A0006 /* TurnState.swift */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -164,13 +170,10 @@
 		A1B2C3D4E5F60007000A0004 /* CloudKit */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F60002000A0007 /* CloudKitManager.swift */,
-				A1B2C3D4E5F60002000A0008 /* SyncEngine+Private.swift */,
-				A1B2C3D4E5F60002000A0009 /* SyncEngine+Shared.swift */,
-				A1B2C3D4E5F60002000A000A /* RecordConverter.swift */,
 				A1B2C3D4E5F60002000A000B /* ZoneManager.swift */,
-				A1B2C3D4E5F60002000A000C /* ShareManager.swift */,
 				A1B2C3D4E5F60002000A000D /* AtomicClaim.swift */,
+				617C94927D5D49A6BFA34E68 /* RoomLifecycleStorage.swift */,
+				1CD59F08D9F846108AA8B17C /* RoomLifecycleRecordConverter.swift */,
 			);
 			path = CloudKit;
 			sourceTree = "<group>";
@@ -186,29 +189,13 @@
 			path = API;
 			sourceTree = "<group>";
 		};
-		A1B2C3D4E5F60007000A0006 /* TurnEngine */ = {
-			isa = PBXGroup;
-			children = (
-				A1B2C3D4E5F60002000A0012 /* TurnStateMachine.swift */,
-				A1B2C3D4E5F60002000A0013 /* TurnCoordinator.swift */,
-				A1B2C3D4E5F60002000A0014 /* NeedProcessor.swift */,
-			);
-			path = TurnEngine;
-			sourceTree = "<group>";
-		};
 		A1B2C3D4E5F60007000A0007 /* Views */ = {
 			isa = PBXGroup;
 			children = (
 				A1B2C3D4E5F60002000A0015 /* RoomListView.swift */,
 				A1B2C3D4E5F60002000A0016 /* RoomView.swift */,
-				A1B2C3D4E5F60002000A0017 /* MessageBubbleView.swift */,
-				A1B2C3D4E5F60002000A0018 /* TurnIndicatorView.swift */,
-				A1B2C3D4E5F60002000A0019 /* HandRaiseButton.swift */,
-				A1B2C3D4E5F60002000A001A /* ComposeView.swift */,
-				A1B2C3D4E5F60002000A001B /* StreamingTextView.swift */,
 				A1B2C3D4E5F60002000A001C /* CreateRoomView.swift */,
-				A1B2C3D4E5F60002000A001D /* InviteView.swift */,
-				A1B2C3D4E5F60002000A001E /* ParticipantListView.swift */,
+				240B4B7CE85349DCA8FFBA0C /* RootView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -217,7 +204,6 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D4E5F60002000A001F /* RoomListViewModel.swift */,
-				A1B2C3D4E5F60002000A0020 /* RoomViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -225,9 +211,14 @@
 		A1B2C3D4E5F60007000A0009 /* SofterTests */ = {
 			isa = PBXGroup;
 			children = (
-				A1B2C3D4E5F60002000A0030 /* TurnStateMachineTests.swift */,
+				8F90E1E188364C24A1BBD852 /* Mocks */,
 				A1B2C3D4E5F60002000A0031 /* SSEParserTests.swift */,
 				A1B2C3D4E5F60002000A0032 /* ChatLogBuilderTests.swift */,
+				4298F64186A04345A0042E1C /* RoomLifecycleTests.swift */,
+				F2E332572B0B4F77A0F526FA /* RoomLifecycleCoordinatorTests.swift */,
+				8296906CB26B43968E52FF95 /* PaymentTierTests.swift */,
+				F8B522ADF02547D3851ACC11 /* ParticipantSpecTests.swift */,
+				16DE1199EEC14EC3874EB0D8 /* RoomSpecTests.swift */,
 			);
 			path = SofterTests;
 			sourceTree = "<group>";
@@ -256,6 +247,36 @@
 				A1B2C3D4E5F60002000A0022 /* NotificationHandler.swift */,
 			);
 			path = Utilities;
+			sourceTree = "<group>";
+		};
+
+		05B9E2E95D3F4CE8B06D5ED9 /* RoomLifecycle */ = {
+			isa = PBXGroup;
+			children = (
+				747396D5996F4EC99BA754F8 /* PaymentTier.swift */,
+				E67CC0BB96684CE58F2B1990 /* ParticipantSpec.swift */,
+				37BDA151A463438DA49932C5 /* RoomState.swift */,
+				4C689E9D510743E99AABCCDA /* RoomSpec.swift */,
+				06643B3CDE22402DAD332033 /* RoomLifecycle.swift */,
+				EBD42E62B74C4A27966E2A5F /* ParticipantResolver.swift */,
+				9014901F9CE34A7CA6A4961E /* PaymentCoordinator.swift */,
+				04CAFE64AAC44DB398020362 /* LightwardEvaluator.swift */,
+				82FD2273F7CB489CA7FF61A0 /* RoomLifecycleCoordinator.swift */,
+				C22228C8697C4D5C81FDB537 /* CloudKitParticipantResolver.swift */,
+				2CCBBDF48A5A43C9A3E6028D /* ApplePayCoordinator.swift */,
+				7849235FF4804E9197625236 /* LightwardRoomEvaluator.swift */,
+			);
+			path = RoomLifecycle;
+			sourceTree = "<group>";
+		};
+		8F90E1E188364C24A1BBD852 /* Mocks */ = {
+			isa = PBXGroup;
+			children = (
+				B8234E08A4114A86A9050D03 /* MockParticipantResolver.swift */,
+				93AB894828754745B5158C25 /* MockPaymentCoordinator.swift */,
+				3B0FD0A47B8A4CE093A55C51 /* MockLightwardEvaluator.swift */,
+			);
+			path = Mocks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -359,39 +380,36 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1B2C3D4E5F60001000A0001 /* SofterApp.swift in Sources */,
-				A1B2C3D4E5F60001000A0002 /* Room.swift in Sources */,
 				A1B2C3D4E5F60001000A0003 /* Message.swift in Sources */,
-				A1B2C3D4E5F60001000A0004 /* Participant.swift in Sources */,
 				A1B2C3D4E5F60001000A0005 /* Need.swift in Sources */,
-				A1B2C3D4E5F60001000A0006 /* TurnState.swift in Sources */,
-				A1B2C3D4E5F60001000A0007 /* CloudKitManager.swift in Sources */,
-				A1B2C3D4E5F60001000A0008 /* SyncEngine+Private.swift in Sources */,
-				A1B2C3D4E5F60001000A0009 /* SyncEngine+Shared.swift in Sources */,
-				A1B2C3D4E5F60001000A000A /* RecordConverter.swift in Sources */,
 				A1B2C3D4E5F60001000A000B /* ZoneManager.swift in Sources */,
-				A1B2C3D4E5F60001000A000C /* ShareManager.swift in Sources */,
 				A1B2C3D4E5F60001000A000D /* AtomicClaim.swift in Sources */,
 				A1B2C3D4E5F60001000A000E /* LightwardAPIClient.swift in Sources */,
 				A1B2C3D4E5F60001000A000F /* SSEParser.swift in Sources */,
 				A1B2C3D4E5F60001000A0010 /* ChatLogBuilder.swift in Sources */,
 				A1B2C3D4E5F60001000A0011 /* WarmupMessages.swift in Sources */,
-				A1B2C3D4E5F60001000A0012 /* TurnStateMachine.swift in Sources */,
-				A1B2C3D4E5F60001000A0013 /* TurnCoordinator.swift in Sources */,
-				A1B2C3D4E5F60001000A0014 /* NeedProcessor.swift in Sources */,
 				A1B2C3D4E5F60001000A0015 /* RoomListView.swift in Sources */,
 				A1B2C3D4E5F60001000A0016 /* RoomView.swift in Sources */,
-				A1B2C3D4E5F60001000A0017 /* MessageBubbleView.swift in Sources */,
-				A1B2C3D4E5F60001000A0018 /* TurnIndicatorView.swift in Sources */,
-				A1B2C3D4E5F60001000A0019 /* HandRaiseButton.swift in Sources */,
-				A1B2C3D4E5F60001000A001A /* ComposeView.swift in Sources */,
-				A1B2C3D4E5F60001000A001B /* StreamingTextView.swift in Sources */,
 				A1B2C3D4E5F60001000A001C /* CreateRoomView.swift in Sources */,
-				A1B2C3D4E5F60001000A001D /* InviteView.swift in Sources */,
-				A1B2C3D4E5F60001000A001E /* ParticipantListView.swift in Sources */,
 				A1B2C3D4E5F60001000A001F /* RoomListViewModel.swift in Sources */,
-				A1B2C3D4E5F60001000A0020 /* RoomViewModel.swift in Sources */,
 				A1B2C3D4E5F60001000A0021 /* Constants.swift in Sources */,
 				A1B2C3D4E5F60001000A0022 /* NotificationHandler.swift in Sources */,
+				53D4ED94C8C34DDA88433BEE /* AppCoordinator.swift in Sources */,
+				3039B9E64A2946D3906B3D6B /* RootView.swift in Sources */,
+				0A36E2CC6A014B979D0F0EBA /* RoomLifecycleStorage.swift in Sources */,
+				479688D073BD418B977DD84D /* RoomLifecycleRecordConverter.swift in Sources */,
+				C620D63F20724F28A2F831BA /* PaymentTier.swift in Sources */,
+				27CA62019F0540BBABFCC032 /* ParticipantSpec.swift in Sources */,
+				4EF22249C88E4F8CA2B4B657 /* RoomState.swift in Sources */,
+				D96BE5066F0C4748B42EAC17 /* RoomSpec.swift in Sources */,
+				7305E3E9A4164023A7AD6EF7 /* RoomLifecycle.swift in Sources */,
+				869B95E779AC4AF9A167C4BE /* ParticipantResolver.swift in Sources */,
+				A60E9B623FFC4464AF1CC593 /* PaymentCoordinator.swift in Sources */,
+				87ABFD3E123E407590749227 /* LightwardEvaluator.swift in Sources */,
+				19443CAEA5EA459C8BC45074 /* RoomLifecycleCoordinator.swift in Sources */,
+				040AA0EE24894605960C2BB4 /* CloudKitParticipantResolver.swift in Sources */,
+				224D566BFCDD4F57AC7054D8 /* ApplePayCoordinator.swift in Sources */,
+				F4022F66975F462585B227C5 /* LightwardRoomEvaluator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -399,9 +417,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1B2C3D4E5F60001000A0030 /* TurnStateMachineTests.swift in Sources */,
 				A1B2C3D4E5F60001000A0031 /* SSEParserTests.swift in Sources */,
 				A1B2C3D4E5F60001000A0032 /* ChatLogBuilderTests.swift in Sources */,
+				66ED3904C8EA4213A5886890 /* RoomLifecycleTests.swift in Sources */,
+				3516084AC4304DF18CC1C100 /* RoomLifecycleCoordinatorTests.swift in Sources */,
+				4FF84A45FBC447AEA66758B9 /* PaymentTierTests.swift in Sources */,
+				5997D8EB86E54EE789D0B96F /* ParticipantSpecTests.swift in Sources */,
+				313A2ACEDB8947F1A0B7A4FB /* RoomSpecTests.swift in Sources */,
+				A3787B3FC54B433783802661 /* MockParticipantResolver.swift in Sources */,
+				8333545EC5AB47BC977E81B8 /* MockPaymentCoordinator.swift in Sources */,
+				FA36BEA72E614196B95B1E5C /* MockLightwardEvaluator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
