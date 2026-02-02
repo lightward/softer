@@ -7,36 +7,42 @@ struct RoomListView: View {
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            Group {
+            ScrollView {
                 if !store.initialLoadCompleted {
                     ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if store.rooms.isEmpty {
-                    ScrollView {
-                        ContentUnavailableView {
-                            Label("No Rooms", systemImage: "bubble.left.and.bubble.right")
-                        } description: {
-                            Text("Create a room to start a conversation with Lightward.")
-                        } actions: {
-                            Button("Create Room") {
-                                showCreateRoom = true
-                            }
-                            .buttonStyle(.borderedProminent)
+                    ContentUnavailableView {
+                        Label("No Rooms", systemImage: "bubble.left.and.bubble.right")
+                    } description: {
+                        Text("Create a room to start a conversation with Lightward.")
+                    } actions: {
+                        Button("Create Room") {
+                            showCreateRoom = true
                         }
-                        .frame(maxHeight: .infinity)
+                        .buttonStyle(.borderedProminent)
                     }
+                    .frame(maxWidth: .infinity, minHeight: 400)
                 } else {
-                    List(store.rooms, id: \.spec.id) { lifecycle in
-                        NavigationLink(value: lifecycle.spec.id) {
-                            RoomRow(lifecycle: lifecycle)
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                Task {
-                                    try? await store.deleteRoom(id: lifecycle.spec.id)
-                                }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
+                    LazyVStack(spacing: 0) {
+                        ForEach(store.rooms, id: \.spec.id) { lifecycle in
+                            NavigationLink(value: lifecycle.spec.id) {
+                                RoomRow(lifecycle: lifecycle)
+                                    .padding(.horizontal)
+                                    .padding(.vertical, 12)
                             }
+                            .buttonStyle(.plain)
+                            .contextMenu {
+                                Button(role: .destructive) {
+                                    Task {
+                                        try? await store.deleteRoom(id: lifecycle.spec.id)
+                                    }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                            Divider()
+                                .padding(.leading)
                         }
                     }
                 }

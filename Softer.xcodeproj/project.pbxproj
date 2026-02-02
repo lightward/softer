@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0026756D8A23D54D210F10F4 /* ConversationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7279B13D892A2E56D34AF8 /* ConversationCoordinatorTests.swift */; };
 		040AA0EE24894605960C2BB4 /* CloudKitParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = C22228C8697C4D5C81FDB537 /* CloudKitParticipantResolver.swift */; };
+		0933C2F4E143E6FD79F9B11C /* PersistentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 479C528F372C163688F94F75 /* PersistentModels.swift */; };
 		0A36E2CC6A014B979D0F0EBA /* RoomLifecycleStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617C94927D5D49A6BFA34E68 /* RoomLifecycleStorage.swift */; };
 		19443CAEA5EA459C8BC45074 /* RoomLifecycleCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82FD2273F7CB489CA7FF61A0 /* RoomLifecycleCoordinator.swift */; };
 		2136E9EBE1CC51222EE3C5D3 /* SofterStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EBF7A5B844B07826B5E5565 /* SofterStoreTests.swift */; };
@@ -17,6 +18,7 @@
 		3039B9E64A2946D3906B3D6B /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 240B4B7CE85349DCA8FFBA0C /* RootView.swift */; };
 		313A2ACEDB8947F1A0B7A4FB /* RoomSpecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16DE1199EEC14EC3874EB0D8 /* RoomSpecTests.swift */; };
 		3516084AC4304DF18CC1C100 /* RoomLifecycleCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2E332572B0B4F77A0F526FA /* RoomLifecycleCoordinatorTests.swift */; };
+		47140CAA73055D06F7B19EC8 /* PersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4232AB080E07A915C959927F /* PersistenceStore.swift */; };
 		479688D073BD418B977DD84D /* RoomLifecycleRecordConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CD59F08D9F846108AA8B17C /* RoomLifecycleRecordConverter.swift */; };
 		4EF22249C88E4F8CA2B4B657 /* RoomState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37BDA151A463438DA49932C5 /* RoomState.swift */; };
 		4FF84A45FBC447AEA66758B9 /* PaymentTierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8296906CB26B43968E52FF95 /* PaymentTierTests.swift */; };
@@ -87,7 +89,9 @@
 		3B0FD0A47B8A4CE093A55C51 /* MockLightwardEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockLightwardEvaluator.swift; sourceTree = "<group>"; };
 		3E9F7A2B6C8D4E1F5A0B2C4D /* CloudKitMessageStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitMessageStorage.swift; sourceTree = "<group>"; };
 		3EBF7A5B844B07826B5E5565 /* SofterStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SofterStoreTests.swift; sourceTree = "<group>"; };
+		4232AB080E07A915C959927F /* PersistenceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PersistenceStore.swift; sourceTree = "<group>"; };
 		4298F64186A04345A0042E1C /* RoomLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleTests.swift; sourceTree = "<group>"; };
+		479C528F372C163688F94F75 /* PersistentModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PersistentModels.swift; sourceTree = "<group>"; };
 		4C689E9D510743E99AABCCDA /* RoomSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomSpec.swift; sourceTree = "<group>"; };
 		617C94927D5D49A6BFA34E68 /* RoomLifecycleStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleStorage.swift; sourceTree = "<group>"; };
 		747396D5996F4EC99BA754F8 /* PaymentTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentTier.swift; sourceTree = "<group>"; };
@@ -220,6 +224,7 @@
 			children = (
 				A1B2C3D4E5F60002000A0003 /* Message.swift */,
 				A1B2C3D4E5F60002000A0005 /* Need.swift */,
+				479C528F372C163688F94F75 /* PersistentModels.swift */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -318,6 +323,7 @@
 				7CCD68076381EEFBD294C261 /* SyncStatus.swift */,
 				95BB0D385568422E69A1A59E /* SofterStore.swift */,
 				CC38359FE0404435F413B4A0 /* SyncCoordinator.swift */,
+				4232AB080E07A915C959927F /* PersistenceStore.swift */,
 			);
 			name = Store;
 			path = Store;
@@ -460,6 +466,8 @@
 				E2C6F3CDE7290B416D8509BC /* SofterStore.swift in Sources */,
 				A0FBE3C6173532AE05A5BFBA /* SyncCoordinator.swift in Sources */,
 				7AA97F64830DC9F420F4426F /* MessageRecordConverter.swift in Sources */,
+				47140CAA73055D06F7B19EC8 /* PersistenceStore.swift in Sources */,
+				0933C2F4E143E6FD79F9B11C /* PersistentModels.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -549,7 +557,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -607,7 +615,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
@@ -637,7 +645,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -670,7 +678,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -692,7 +700,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lightward.softer.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -710,7 +718,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lightward.softer.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";

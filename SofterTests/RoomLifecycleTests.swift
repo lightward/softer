@@ -212,4 +212,49 @@ final class RoomLifecycleTests: XCTestCase {
         )
         return RoomLifecycle(spec: spec, state: .pendingCapture)
     }
+
+    // MARK: - Turn State Tests
+
+    func testTurnIndexGrowsWithoutWrapping() {
+        // This test documents the fix: turn index must grow (not wrap with modulo)
+        // so that higherTurnWins merge strategy works correctly with CloudKit sync
+        var turn = TurnState.initial
+        let participantCount = 2
+
+        XCTAssertEqual(turn.currentTurnIndex, 0)
+
+        turn.advanceTurn(participantCount: participantCount)
+        XCTAssertEqual(turn.currentTurnIndex, 1)
+
+        turn.advanceTurn(participantCount: participantCount)
+        XCTAssertEqual(turn.currentTurnIndex, 2)  // NOT 0 - must grow for sync
+
+        turn.advanceTurn(participantCount: participantCount)
+        XCTAssertEqual(turn.currentTurnIndex, 3)  // NOT 1 - must grow for sync
+
+        // Verify display logic still works via modulo
+        XCTAssertEqual(turn.currentTurnIndex % participantCount, 1)
+    }
+
+    func testTurnIndexHigherWinsMergeScenario() {
+        // Simulates the sync conflict that was causing "wrong turn" bug:
+        // 1. Local advances turn 1→2 (back to first participant)
+        // 2. Remote still has turn 1 from before the advance
+        // 3. higherTurnWins should pick 2, not 1
+        let participantCount = 2
+
+        // Local state: just advanced from 1 to 2
+        var localTurn = TurnState(currentTurnIndex: 1, raisedHands: [], currentNeed: nil)
+        localTurn.advanceTurn(participantCount: participantCount)
+
+        // Remote state: still at 1 (hasn't synced yet)
+        let remoteTurn = TurnState(currentTurnIndex: 1, raisedHands: [], currentNeed: nil)
+
+        // higherTurnWins merge
+        let mergedIndex = max(localTurn.currentTurnIndex, remoteTurn.currentTurnIndex)
+
+        XCTAssertEqual(localTurn.currentTurnIndex, 2)
+        XCTAssertEqual(mergedIndex, 2)  // Should pick local's 2, not remote's 1
+        XCTAssertEqual(mergedIndex % participantCount, 0)  // First participant's turn
+    }
 }

@@ -354,18 +354,19 @@ actor SyncCoordinator {
         switch local.recordType {
         case "Room2":
             // Turn index: higher wins
-            if let localTurn = local["turnIndex"] as? Int,
-               let serverTurn = server["turnIndex"] as? Int {
-                merged["turnIndex"] = max(localTurn, serverTurn) as NSNumber
+            if let localTurn = local["currentTurnIndex"] as? Int,
+               let serverTurn = server["currentTurnIndex"] as? Int {
+                merged["currentTurnIndex"] = max(localTurn, serverTurn) as NSNumber
             }
 
-            // Raised hands: union merge (stored as comma-separated string)
-            if let localHands = local["raisedHands"] as? String,
-               let serverHands = server["raisedHands"] as? String {
-                let localSet = Set(localHands.split(separator: ",").map(String.init))
-                let serverSet = Set(serverHands.split(separator: ",").map(String.init))
-                let union = localSet.union(serverSet)
-                merged["raisedHands"] = union.joined(separator: ",") as NSString
+            // Raised hands: union merge (stored as array)
+            let localHands = Set(local["raisedHands"] as? [String] ?? [])
+            let serverHands = Set(server["raisedHands"] as? [String] ?? [])
+            let union = localHands.union(serverHands)
+            if union.isEmpty {
+                merged["raisedHands"] = nil
+            } else {
+                merged["raisedHands"] = Array(union) as NSArray
             }
 
         case "Participant2":

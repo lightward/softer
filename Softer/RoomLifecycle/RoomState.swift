@@ -10,7 +10,9 @@ struct TurnState: Sendable, Codable, Equatable {
 
     mutating func advanceTurn(participantCount: Int) {
         guard participantCount > 0 else { return }
-        currentTurnIndex = (currentTurnIndex + 1) % participantCount
+        // Don't modulo here - let index grow for higherTurnWins merge strategy
+        // Display code does % participantCount when showing whose turn
+        currentTurnIndex += 1
         raisedHands.removeAll()
     }
 

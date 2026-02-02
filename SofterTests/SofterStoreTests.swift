@@ -11,13 +11,14 @@ final class SofterStoreTests: XCTestCase {
         // Create store with nil dependencies to avoid actual CloudKit setup
         let store = SofterStore(
             apiClient: MockLightwardAPIClient(),
+            dataStore: nil,
             container: nil,
             syncCoordinator: nil,
             zoneID: nil
         )
 
         // Without a container, sync status should not be synced
-        XCTAssertEqual(store.syncStatus, .idle)
+        XCTAssertEqual(store.syncStatus, SyncStatus.idle)
         XCTAssertTrue(store.rooms.isEmpty)
         XCTAssertFalse(store.initialLoadCompleted)
     }
@@ -38,6 +39,7 @@ final class SofterStoreTests: XCTestCase {
     func testDeleteRoomThrowsWhenNotConfigured() async {
         let store = SofterStore(
             apiClient: MockLightwardAPIClient(),
+            dataStore: nil,
             container: nil,
             syncCoordinator: nil,
             zoneID: nil
@@ -54,6 +56,7 @@ final class SofterStoreTests: XCTestCase {
     func testSaveMessageThrowsWhenNotConfigured() async {
         let store = SofterStore(
             apiClient: MockLightwardAPIClient(),
+            dataStore: nil,
             container: nil,
             syncCoordinator: nil,
             zoneID: nil
@@ -110,6 +113,7 @@ final class SofterStoreTests: XCTestCase {
         // mock SyncCoordinator implementations.
         SofterStore(
             apiClient: MockLightwardAPIClient(),
+            dataStore: nil,
             container: CKContainer(identifier: Constants.containerIdentifier),
             syncCoordinator: nil,
             zoneID: CKRecordZone.default().zoneID
