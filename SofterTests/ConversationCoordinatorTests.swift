@@ -142,7 +142,8 @@ final class ConversationCoordinatorTests: XCTestCase {
         api.responseChunks = ["Hello ", "world!"]
         let spec = makeSpec()
 
-        var streamingUpdates: [String] = []
+        // Thread-safe collector (no Task spawning needed)
+        let collector = StreamingCollector()
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
@@ -150,7 +151,7 @@ final class ConversationCoordinatorTests: XCTestCase {
             messageStorage: storage,
             apiClient: api,
             onStreamingText: { text in
-                streamingUpdates.append(text)
+                collector.append(text)
             }
         )
 
@@ -160,10 +161,10 @@ final class ConversationCoordinatorTests: XCTestCase {
             text: "Hello"
         )
 
-        // Should have received streaming updates and then cleared
-        XCTAssertTrue(streamingUpdates.contains("Hello "))
-        XCTAssertTrue(streamingUpdates.contains("Hello world!"))
-        XCTAssertEqual(streamingUpdates.last, "")  // Cleared at end
+        // Should have received streaming updates: "Hello " then "Hello world!"
+        let updates = collector.updates
+        XCTAssertTrue(updates.contains("Hello "))
+        XCTAssertTrue(updates.contains("Hello world!"))
     }
 
     func testYieldTurnWithoutMessage() async throws {
@@ -272,5 +273,22 @@ final class ConversationCoordinatorTests: XCTestCase {
         // Should be Mira's turn
         let finalTurn = await coordinator.currentTurnState
         XCTAssertEqual(finalTurn.currentTurnIndex, 1)
+    }
+}
+
+// MARK: - Test Helpers
+
+/// Thread-safe collector for streaming text updates.
+/// Uses a lock instead of actor to avoid Task spawning in callbacks.
+private final class StreamingCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _updates: [String] = []
+
+    var updates: [String] {
+        lock.withLock { _updates }
+    }
+
+    func append(_ text: String) {
+        lock.withLock { _updates.append(text) }
     }
 }

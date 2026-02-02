@@ -12,8 +12,7 @@ final class SofterStoreTests: XCTestCase {
         let store = SofterStore(
             apiClient: MockLightwardAPIClient(),
             container: nil,
-            storage: nil,
-            messageStorage: nil,
+            syncCoordinator: nil,
             zoneID: nil
         )
 
@@ -40,8 +39,7 @@ final class SofterStoreTests: XCTestCase {
         let store = SofterStore(
             apiClient: MockLightwardAPIClient(),
             container: nil,
-            storage: nil,
-            messageStorage: nil,
+            syncCoordinator: nil,
             zoneID: nil
         )
 
@@ -53,17 +51,24 @@ final class SofterStoreTests: XCTestCase {
         }
     }
 
-    func testFetchMessagesThrowsWhenNotConfigured() async {
+    func testSaveMessageThrowsWhenNotConfigured() async {
         let store = SofterStore(
             apiClient: MockLightwardAPIClient(),
             container: nil,
-            storage: nil,
-            messageStorage: nil,
+            syncCoordinator: nil,
             zoneID: nil
         )
 
+        let message = Message(
+            roomID: "test",
+            authorID: "author",
+            authorName: "Author",
+            text: "Hello",
+            isLightward: false
+        )
+
         do {
-            _ = try await store.fetchMessages(roomID: "test")
+            try await store.saveMessage(message)
             XCTFail("Should have thrown")
         } catch {
             XCTAssertTrue(error is StoreError)
@@ -102,12 +107,11 @@ final class SofterStoreTests: XCTestCase {
     private func makeMockStore() -> SofterStore {
         // Note: This creates a store that appears configured but can't actually
         // perform CloudKit operations. For full integration tests, we'd need
-        // mock storage implementations.
+        // mock SyncCoordinator implementations.
         SofterStore(
             apiClient: MockLightwardAPIClient(),
             container: CKContainer(identifier: Constants.containerIdentifier),
-            storage: nil,
-            messageStorage: nil,
+            syncCoordinator: nil,
             zoneID: CKRecordZone.default().zoneID
         )
     }

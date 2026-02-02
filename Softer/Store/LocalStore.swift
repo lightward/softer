@@ -1,12 +1,34 @@
 import Foundation
+import CloudKit
 
 /// Single source of truth for in-memory data.
 /// Applies local writes immediately and receives remote changes from SyncCoordinator.
 actor LocalStore {
+    // MARK: - Types
+
+    /// Cached participant data for reconstructing rooms from CKSyncEngine events.
+    struct StoredParticipant {
+        let spec: ParticipantSpec
+        let orderIndex: Int
+        let hasSignaledHere: Bool
+    }
+
+    /// Room record waiting for its participants to arrive.
+    struct PendingRoom {
+        let record: CKRecord
+        let receivedAt: Date
+    }
+
     // MARK: - Data Storage
 
     private var rooms: [String: RoomLifecycle] = [:]
     private var messages: [String: [Message]] = [:]  // roomID -> messages
+
+    /// Participant cache for reconstructing rooms from CKSyncEngine.
+    private var participants: [String: [StoredParticipant]] = [:]  // roomID -> participants
+
+    /// Rooms waiting for participants to arrive.
+    private var pendingRooms: [String: PendingRoom] = [:]  // roomID -> pending room
 
     // MARK: - Observation
 
@@ -219,11 +241,95 @@ actor LocalStore {
         return base.withTurnState(mergedTurn)
     }
 
+    // MARK: - Participant Cache (for CKSyncEngine)
+
+    /// Insert or update a participant in the cache.
+    func upsertParticipant(_ participant: StoredParticipant, roomID: String) {
+        var roomParticipants = participants[roomID] ?? []
+
+        // Replace existing or append
+        if let index = roomParticipants.firstIndex(where: { $0.spec.id == participant.spec.id }) {
+            roomParticipants[index] = participant
+        } else {
+            roomParticipants.append(participant)
+        }
+
+        participants[roomID] = roomParticipants
+    }
+
+    /// Get cached participants for a room.
+    func participantsForRoom(_ roomID: String) -> [StoredParticipant]? {
+        guard let cached = participants[roomID], !cached.isEmpty else {
+            return nil
+        }
+        return cached
+    }
+
+    /// Store a room record that's waiting for its participants.
+    func storePendingRoom(_ record: CKRecord) {
+        let roomID = record.recordID.recordName
+        pendingRooms[roomID] = PendingRoom(record: record, receivedAt: Date())
+    }
+
+    /// Try to complete a pending room now that participants may be available.
+    /// Returns the completed RoomLifecycle if successful, nil otherwise.
+    func tryCompletePendingRoom(_ roomID: String) -> RoomLifecycle? {
+        guard let pending = pendingRooms[roomID],
+              let storedParticipants = participantsForRoom(roomID) else {
+            return nil
+        }
+
+        // Sort by orderIndex and extract specs
+        let sorted = storedParticipants.sorted { $0.orderIndex < $1.orderIndex }
+        let specs = sorted.map(\.spec)
+        let signaledIDs = Set(sorted.filter(\.hasSignaledHere).map(\.spec.id))
+
+        guard let lifecycle = RoomLifecycleRecordConverter.lifecycle(
+            from: pending.record,
+            participants: specs,
+            signaledParticipantIDs: signaledIDs
+        ) else {
+            return nil
+        }
+
+        // Successfully completed - remove from pending
+        pendingRooms.removeValue(forKey: roomID)
+
+        return lifecycle
+    }
+
+    /// Remove a pending room (used when room is deleted before completing).
+    func removePendingRoom(_ roomID: String) {
+        pendingRooms.removeValue(forKey: roomID)
+    }
+
+    /// Try to complete all pending rooms. Returns array of completed lifecycles.
+    func completeAllPendingRooms() -> [RoomLifecycle] {
+        var completed: [RoomLifecycle] = []
+
+        // Copy keys to avoid mutating while iterating
+        let roomIDs = Array(pendingRooms.keys)
+        for roomID in roomIDs {
+            if let lifecycle = tryCompletePendingRoom(roomID) {
+                completed.append(lifecycle)
+            }
+        }
+
+        return completed
+    }
+
+    /// Clear participant cache for a room.
+    func clearParticipants(roomID: String) {
+        participants.removeValue(forKey: roomID)
+    }
+
     // MARK: - Reset (for testing)
 
     func reset() {
         rooms = [:]
         messages = [:]
+        participants = [:]
+        pendingRooms = [:]
         roomObservers = [:]
         messageObservers = [:]
     }

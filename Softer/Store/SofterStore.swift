@@ -26,8 +26,7 @@ final class SofterStore {
 
     private let localStore = LocalStore()
     private var container: CKContainer?
-    private var storage: RoomLifecycleStorage?
-    private var messageStorage: CloudKitMessageStorage?
+    private var syncCoordinator: SyncCoordinator?
     private var zoneID: CKRecordZone.ID?
     private let apiClient: any LightwardAPI
 
@@ -44,14 +43,12 @@ final class SofterStore {
     init(
         apiClient: any LightwardAPI,
         container: CKContainer?,
-        storage: RoomLifecycleStorage?,
-        messageStorage: CloudKitMessageStorage?,
+        syncCoordinator: SyncCoordinator?,
         zoneID: CKRecordZone.ID?
     ) {
         self.apiClient = apiClient
         self.container = container
-        self.storage = storage
-        self.messageStorage = messageStorage
+        self.syncCoordinator = syncCoordinator
         self.zoneID = zoneID
         if container != nil {
             syncStatus = .synced
@@ -80,62 +77,145 @@ final class SofterStore {
             let zoneID = CKRecordZone.default().zoneID
             self.zoneID = zoneID
 
-            // Create storage
-            self.storage = RoomLifecycleStorage(
+            // Create and start SyncCoordinator
+            let coordinator = SyncCoordinator(
                 database: ckContainer.privateCloudDatabase,
                 zoneID: zoneID
             )
-            self.messageStorage = CloudKitMessageStorage(
-                database: ckContainer.privateCloudDatabase,
-                zoneID: zoneID
+            self.syncCoordinator = coordinator
+
+            await coordinator.start(
+                onRecordFetched: { [weak self] record in
+                    await self?.handleRecordFetched(record)
+                },
+                onRecordDeleted: { [weak self] recordID in
+                    await self?.handleRecordDeleted(recordID)
+                },
+                onStatusChange: { [weak self] status in
+                    await self?.handleStatusChange(status)
+                },
+                onBatchComplete: { [weak self] in
+                    await self?.finalizePendingRooms()
+                }
             )
 
-            syncStatus = .synced
-            await loadRooms()
+            // Fetch initial changes
+            await coordinator.fetchChanges()
+            initialLoadCompleted = true
 
         } catch {
             syncStatus = .error("Softer requires iCloud. Sign in via Settings to begin.")
         }
     }
 
-    // MARK: - Public API: Rooms
+    // MARK: - SyncCoordinator Handlers
 
-    /// Loads all rooms from CloudKit into the local store.
-    func loadRooms() async {
-        guard let storage = storage else { return }
+    private func handleRecordFetched(_ record: CKRecord) async {
+        print("SofterStore: Fetched record type=\(record.recordType) id=\(record.recordID.recordName)")
+        switch record.recordType {
+        case RoomLifecycleRecordConverter.roomRecordType:
+            await handleRoomRecordFetched(record)
 
-        syncStatus = .syncing
-        do {
-            let allRooms = try await storage.fetchAllRooms()
-            await localStore.upsertRooms(allRooms)
+        case RoomLifecycleRecordConverter.participantRecordType:
+            await handleParticipantRecordFetched(record)
 
-            // Update published state
-            let filtered = allRooms.filter { !$0.isDefunct }
-            rooms = filtered.sorted { $0.spec.createdAt < $1.spec.createdAt }
-            syncStatus = .synced
-        } catch {
-            print("Failed to load rooms: \(error)")
-            syncStatus = .error("Failed to load rooms")
+        case MessageRecordConverter.recordType:
+            if let message = MessageRecordConverter.message(from: record) {
+                await localStore.addMessage(message)
+            }
+
+        default:
+            break
         }
-        initialLoadCompleted = true
     }
 
-    /// Gets a room by ID. First checks local cache, then CloudKit.
-    func room(id: String) async throws -> RoomLifecycle? {
-        // Check local cache first
-        if let cached = await localStore.room(id: id) {
-            return cached
+    private func handleRoomRecordFetched(_ record: CKRecord) async {
+        let roomID = record.recordID.recordName
+
+        // Check if we have participants cached
+        if let storedParticipants = await localStore.participantsForRoom(roomID) {
+            print("SofterStore: Room \(roomID) has \(storedParticipants.count) cached participants, reconstructing")
+            // Reconstruct full lifecycle
+            let sorted = storedParticipants.sorted { $0.orderIndex < $1.orderIndex }
+            let specs = sorted.map(\.spec)
+            let signaledIDs = Set(sorted.filter(\.hasSignaledHere).map(\.spec.id))
+
+            if let lifecycle = RoomLifecycleRecordConverter.lifecycle(
+                from: record,
+                participants: specs,
+                signaledParticipantIDs: signaledIDs
+            ) {
+                await localStore.upsertRoom(lifecycle)
+                rooms = await localStore.allRooms
+                print("SofterStore: Room \(roomID) reconstructed, now have \(rooms.count) rooms")
+            } else {
+                print("SofterStore: Failed to reconstruct room \(roomID)")
+            }
+        } else {
+            // Store as pending, wait for participants
+            print("SofterStore: Room \(roomID) has no cached participants, storing as pending")
+            await localStore.storePendingRoom(record)
+        }
+    }
+
+    private func handleParticipantRecordFetched(_ record: CKRecord) async {
+        guard let roomID = RoomLifecycleRecordConverter.roomID(from: record),
+              let spec = RoomLifecycleRecordConverter.participantSpec(from: record) else {
+            print("SofterStore: Failed to parse Participant2 record")
+            return
         }
 
-        // Fall back to CloudKit
-        guard let storage = storage else {
-            throw StoreError.notConfigured
+        print("SofterStore: Caching participant \(spec.nickname) for room \(roomID)")
+        let stored = LocalStore.StoredParticipant(
+            spec: spec,
+            orderIndex: RoomLifecycleRecordConverter.orderIndex(from: record),
+            hasSignaledHere: RoomLifecycleRecordConverter.hasSignaledHere(from: record)
+        )
+        await localStore.upsertParticipant(stored, roomID: roomID)
+        // Don't try to complete pending rooms here - wait for batch complete
+    }
+
+    private func handleRecordDeleted(_ recordID: CKRecord.ID) async {
+        let id = recordID.recordName
+
+        // Try to delete as room first
+        await localStore.deleteRoom(id: id)
+        await localStore.removePendingRoom(id)
+
+        // Update rooms list
+        rooms = await localStore.allRooms
+    }
+
+    @MainActor
+    private func handleStatusChange(_ status: SyncStatus) async {
+        self.syncStatus = status
+    }
+
+    private func finalizePendingRooms() async {
+        print("SofterStore: Finalizing pending rooms...")
+        let completedRooms = await localStore.completeAllPendingRooms()
+        print("SofterStore: Completed \(completedRooms.count) pending rooms")
+        if !completedRooms.isEmpty {
+            for lifecycle in completedRooms {
+                await localStore.upsertRoom(lifecycle)
+            }
+            rooms = await localStore.allRooms
+            print("SofterStore: Now have \(rooms.count) rooms total")
         }
-        let fetched = try await storage.fetchRoom(id: id)
-        if let fetched = fetched {
-            await localStore.upsertRoom(fetched)
-        }
-        return fetched
+    }
+
+    // MARK: - Public API: Rooms
+
+    /// Refreshes rooms from CloudKit via SyncCoordinator.
+    func refreshRooms() async {
+        guard let syncCoordinator = syncCoordinator else { return }
+        await syncCoordinator.fetchChanges()
+        rooms = await localStore.allRooms
+    }
+
+    /// Gets a room by ID from local cache.
+    func room(id: String) async -> RoomLifecycle? {
+        await localStore.room(id: id)
     }
 
     /// Creates a new room with the full lifecycle flow.
@@ -144,7 +224,7 @@ final class SofterStore {
         tier: PaymentTier,
         originatorNickname: String
     ) async throws -> RoomLifecycle {
-        guard let container = container, let storage = storage else {
+        guard let container = container, let syncCoordinator = syncCoordinator, let zoneID = zoneID else {
             throw StoreError.notConfigured
         }
 
@@ -184,10 +264,33 @@ final class SofterStore {
             try await coordinator.signalHere(participantID: participant.id)
         }
 
-        // Save to CloudKit
         let lifecycle = await coordinator.lifecycle
         let resolvedParticipants = await coordinator.resolvedParticipants
-        try await storage.saveRoom(lifecycle: lifecycle, resolvedParticipants: resolvedParticipants)
+
+        // Save room record via SyncCoordinator
+        let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
+        await syncCoordinator.save(roomRecord)
+
+        // Save participant records
+        for (index, resolved) in resolvedParticipants.enumerated() {
+            let participantRecord = RoomLifecycleRecordConverter.record(
+                from: resolved.spec,
+                roomID: lifecycle.spec.id,
+                userRecordID: resolved.userRecordID,
+                hasSignaledHere: true,  // Auto-signaled for now
+                orderIndex: index,
+                zoneID: zoneID
+            )
+            await syncCoordinator.save(participantRecord)
+
+            // Also cache in LocalStore
+            let stored = LocalStore.StoredParticipant(
+                spec: resolved.spec,
+                orderIndex: index,
+                hasSignaledHere: true
+            )
+            await localStore.upsertParticipant(stored, roomID: lifecycle.spec.id)
+        }
 
         // Update local store immediately
         await localStore.upsertRoom(lifecycle)
@@ -211,20 +314,22 @@ final class SofterStore {
             isNarration: true
         )
 
-        // Add to local store immediately so it's visible right away
+        // Add to local store immediately
         await localStore.addMessage(openingMessage)
 
-        // Also persist to CloudKit
-        if let messageStorage = messageStorage {
-            try await messageStorage.save(openingMessage, roomID: lifecycle.spec.id)
-        }
+        // Save message record via SyncCoordinator
+        let messageRecord = MessageRecordConverter.record(from: openingMessage, zoneID: zoneID)
+        await syncCoordinator.save(messageRecord)
+
+        // Push all changes to CloudKit
+        await syncCoordinator.sendChanges()
 
         return lifecycle
     }
 
     /// Updates a room's state.
     func updateRoom(_ lifecycle: RoomLifecycle) async throws {
-        guard let storage = storage else {
+        guard let syncCoordinator = syncCoordinator, let zoneID = zoneID else {
             throw StoreError.notConfigured
         }
 
@@ -232,76 +337,73 @@ final class SofterStore {
         await localStore.upsertRoom(lifecycle)
         rooms = await localStore.allRooms
 
-        // Persist to CloudKit
-        try await storage.updateRoomState(lifecycle)
+        // Save room record via SyncCoordinator
+        let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
+        await syncCoordinator.save(roomRecord)
+        await syncCoordinator.sendChanges()
     }
 
     /// Deletes a room and all its associated data.
     func deleteRoom(id: String) async throws {
-        guard let storage = storage else {
+        guard let syncCoordinator = syncCoordinator, let zoneID = zoneID else {
             throw StoreError.notConfigured
         }
 
+        // Get participants and messages to delete
+        let storedParticipants = await localStore.participantsForRoom(id) ?? []
+        let messages = await localStore.messages(roomID: id)
+
         // Update local store immediately
         await localStore.deleteRoom(id: id)
+        await localStore.clearParticipants(roomID: id)
         rooms = await localStore.allRooms
 
-        // Delete from CloudKit
-        try await storage.deleteRoom(id: id)
+        // Delete room record
+        let roomRecordID = CKRecord.ID(recordName: id, zoneID: zoneID)
+        await syncCoordinator.delete(recordID: roomRecordID)
+
+        // Delete participant records
+        for participant in storedParticipants {
+            let participantRecordID = CKRecord.ID(recordName: participant.spec.id, zoneID: zoneID)
+            await syncCoordinator.delete(recordID: participantRecordID)
+        }
+
+        // Delete message records
+        for message in messages {
+            let messageRecordID = CKRecord.ID(recordName: message.id, zoneID: zoneID)
+            await syncCoordinator.delete(recordID: messageRecordID)
+        }
+
+        await syncCoordinator.sendChanges()
     }
 
     // MARK: - Public API: Messages
 
-    /// Fetches messages for a room.
-    /// Returns local messages immediately merged with remote, so locally-created messages appear right away.
-    func fetchMessages(roomID: String) async throws -> [Message] {
-        // Get any local messages first (e.g., opening narration just created)
-        let localMessages = await localStore.messages(roomID: roomID)
-
-        guard let messageStorage = messageStorage else {
-            return localMessages
-        }
-
-        // Fetch from CloudKit
-        let remoteMessages = try await messageStorage.fetchMessages(roomID: roomID)
-
-        // Merge: use remote as base, add any local messages not in remote
-        let remoteIDs = Set(remoteMessages.map { $0.id })
-        let uniqueLocalMessages = localMessages.filter { !remoteIDs.contains($0.id) }
-        let merged = (remoteMessages + uniqueLocalMessages).sorted { $0.createdAt < $1.createdAt }
-
-        await localStore.setMessages(merged, roomID: roomID)
-        return merged
+    /// Gets messages for a room from local store.
+    /// Call refreshRooms() first if you need latest from CloudKit.
+    func messages(roomID: String) async -> [Message] {
+        await localStore.messages(roomID: roomID)
     }
 
-    /// Observes messages for a room.
+    /// Observes messages for a room via LocalStore.
     /// Returns current messages immediately and a stream for updates.
-    func observeMessages(roomID: String) async -> (initial: [Message], token: ObservationToken) {
-        guard let messageStorage = messageStorage else {
-            return ([], NoOpObservationToken())
-        }
-
-        let token = await messageStorage.observeMessages(roomID: roomID) { [weak self] messages in
-            Task { @MainActor [weak self] in
-                await self?.localStore.setMessages(messages, roomID: roomID)
-            }
-        }
-
-        let initial = await localStore.messages(roomID: roomID)
-        return (initial, token)
+    func observeMessages(roomID: String) async -> (initial: [Message], stream: AsyncStream<[Message]>) {
+        await localStore.observeMessages(roomID: roomID)
     }
 
     /// Saves a message to storage.
     func saveMessage(_ message: Message) async throws {
-        guard let messageStorage = messageStorage else {
+        guard let syncCoordinator = syncCoordinator, let zoneID = zoneID else {
             throw StoreError.notConfigured
         }
 
         // Add to local store immediately
         await localStore.addMessage(message)
 
-        // Persist to CloudKit
-        try await messageStorage.save(message, roomID: message.roomID)
+        // Save via SyncCoordinator
+        let messageRecord = MessageRecordConverter.record(from: message, zoneID: zoneID)
+        await syncCoordinator.save(messageRecord)
+        await syncCoordinator.sendChanges()
     }
 
     // MARK: - Public API: Conversation Coordinator
@@ -312,8 +414,7 @@ final class SofterStore {
         onTurnChange: @escaping @Sendable (TurnState) -> Void = { _ in },
         onStreamingText: @escaping @Sendable (String) -> Void = { _ in }
     ) -> ConversationCoordinator? {
-        guard let messageStorage = messageStorage else { return nil }
-        guard let storage = storage else { return nil }
+        guard let syncCoordinator = syncCoordinator, let zoneID = zoneID else { return nil }
         guard lifecycle.isActive, let turnState = lifecycle.turnState else { return nil }
 
         // Wrap onTurnChange to also persist and update local store
@@ -326,91 +427,90 @@ final class SofterStore {
                 await self.localStore.upsertRoom(updatedLifecycle)
                 self.rooms = await self.localStore.allRooms
 
-                // Persist to CloudKit
-                do {
-                    try await storage.updateRoomState(updatedLifecycle)
-                } catch {
-                    print("Failed to persist turn state: \(error)")
-                }
+                // Persist to CloudKit via SyncCoordinator
+                guard let syncCoordinator = self.syncCoordinator, let zoneID = self.zoneID else { return }
+                let roomRecord = RoomLifecycleRecordConverter.record(from: updatedLifecycle, zoneID: zoneID)
+                await syncCoordinator.save(roomRecord)
+                await syncCoordinator.sendChanges()
             }
         }
 
-        // Create a wrapper that updates both local and remote
-        let localAwareStorage = LocalAwareMessageStorage(
+        // Create message storage backed by SyncCoordinator
+        let syncBackedStorage = SyncBackedMessageStorage(
             localStore: localStore,
-            cloudKitStorage: messageStorage
+            syncCoordinator: syncCoordinator,
+            zoneID: zoneID
         )
 
         return ConversationCoordinator(
             roomID: lifecycle.spec.id,
             spec: lifecycle.spec,
             initialTurnState: turnState,
-            messageStorage: localAwareStorage,
+            messageStorage: syncBackedStorage,
             apiClient: apiClient,
             onTurnChange: wrappedOnTurnChange,
             onStreamingText: onStreamingText
         )
     }
-
-    /// Returns the message storage (for backward compatibility during migration).
-    func getMessageStorage() -> CloudKitMessageStorage? {
-        messageStorage
-    }
-
-    /// Merges remote messages with local-only messages.
-    /// Used by observation callbacks to preserve locally-created messages.
-    func mergeMessages(remote: [Message], roomID: String) async -> [Message] {
-        let localMessages = await localStore.messages(roomID: roomID)
-        let remoteIDs = Set(remote.map { $0.id })
-        let uniqueLocalMessages = localMessages.filter { !remoteIDs.contains($0.id) }
-        let merged = (remote + uniqueLocalMessages).sorted { $0.createdAt < $1.createdAt }
-        await localStore.setMessages(merged, roomID: roomID)
-        return merged
-    }
 }
 
-// MARK: - Local-Aware Message Storage
+// MARK: - SyncCoordinator-Backed Message Storage
 
-/// Wrapper that updates LocalStore immediately when messages are saved,
-/// ensuring UI consistency before CloudKit sync completes.
-private final class LocalAwareMessageStorage: MessageStorage, @unchecked Sendable {
+/// MessageStorage implementation that uses SyncCoordinator for persistence.
+private final class SyncBackedMessageStorage: MessageStorage, @unchecked Sendable {
     private let localStore: LocalStore
-    private let cloudKitStorage: CloudKitMessageStorage
+    private let syncCoordinator: SyncCoordinator
+    private let zoneID: CKRecordZone.ID
 
-    init(localStore: LocalStore, cloudKitStorage: CloudKitMessageStorage) {
+    init(localStore: LocalStore, syncCoordinator: SyncCoordinator, zoneID: CKRecordZone.ID) {
         self.localStore = localStore
-        self.cloudKitStorage = cloudKitStorage
+        self.syncCoordinator = syncCoordinator
+        self.zoneID = zoneID
     }
 
     func save(_ message: Message, roomID: String) async throws {
-        // Update local store immediately for instant UI update
+        // Update local store immediately
         await localStore.addMessage(message)
 
-        // Then persist to CloudKit
-        try await cloudKitStorage.save(message, roomID: roomID)
+        // Save via SyncCoordinator
+        let messageRecord = MessageRecordConverter.record(from: message, zoneID: zoneID)
+        await syncCoordinator.save(messageRecord)
+        await syncCoordinator.sendChanges()
     }
 
     func fetchMessages(roomID: String) async throws -> [Message] {
-        // Get local messages first
-        let localMessages = await localStore.messages(roomID: roomID)
-
-        // Fetch from CloudKit
-        let remoteMessages = try await cloudKitStorage.fetchMessages(roomID: roomID)
-
-        // Merge: remote as base, add unique local messages
-        let remoteIDs = Set(remoteMessages.map { $0.id })
-        let uniqueLocalMessages = localMessages.filter { !remoteIDs.contains($0.id) }
-        let merged = (remoteMessages + uniqueLocalMessages).sorted { $0.createdAt < $1.createdAt }
-
-        // Update local store with merged result
-        await localStore.setMessages(merged, roomID: roomID)
-
-        return merged
+        // Return from local store (SyncCoordinator handles remote fetch)
+        await localStore.messages(roomID: roomID)
     }
 
     func observeMessages(roomID: String, handler: @escaping @Sendable ([Message]) -> Void) async -> ObservationToken {
-        // Delegate to CloudKit storage for observation
-        await cloudKitStorage.observeMessages(roomID: roomID, handler: handler)
+        // Observe via LocalStore
+        let (initial, stream) = await localStore.observeMessages(roomID: roomID)
+
+        // Call handler with initial value
+        handler(initial)
+
+        // Set up stream observation
+        let task = Task {
+            for await messages in stream {
+                handler(messages)
+            }
+        }
+
+        return TaskObservationToken(task: task)
+    }
+}
+
+/// ObservationToken backed by a Task.
+private final class TaskObservationToken: ObservationToken, @unchecked Sendable {
+    private let task: Task<Void, Never>
+
+    init(task: Task<Void, Never>) {
+        self.task = task
+    }
+
+    func cancel() {
+        task.cancel()
     }
 }
 
@@ -425,10 +525,4 @@ enum StoreError: Error, LocalizedError {
             return "App not fully configured. Please try again."
         }
     }
-}
-
-// MARK: - No-op Token
-
-private final class NoOpObservationToken: ObservationToken, @unchecked Sendable {
-    func cancel() {}
 }

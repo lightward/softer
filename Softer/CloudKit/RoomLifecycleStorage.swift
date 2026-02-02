@@ -3,6 +3,11 @@ import CloudKit
 
 /// Manages CloudKit storage for the new RoomLifecycle model.
 /// Handles Room2 and Participant2 record types.
+///
+/// - Note: **DEPRECATED** - Direct CloudKit access is being replaced by SyncCoordinator.
+///   Use `SyncCoordinator` for all CloudKit operations. This class remains for reference
+///   during migration but will be removed in a future update.
+@available(*, deprecated, message: "Use SyncCoordinator for CloudKit operations")
 actor RoomLifecycleStorage {
     private let database: CKDatabase
     private let zoneID: CKRecordZone.ID

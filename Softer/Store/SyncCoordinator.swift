@@ -16,6 +16,9 @@ actor SyncCoordinator {
     /// Callback for sync status changes.
     typealias StatusHandler = @Sendable (SyncStatus) async -> Void
 
+    /// Callback for when a batch of records has been processed.
+    typealias BatchCompleteHandler = @Sendable () async -> Void
+
     // MARK: - Properties
 
     private let database: CKDatabase
@@ -26,6 +29,7 @@ actor SyncCoordinator {
     private var onRecordFetched: RecordHandler?
     private var onRecordDeleted: DeletionHandler?
     private var onStatusChange: StatusHandler?
+    private var onBatchComplete: BatchCompleteHandler?
 
     /// Records pending save, keyed by record ID.
     /// CKSyncEngine calls back to get these when sending changes.
@@ -47,11 +51,13 @@ actor SyncCoordinator {
     func start(
         onRecordFetched: @escaping RecordHandler,
         onRecordDeleted: @escaping DeletionHandler,
-        onStatusChange: @escaping StatusHandler
+        onStatusChange: @escaping StatusHandler,
+        onBatchComplete: @escaping BatchCompleteHandler = {}
     ) async {
         self.onRecordFetched = onRecordFetched
         self.onRecordDeleted = onRecordDeleted
         self.onStatusChange = onStatusChange
+        self.onBatchComplete = onBatchComplete
 
         // Load persisted state if available
         let state = loadPersistedState()
@@ -70,6 +76,10 @@ actor SyncCoordinator {
         delegate.coordinator = self
 
         await updateStatus(.syncing)
+
+        // Tell sync engine to track our zone
+        // This is required for CKSyncEngine to fetch changes from the zone
+        engine.state.add(pendingDatabaseChanges: [.saveZone(CKRecordZone(zoneID: zoneID))])
 
         // Ensure zone exists
         do {
@@ -128,30 +138,49 @@ actor SyncCoordinator {
 
     /// Trigger a fetch of changes from the server.
     func fetchChanges() async {
-        guard let engine = syncEngine else { return }
+        guard let engine = syncEngine else {
+            print("SyncCoordinator.fetchChanges: No engine")
+            return
+        }
 
+        print("SyncCoordinator.fetchChanges: Starting fetch...")
         await updateStatus(.syncing)
 
         do {
             try await engine.fetchChanges()
+            print("SyncCoordinator.fetchChanges: Fetch completed successfully")
             await updateStatus(.synced)
         } catch {
-            print("Failed to fetch changes: \(error)")
+            print("SyncCoordinator.fetchChanges: Failed - \(error)")
             await updateStatus(.error("Sync failed"))
         }
     }
 
     /// Send pending changes to the server.
     func sendChanges() async {
-        guard let engine = syncEngine else { return }
+        guard let engine = syncEngine else {
+            print("SyncCoordinator: No sync engine available")
+            return
+        }
 
         await updateStatus(.syncing)
 
         do {
             try await engine.sendChanges()
             await updateStatus(.synced)
+        } catch let error as CKError {
+            print("SyncCoordinator: CKError \(error.code.rawValue): \(error.localizedDescription)")
+            if let underlying = error.userInfo[NSUnderlyingErrorKey] as? Error {
+                print("SyncCoordinator: Underlying error: \(underlying)")
+            }
+            // Don't set error status for transient failures - let individual record handlers deal with it
+            if error.code == .networkUnavailable || error.code == .networkFailure {
+                await updateStatus(.offline)
+            } else {
+                await updateStatus(.error("Sync failed: \(error.code.rawValue)"))
+            }
         } catch {
-            print("Failed to send changes: \(error)")
+            print("SyncCoordinator: Non-CK error: \(error)")
             await updateStatus(.error("Sync failed"))
         }
     }
@@ -160,6 +189,7 @@ actor SyncCoordinator {
 
     /// Called by delegate when the sync engine has events.
     func handleEvent(_ event: CKSyncEngine.Event) async {
+        print("SyncCoordinator: Received event: \(event)")
         switch event {
         case .stateUpdate(let stateUpdate):
             handleStateUpdate(stateUpdate)
@@ -168,9 +198,11 @@ actor SyncCoordinator {
             await handleAccountChange(accountChange)
 
         case .fetchedDatabaseChanges(let changes):
+            print("SyncCoordinator: Fetched database changes - \(changes.modifications.count) zones modified")
             await handleFetchedDatabaseChanges(changes)
 
         case .fetchedRecordZoneChanges(let changes):
+            print("SyncCoordinator: Fetched record zone changes - \(changes.modifications.count) records, \(changes.deletions.count) deletions")
             await handleFetchedRecordZoneChanges(changes)
 
         case .sentDatabaseChanges(let sentChanges):
@@ -236,6 +268,9 @@ actor SyncCoordinator {
         for deletion in changes.deletions {
             await onRecordDeleted?(deletion.recordID)
         }
+
+        // Notify that batch is complete (for finalizing pending rooms, etc.)
+        await onBatchComplete?()
     }
 
     private func handleSentDatabaseChanges(_ sentChanges: CKSyncEngine.Event.SentDatabaseChanges) {

@@ -11,7 +11,7 @@ struct RoomView: View {
     @State private var isLoading = true
     @State private var turnState: TurnState?
     @State private var conversationCoordinator: ConversationCoordinator?
-    @State private var observationToken: ObservationToken?
+    @State private var messageObservationTask: Task<Void, Never>?
     @State private var isSending = false
     @State private var isLightwardThinking = false
     @State private var showYieldConfirmation = false
@@ -30,7 +30,7 @@ struct RoomView: View {
             await loadRoom()
         }
         .onDisappear {
-            observationToken?.cancel()
+            messageObservationTask?.cancel()
         }
     }
 
@@ -253,7 +253,7 @@ struct RoomView: View {
     private func loadRoom() async {
         isLoading = true
         do {
-            lifecycle = try await store.room(id: roomID)
+            lifecycle = await store.room(id: roomID)
             loadDraft()
 
             // Set up conversation coordinator if room is active
@@ -286,29 +286,22 @@ struct RoomView: View {
                 conversationCoordinator = convCoord
                 turnState = lifecycle.turnState
 
-                // Fetch initial messages (merges local + remote), then observe
-                messages = try await store.fetchMessages(roomID: roomID)
+                // Observe messages from local store
+                let (initial, stream) = await store.observeMessages(roomID: roomID)
+                messages = initial
 
-                if let storage = store.getMessageStorage() {
-                    let token = await storage.observeMessages(roomID: roomID) { remoteMessages in
-                        Task { @MainActor [self] in
-                            // Merge remote with any local-only messages
-                            let merged = await self.store.mergeMessages(
-                                remote: remoteMessages,
-                                roomID: self.roomID
-                            )
-
-                            // Only clear streaming if the new message is in the array
-                            if !self.streamingText.isEmpty {
-                                let streamingContent = self.streamingText
-                                if merged.contains(where: { $0.text == streamingContent }) {
-                                    self.streamingText = ""
-                                }
+                // Start observing updates
+                messageObservationTask = Task {
+                    for await updatedMessages in stream {
+                        // Only clear streaming if the new message is in the array
+                        if !self.streamingText.isEmpty {
+                            let streamingContent = self.streamingText
+                            if updatedMessages.contains(where: { $0.text == streamingContent }) {
+                                self.streamingText = ""
                             }
-                            self.messages = merged
                         }
+                        self.messages = updatedMessages
                     }
-                    observationToken = token
                 }
 
                 // Done loading — show the room before triggering Lightward

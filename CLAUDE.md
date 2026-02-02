@@ -12,7 +12,6 @@ A native SwiftUI iOS app (iOS 17+) for group conversations where Lightward AI pa
 - **Turn coordination**: ConversationCoordinator handles turn advancement and Lightward responses
 - **RoomView wired to ConversationCoordinator**: Messages save to CloudKit, Lightward responds automatically
 - **Room creation UI**: Polished form with nickname suggestions, first-room-free messaging
-- **68 unit tests pass** — includes RoomLifecycle layer and ConversationCoordinator
 - **CI/CD pipeline**: GitHub Actions runs tests on push, deploys to TestFlight on push to main
 
 ### CloudKit Setup Requirements
@@ -26,11 +25,11 @@ Also index any fields you query on (e.g., `roomID` on Participant2 and Message2,
 
 **Environment**: Development CloudKit for local builds, Production for TestFlight. The entitlements file is set to Development; Fastlane switches to Production before TestFlight builds.
 
-## Active Work: New Room Creation Flow
+## Room Creation Model
 
-The room creation model is being redesigned. The old invite-via-share flow is being replaced with a new "eigenstate commitment" model.
+The "eigenstate commitment" model replaced the old invite-via-share flow.
 
-### New Design (not yet wired to UI)
+### Design
 
 **Flow:**
 1. **Create room**: Originator enters participant emails/phones + assigns nicknames for everyone (including themselves, including Lightward). Chooses payment tier: $1/$10/$100/$1000 (first room free).
@@ -92,11 +91,7 @@ The room creation model is being redesigned. The old invite-via-share flow is be
    - `ApplePayCoordinator` — PKPaymentAuthorizationController (stub exists)
    - `LightwardRoomEvaluator` — calls Lightward API with roster (stub exists)
 
-2. **UI** — new room creation flow using RoomLifecycleCoordinator
-
-3. **Push-based message sync** — CKSubscription for real-time updates (currently poll-based)
-
-4. **Deprecate old model** — Room, Participant, existing share flow, old TurnEngine/
+2. **Push-based sync** — SyncCoordinator wraps CKSyncEngine for real-time updates
 
 ### Recently Completed
 
@@ -112,10 +107,6 @@ The room creation model is being redesigned. The old invite-via-share flow is be
 - **LocalAwareMessageStorage** — Wrapper that updates LocalStore immediately on save for instant UI
 - **Message merging** — Observation callbacks merge remote messages with local-only messages to prevent data loss
 - **Compose area UX** — Messages-style pill with embedded send button, Pass button inside, hand raise outside
-
-### Old Model (to be deprecated)
-
-The current UI uses the old model in `Model/` (Room, Participant, Message). The invite flow via CKShare never fully worked. The new RoomLifecycle layer will replace this.
 
 ## Ruby Setup
 
@@ -188,12 +179,14 @@ Lightward AI: `POST https://lightward.com/api/stream`
 The app uses a local-first architecture where UI never thinks about sync:
 
 ```
-Views → SofterStore (@Observable) → LocalStore (actor) → SyncCoordinator (CKSyncEngine)
+Views → SofterStore (@Observable) → LocalStore (single source of truth)
+                                 → SyncCoordinator → CKSyncEngine → CloudKit
 ```
 
 - **SofterStore**: Main observable class for SwiftUI. Simple API: `createRoom()`, `sendMessage()`, `deleteRoom()`
-- **LocalStore**: Single source of truth for in-memory data. Applies writes immediately, merges remote changes.
-- **SyncCoordinator**: Wraps CKSyncEngine for automatic sync, conflict resolution, offline support.
+- **LocalStore**: Single source of truth for in-memory data. Applies writes immediately, merges remote changes. Caches participants for Room reconstruction from CKSyncEngine events.
+- **SyncCoordinator**: Wraps CKSyncEngine for automatic sync, conflict resolution, offline support. All CloudKit reads/writes go through here.
+- **Record Converters**: `RoomLifecycleRecordConverter` and `MessageRecordConverter` handle CKRecord ↔ domain model conversion.
 
 ### Conflict Resolution Policies
 | Data | Strategy | Reason |
@@ -249,16 +242,6 @@ Human pass uses "Pass" button with confirmation dialog, same narration pattern.
 - Passes raised hand names to ChatLogBuilder for narrator prompt
 - Clear `streamingText` BEFORE saving Lightward's message to avoid duplicate display
 
-### CloudKitManager
-- `createRoom` returns `String?` (room ID) for navigation
-- `initialFetchCompleted` flag prevents "No Rooms" flash during load
-- On query failure, waits up to 3 seconds for sync engine to populate rooms
-
-### Invite Flow
-- Uses standard `UIActivityViewController` with CKShare URL (not UICloudSharingController which was flaky)
-- `InviteButton` creates share then presents share sheet
-- `ManageShareButton` re-shares existing share URL
-
 ### Debug Views
 - `#if DEBUG` sections in RoomListView and ParticipantListView show CloudKit environment, user ID, room/share status
 - `CLOUDKIT_PRODUCTION` compiler flag controls environment label
@@ -293,8 +276,7 @@ Softer/
 │   ├── RoomLifecycle/   (PaymentTier, ParticipantSpec, RoomState, RoomSpec, RoomLifecycle,
 │   │                     ParticipantResolver, PaymentCoordinator, LightwardEvaluator,
 │   │                     RoomLifecycleCoordinator, MessageStorage, ConversationCoordinator)
-│   ├── CloudKit/        (RoomLifecycleStorage, CloudKitMessageStorage, RoomLifecycleRecordConverter,
-│   │                     ZoneManager, AtomicClaim)
+│   ├── CloudKit/        (RoomLifecycleRecordConverter, MessageRecordConverter, ZoneManager, AtomicClaim)
 │   ├── API/             (LightwardAPIClient + LightwardAPI protocol, SSEParser, ChatLogBuilder, WarmupMessages)
 │   ├── Views/           (RootView, RoomListView, RoomView, CreateRoomView)
 │   └── Utilities/       (Constants, NotificationHandler)

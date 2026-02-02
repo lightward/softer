@@ -3,6 +3,11 @@ import CloudKit
 
 /// CloudKit-backed implementation of MessageStorage.
 /// Stores messages in the room's zone for multi-user sync.
+///
+/// - Note: **DEPRECATED** - Direct CloudKit access is being replaced by SyncCoordinator.
+///   Use `MessageRecordConverter` for record conversion and `SyncCoordinator` for persistence.
+///   This class remains for reference during migration but will be removed in a future update.
+@available(*, deprecated, message: "Use SyncCoordinator with MessageRecordConverter")
 actor CloudKitMessageStorage: MessageStorage {
     private let database: CKDatabase
     private let zoneID: CKRecordZone.ID

@@ -62,11 +62,11 @@ struct RoomListView: View {
                 RoomView(store: store, roomID: roomID)
             }
             .refreshable {
-                await store.loadRooms()
+                await store.refreshRooms()
             }
             .onAppear {
                 Task {
-                    await store.loadRooms()
+                    await store.refreshRooms()
                 }
             }
         }

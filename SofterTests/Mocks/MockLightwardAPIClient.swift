@@ -52,8 +52,6 @@ final class MockLightwardAPIClient: LightwardAPI, @unchecked Sendable {
 
                 for chunk in chunks {
                     continuation.yield(chunk)
-                    // Small delay to simulate streaming
-                    try? await Task.sleep(nanoseconds: 1_000_000)  // 1ms
                 }
                 continuation.finish()
             }

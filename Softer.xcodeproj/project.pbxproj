@@ -26,6 +26,7 @@
 		66ED3904C8EA4213A5886890 /* RoomLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4298F64186A04345A0042E1C /* RoomLifecycleTests.swift */; };
 		7305E3E9A4164023A7AD6EF7 /* RoomLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06643B3CDE22402DAD332033 /* RoomLifecycle.swift */; };
 		73DD665B00CFA41EC2794BA7 /* MessageStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A913BED596006F4F9B6E0A0B /* MessageStorage.swift */; };
+		7AA97F64830DC9F420F4426F /* MessageRecordConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36A2566E6041F7A49A6473A4 /* MessageRecordConverter.swift */; };
 		7F303E6B75FFF52FE441DA5B /* ConversationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D018F12715007C2C67015AA4 /* ConversationCoordinator.swift */; };
 		82C9256EFD09CD9819A4E9D5 /* LocalStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9859C4B5BAAFBB43D6BEBBEB /* LocalStoreTests.swift */; };
 		8333545EC5AB47BC977E81B8 /* MockPaymentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93AB894828754745B5158C25 /* MockPaymentCoordinator.swift */; };
@@ -81,6 +82,7 @@
 		228004610C1C02D077E0ED6F /* MockMessageStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MockMessageStorage.swift; path = MockMessageStorage.swift; sourceTree = "<group>"; };
 		240B4B7CE85349DCA8FFBA0C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		2CCBBDF48A5A43C9A3E6028D /* ApplePayCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePayCoordinator.swift; sourceTree = "<group>"; };
+		36A2566E6041F7A49A6473A4 /* MessageRecordConverter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MessageRecordConverter.swift; sourceTree = "<group>"; };
 		37BDA151A463438DA49932C5 /* RoomState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomState.swift; sourceTree = "<group>"; };
 		3B0FD0A47B8A4CE093A55C51 /* MockLightwardEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockLightwardEvaluator.swift; sourceTree = "<group>"; };
 		3E9F7A2B6C8D4E1F5A0B2C4D /* CloudKitMessageStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitMessageStorage.swift; sourceTree = "<group>"; };
@@ -230,6 +232,7 @@
 				617C94927D5D49A6BFA34E68 /* RoomLifecycleStorage.swift */,
 				1CD59F08D9F846108AA8B17C /* RoomLifecycleRecordConverter.swift */,
 				3E9F7A2B6C8D4E1F5A0B2C4D /* CloudKitMessageStorage.swift */,
+				36A2566E6041F7A49A6473A4 /* MessageRecordConverter.swift */,
 			);
 			path = CloudKit;
 			sourceTree = "<group>";
@@ -456,6 +459,7 @@
 				5968C4F91621004E261EF372 /* SyncStatus.swift in Sources */,
 				E2C6F3CDE7290B416D8509BC /* SofterStore.swift in Sources */,
 				A0FBE3C6173532AE05A5BFBA /* SyncCoordinator.swift in Sources */,
+				7AA97F64830DC9F420F4426F /* MessageRecordConverter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
