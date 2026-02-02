@@ -4,7 +4,7 @@
 
 A native SwiftUI iOS app (iOS 18+) for group conversations where Lightward AI participates as an equal. No custom backend — CloudKit shared zones for multi-user sync, Lightward AI API for AI responses. Turn-based conversation with round-robin ordering and hand-raising.
 
-## What's Working (as of 2026-02-01)
+## What's Working (as of 2026-02-02)
 
 - **End-to-end conversation flow**: Create room → send message → Lightward responds → turn cycles back
 - **CloudKit persistence**: Rooms, messages, participants sync to iCloud (requires Lightward Inc team signing)
@@ -85,12 +85,18 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 
 ### What's Next
 
-1. **Share acceptance flow** — Handle `ckshare://` URLs so participants can accept room invitations
-2. **Signal "here" UI** — When a participant opens a pending room, show UI to signal presence
-3. **Pending state in RoomView** — Show "waiting for participants" inside the room, not just in list
-4. **CreateRoomView UX** — Contact picker, nickname prefill, visual confirmation of participant validity
+1. **Two-device testing** — Test full share flow: Isaac creates room with Abe → Abe receives invitation → taps to accept → signals "here"
+2. **Payment capture wiring** — Only originator's device captures payment when all humans signal (not yet implemented)
+3. **Room activation transition** — When last human signals, transition from pendingHumans → pendingCapture → active
 
 ### Recently Completed
+
+- **Share acceptance flow** — `ckshare://` URLs handled via `SofterApp.onOpenURL` → `SyncCoordinator.acceptShare()` → navigate to room. Uses `CKAcceptSharesOperation` and fetches from shared database.
+- **Signal "here" UI** — RoomView shows pending state banners with "I'm Here" button. `myParticipantID(in:)` matches `store.localUserRecordID` against embedded participant's `userRecordID`.
+- **Room list back to List** — Switched from ScrollView+LazyVStack back to native List now that data layer is stable. Swipe-to-delete works again.
+- **Turn indicator in room list** — Blue dot next to current speaker's name (only shown when room is active).
+- **Room creation UX overhaul** — System contact picker, auto-focus nickname after selection, visual consistency across participant types (profile pic style for self/Lightward/others), tap thumbnail to view contact card, remove button for each participant.
+- **isFirstRoom fix** — Now counts rooms in pendingLightward/pendingHumans/pendingCapture states (not just active/locked).
 
 - **Multi-user room sharing (CKShare)** — Rooms with multiple humans now create a CKShare. Uses `CKFetchShareParticipantsOperation` for participant validation (not `CKDiscoverUserIdentitiesOperation` which requires opt-in discoverability). SyncCoordinator has dual engines for private + shared databases. Share is created after room save, participants added by email/phone lookup.
 - **Participant resolution via share lookup** — `CloudKitParticipantResolver` now validates participants can receive shares. This is the right validation for eigenstate commitment — verifying existence, not discoverability.
@@ -211,8 +217,11 @@ SofterStore (actions) → SyncCoordinator → CKSyncEngine → CloudKit
 
 ### Known Technical Debt
 
-- **ScrollView replaces List**: RoomListView uses ScrollView+LazyVStack instead of List to avoid diffing crashes. Lost swipe-to-delete (using context menu instead).
 - **Debug logging**: PersistenceStore has print statements for turn state debugging.
+
+### Pattern Notes
+
+- **UIKit view controllers in SwiftUI sheets**: When presenting UIViewControllerRepresentable in a sheet, add `.ignoresSafeArea(edges: .bottom)` at the sheet content level to avoid white bars. The UIKit VC handles its own top safe area.
 
 ## Lightward Framing Philosophy
 
