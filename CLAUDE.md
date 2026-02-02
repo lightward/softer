@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A native SwiftUI iOS app (iOS 17+) for group conversations where Lightward AI participates as an equal. No custom backend — CloudKit shared zones for multi-user sync, Lightward AI API for AI responses. Turn-based conversation with round-robin ordering and hand-raising.
+A native SwiftUI iOS app (iOS 18+) for group conversations where Lightward AI participates as an equal. No custom backend — CloudKit shared zones for multi-user sync, Lightward AI API for AI responses. Turn-based conversation with round-robin ordering and hand-raising.
 
 ## What's Working (as of 2026-02-01)
 
@@ -91,13 +91,15 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
    - `ApplePayCoordinator` — PKPaymentAuthorizationController (stub exists)
    - `LightwardRoomEvaluator` — calls Lightward API with roster (stub exists)
 
-2. **LocalStore persistence** — Currently in-memory only; sync state is cleared on startup to force re-fetch
+2. **Clean up technical debt** — See "Known Technical Debt" in Data Layer Architecture section
 
 ### Recently Completed
 
+- **SwiftData local persistence** — PersistenceStore with `cloudKitDatabase: .none` as single source of truth. Fixes turn state sync issues.
+- **Turn index grows without wrapping** — `advanceTurn` increments instead of using modulo, so `higherTurnWins` merge works correctly
+- **ScrollView room list** — Replaced List to avoid SwiftUI diffing crashes during room creation/deletion
 - **CKSyncEngine with custom zone** — SyncCoordinator uses "SofterZone" (custom zones required for CKSyncEngine change tracking; default zone doesn't work)
-
-- **Unified data layer** — SofterStore, LocalStore, SyncCoordinator replace AppCoordinator
+- **Unified data layer** — SofterStore, PersistenceStore, SyncCoordinator
 - **Minimal Lightward framing** — warmup: "You're here with [names], taking turns", narrator prompt: just "(your turn)" or "(name raised their hand)"
 - **Narration styling** — Messages with `isNarration: true` display centered, italicized, no bubble
 - **Opening narration** — Room creation saves "[Name] opened their first room." or "[Name] opened the room with $X."
@@ -181,23 +183,30 @@ Lightward AI: `POST https://lightward.com/api/stream`
 The app uses a local-first architecture where UI never thinks about sync:
 
 ```
-Views → SofterStore (@Observable) → LocalStore (single source of truth)
+Views → SofterStore (@Observable) → PersistenceStore (SwiftData, local-only)
                                  → SyncCoordinator → CKSyncEngine → CloudKit
 ```
 
-- **SofterStore**: Main observable class for SwiftUI. Simple API: `createRoom()`, `sendMessage()`, `deleteRoom()`
-- **LocalStore**: Single source of truth for in-memory data. Applies writes immediately, merges remote changes. Caches participants for Room reconstruction from CKSyncEngine events. **Note**: Currently in-memory only — data doesn't persist across app launches.
-- **SyncCoordinator**: Wraps CKSyncEngine for automatic sync, conflict resolution, offline support. Uses custom zone "SofterZone" (required — CKSyncEngine doesn't track changes in the default zone). Clears persisted sync state on startup since LocalStore doesn't persist yet.
+- **SofterStore**: Main observable class for SwiftUI. Simple API: `createRoom()`, `sendMessage()`, `deleteRoom()`. Uses `dataVersion` counter to trigger UI updates when SwiftData changes.
+- **PersistenceStore**: SwiftData wrapper with `cloudKitDatabase: .none` (we handle CloudKit sync ourselves). Models: `PersistedRoom`, `PersistedParticipant`, `PersistedMessage`. Provides synchronous local updates before async CloudKit sync.
+- **SyncCoordinator**: Wraps CKSyncEngine for automatic sync, conflict resolution, offline support. Uses custom zone "SofterZone" (required — CKSyncEngine doesn't track changes in the default zone).
 - **Record Converters**: `RoomLifecycleRecordConverter` and `MessageRecordConverter` handle CKRecord ↔ domain model conversion.
 
 ### Conflict Resolution Policies
 | Data | Strategy | Reason |
 |------|----------|--------|
 | Room state | Server wins | State transitions are authoritative |
-| Turn index | Higher wins | Turns only advance |
+| Turn index | Higher wins | Turns only advance (index grows, never wraps) |
 | Raised hands | Union merge | Combine from both |
 | Messages | No conflict | Append-only, UUID IDs |
 | Signaled flag | True wins | Once signaled, stays signaled |
+
+### Known Technical Debt
+
+- **`dataVersion` counter**: Manual reactivity hack. SwiftUI's `@Query` would be cleaner but requires view restructuring.
+- **ScrollView replaces List**: RoomListView uses ScrollView+LazyVStack instead of List to avoid diffing crashes. Lost swipe-to-delete (using context menu instead).
+- **LocalStore.swift**: Still in codebase but unused — can be deleted.
+- **Debug logging**: PersistenceStore has print statements for turn state debugging.
 
 ## Lightward Framing Philosophy
 
@@ -273,8 +282,8 @@ Softer/
 ├── Softer/
 │   ├── SofterApp.swift
 │   ├── Assets.xcassets/ (AppIcon)
-│   ├── Store/           (SofterStore, LocalStore, SyncCoordinator, SyncStatus) — unified data layer
-│   ├── Model/           (Message, Need) — shared models
+│   ├── Store/           (SofterStore, PersistenceStore, SyncCoordinator, SyncStatus) — unified data layer
+│   ├── Model/           (Message, Need, PersistentModels) — shared models + SwiftData entities
 │   ├── RoomLifecycle/   (PaymentTier, ParticipantSpec, RoomState, RoomSpec, RoomLifecycle,
 │   │                     ParticipantResolver, PaymentCoordinator, LightwardEvaluator,
 │   │                     RoomLifecycleCoordinator, MessageStorage, ConversationCoordinator)
@@ -282,12 +291,11 @@ Softer/
 │   ├── API/             (LightwardAPIClient + LightwardAPI protocol, SSEParser, ChatLogBuilder, WarmupMessages)
 │   ├── Views/           (RootView, RoomListView, RoomView, CreateRoomView)
 │   └── Utilities/       (Constants, NotificationHandler)
-├── SofterTests/
-│   ├── Mocks/           (MockParticipantResolver, MockPaymentCoordinator, MockLightwardEvaluator,
-│   │                     MockMessageStorage, MockLightwardAPIClient)
-│   └── *.swift          (LocalStoreTests, SofterStoreTests, RoomLifecycleTests,
-│                          RoomLifecycleCoordinatorTests, ConversationCoordinatorTests,
-│                          MessageStorageTests, SSEParserTests, ChatLogBuilderTests,
-│                          PaymentTierTests, ParticipantSpecTests, RoomSpecTests)
-└── scripts/             (Ruby scripts for Xcode project manipulation)
+└── SofterTests/
+    ├── Mocks/           (MockParticipantResolver, MockPaymentCoordinator, MockLightwardEvaluator,
+    │                     MockMessageStorage, MockLightwardAPIClient)
+    └── *.swift          (SofterStoreTests, RoomLifecycleTests,
+                          RoomLifecycleCoordinatorTests, ConversationCoordinatorTests,
+                          MessageStorageTests, SSEParserTests, ChatLogBuilderTests,
+                          PaymentTierTests, ParticipantSpecTests, RoomSpecTests)
 ```
