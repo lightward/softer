@@ -10,12 +10,14 @@ struct EmbeddedParticipant: Codable, Equatable {
     let identifierValue: String?
     let orderIndex: Int
     var hasSignaledHere: Bool
+    let userRecordID: String?  // Resolved CloudKit identity (nil for Lightward)
 
-    init(from spec: ParticipantSpec, orderIndex: Int, hasSignaledHere: Bool) {
+    init(from spec: ParticipantSpec, orderIndex: Int, hasSignaledHere: Bool, userRecordID: String? = nil) {
         self.id = spec.id
         self.nickname = spec.nickname
         self.orderIndex = orderIndex
         self.hasSignaledHere = hasSignaledHere
+        self.userRecordID = userRecordID
 
         switch spec.identifier {
         case .email(let email):
@@ -103,8 +105,21 @@ enum RoomLifecycleRecordConverter {
         return record
     }
 
-    static func apply(_ lifecycle: RoomLifecycle, to record: CKRecord, messages: [Message] = []) {
+    static func apply(
+        _ lifecycle: RoomLifecycle,
+        to record: CKRecord,
+        messages: [Message] = [],
+        resolvedParticipants: [ResolvedParticipant] = []
+    ) {
         let spec = lifecycle.spec
+
+        // Build lookup of participantID -> userRecordID
+        let userRecordIDsByParticipant = Dictionary(
+            uniqueKeysWithValues: resolvedParticipants.compactMap { resolved -> (String, String)? in
+                guard let userRecordID = resolved.userRecordID else { return nil }
+                return (resolved.spec.id, userRecordID)
+            }
+        )
 
         // RoomSpec fields
         record["originatorID"] = spec.originatorID as NSString
@@ -113,10 +128,16 @@ enum RoomLifecycleRecordConverter {
         record["createdAtDate"] = spec.createdAt as NSDate
         record["modifiedAtDate"] = lifecycle.modifiedAt as NSDate
 
-        // Embedded participants as JSON
+        // Embedded participants as JSON (now includes resolved userRecordID)
         let embeddedParticipants = spec.participants.enumerated().map { index, participantSpec in
             let hasSignaled = signaledParticipantIDs(from: lifecycle.state).contains(participantSpec.id)
-            return EmbeddedParticipant(from: participantSpec, orderIndex: index, hasSignaledHere: hasSignaled)
+            let userRecordID = userRecordIDsByParticipant[participantSpec.id]
+            return EmbeddedParticipant(
+                from: participantSpec,
+                orderIndex: index,
+                hasSignaledHere: hasSignaled,
+                userRecordID: userRecordID
+            )
         }
         if let jsonData = try? JSONEncoder().encode(embeddedParticipants),
            let jsonString = String(data: jsonData, encoding: .utf8) {
@@ -361,5 +382,34 @@ enum RoomLifecycleRecordConverter {
             byID[message.id] = message
         }
         return byID.values.sorted { $0.createdAt < $1.createdAt }
+    }
+
+    // MARK: - Sharing Helpers
+
+    /// Extract lookup infos for other human participants (not currentUser, not Lightward).
+    /// Returns (email/phone type, value) tuples for sharing.
+    static func otherParticipantLookupInfos(from record: CKRecord) -> [CKUserIdentity.LookupInfo] {
+        guard let participantsJSON = record["participantsJSON"] as? String,
+              let jsonData = participantsJSON.data(using: .utf8),
+              let embedded = try? JSONDecoder().decode([EmbeddedParticipant].self, from: jsonData) else {
+            return []
+        }
+
+        return embedded.compactMap { participant -> CKUserIdentity.LookupInfo? in
+            // Skip Lightward and currentUser
+            guard participant.identifierType == "email" || participant.identifierType == "phone",
+                  let value = participant.identifierValue else {
+                return nil
+            }
+
+            switch participant.identifierType {
+            case "email":
+                return CKUserIdentity.LookupInfo(emailAddress: value)
+            case "phone":
+                return CKUserIdentity.LookupInfo(phoneNumber: value)
+            default:
+                return nil
+            }
+        }
     }
 }

@@ -21,10 +21,14 @@ actor SyncCoordinator {
 
     // MARK: - Properties
 
+    private let container: CKContainer
     private let database: CKDatabase
+    private let sharedDatabase: CKDatabase
     private let zoneID: CKRecordZone.ID
     private var syncEngine: CKSyncEngine?
+    private var sharedSyncEngine: CKSyncEngine?
     private let delegate: SyncEngineDelegate
+    private let sharedDelegate: SyncEngineDelegate
 
     private var onRecordFetched: RecordHandler?
     private var onRecordDeleted: DeletionHandler?
@@ -35,14 +39,20 @@ actor SyncCoordinator {
     /// CKSyncEngine calls back to get these when sending changes.
     private var pendingRecords: [CKRecord.ID: CKRecord] = [:]
 
+    /// Shares pending save, keyed by the root record ID.
+    private var pendingShares: [CKRecord.ID: CKShare] = [:]
+
     private(set) var status: SyncStatus = .idle
 
     // MARK: - Initialization
 
-    init(database: CKDatabase, zoneID: CKRecordZone.ID) {
+    init(container: CKContainer, database: CKDatabase, zoneID: CKRecordZone.ID) {
+        self.container = container
         self.database = database
+        self.sharedDatabase = container.sharedCloudDatabase
         self.zoneID = zoneID
         self.delegate = SyncEngineDelegate()
+        self.sharedDelegate = SyncEngineDelegate()
     }
 
     // MARK: - Setup
@@ -62,7 +72,7 @@ actor SyncCoordinator {
         // Load persisted state if available
         let state = loadPersistedState()
 
-        // Configure sync engine
+        // Configure sync engine for private database
         let configuration = CKSyncEngine.Configuration(
             database: database,
             stateSerialization: state,
@@ -84,16 +94,35 @@ actor SyncCoordinator {
         // Ensure zone exists
         do {
             try await ensureZoneExists()
-            await updateStatus(.synced)
         } catch {
             await updateStatus(.error("Failed to set up sync: \(error.localizedDescription)"))
+            return
         }
+
+        // Configure sync engine for shared database (to receive shared rooms)
+        let sharedState = loadPersistedState(forShared: true)
+        let sharedConfiguration = CKSyncEngine.Configuration(
+            database: sharedDatabase,
+            stateSerialization: sharedState,
+            delegate: sharedDelegate
+        )
+
+        let sharedEngine = CKSyncEngine(sharedConfiguration)
+        self.sharedSyncEngine = sharedEngine
+
+        // Wire up shared delegate
+        sharedDelegate.coordinator = self
+        sharedDelegate.isShared = true
+
+        await updateStatus(.synced)
     }
 
-    /// Stop the sync engine.
+    /// Stop the sync engines.
     func stop() {
         syncEngine = nil
+        sharedSyncEngine = nil
         delegate.coordinator = nil
+        sharedDelegate.coordinator = nil
     }
 
     // MARK: - Record Operations
@@ -136,24 +165,117 @@ actor SyncCoordinator {
         engine.state.add(pendingRecordZoneChanges: changes)
     }
 
-    /// Trigger a fetch of changes from the server.
-    func fetchChanges() async {
-        guard let engine = syncEngine else {
-            print("SyncCoordinator.fetchChanges: No engine")
-            return
+    // MARK: - Sharing
+
+    /// Share a room record with participants identified by email/phone.
+    /// Creates a CKShare if one doesn't exist, adds participants.
+    func shareRoom(_ roomRecord: CKRecord, withLookupInfos lookupInfos: [CKUserIdentity.LookupInfo]) async throws {
+        guard !lookupInfos.isEmpty else { return }
+
+        print("SyncCoordinator: Sharing room \(roomRecord.recordID.recordName) with \(lookupInfos.count) participants")
+
+        // Create or fetch existing share
+        let share: CKShare
+        if let existingShare = roomRecord.share {
+            // Fetch the existing share to modify it
+            do {
+                share = try await database.record(for: existingShare.recordID) as! CKShare
+            } catch {
+                print("SyncCoordinator: Failed to fetch existing share: \(error)")
+                throw error
+            }
+        } else {
+            // Create new share
+            share = CKShare(rootRecord: roomRecord)
+            share[CKShare.SystemFieldKey.title] = "Softer Room" as CKRecordValue
+            share.publicPermission = .none  // Only invited participants
         }
 
+        // Fetch share participants
+        let participants = try await fetchShareParticipants(lookupInfos: lookupInfos)
+
+        // Add participants to share
+        for participant in participants {
+            participant.permission = .readWrite
+            participant.role = .privateUser
+            share.addParticipant(participant)
+        }
+
+        // Save both the room record and share together
+        let operation = CKModifyRecordsOperation(recordsToSave: [roomRecord, share], recordIDsToDelete: nil)
+        operation.savePolicy = .changedKeys
+        operation.isAtomic = true
+
+        return try await withCheckedThrowingContinuation { continuation in
+            operation.modifyRecordsResultBlock = { result in
+                switch result {
+                case .success:
+                    print("SyncCoordinator: Share created/updated successfully")
+                    continuation.resume()
+                case .failure(let error):
+                    print("SyncCoordinator: Failed to save share: \(error)")
+                    continuation.resume(throwing: error)
+                }
+            }
+            database.add(operation)
+        }
+    }
+
+    /// Fetch CKShare.Participant objects for the given lookup infos.
+    private func fetchShareParticipants(lookupInfos: [CKUserIdentity.LookupInfo]) async throws -> [CKShare.Participant] {
+        try await withCheckedThrowingContinuation { continuation in
+            var participants: [CKShare.Participant] = []
+
+            let operation = CKFetchShareParticipantsOperation(userIdentityLookupInfos: lookupInfos)
+
+            operation.perShareParticipantResultBlock = { _, result in
+                switch result {
+                case .success(let participant):
+                    participants.append(participant)
+                case .failure(let error):
+                    print("SyncCoordinator: Failed to fetch participant: \(error)")
+                }
+            }
+
+            operation.fetchShareParticipantsResultBlock = { result in
+                switch result {
+                case .success:
+                    continuation.resume(returning: participants)
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+
+            container.add(operation)
+        }
+    }
+
+    /// Trigger a fetch of changes from the server (both private and shared).
+    func fetchChanges() async {
         print("SyncCoordinator.fetchChanges: Starting fetch...")
         await updateStatus(.syncing)
 
-        do {
-            try await engine.fetchChanges()
-            print("SyncCoordinator.fetchChanges: Fetch completed successfully")
-            await updateStatus(.synced)
-        } catch {
-            print("SyncCoordinator.fetchChanges: Failed - \(error)")
-            await updateStatus(.error("Sync failed"))
+        // Fetch from private database
+        if let engine = syncEngine {
+            do {
+                try await engine.fetchChanges()
+                print("SyncCoordinator.fetchChanges: Private fetch completed")
+            } catch {
+                print("SyncCoordinator.fetchChanges: Private fetch failed - \(error)")
+            }
         }
+
+        // Fetch from shared database (rooms shared with us)
+        if let sharedEngine = sharedSyncEngine {
+            do {
+                try await sharedEngine.fetchChanges()
+                print("SyncCoordinator.fetchChanges: Shared fetch completed")
+            } catch {
+                print("SyncCoordinator.fetchChanges: Shared fetch failed - \(error)")
+            }
+        }
+
+        await updateStatus(.synced)
     }
 
     /// Send pending changes to the server.
@@ -205,21 +327,22 @@ actor SyncCoordinator {
     // MARK: - Internal: Delegate Callbacks
 
     /// Called by delegate when the sync engine has events.
-    func handleEvent(_ event: CKSyncEngine.Event) async {
-        print("SyncCoordinator: Received event: \(event)")
+    func handleEvent(_ event: CKSyncEngine.Event, isShared: Bool = false) async {
+        let source = isShared ? "shared" : "private"
+        print("SyncCoordinator [\(source)]: Received event: \(event)")
         switch event {
         case .stateUpdate(let stateUpdate):
-            handleStateUpdate(stateUpdate)
+            handleStateUpdate(stateUpdate, isShared: isShared)
 
         case .accountChange(let accountChange):
             await handleAccountChange(accountChange)
 
         case .fetchedDatabaseChanges(let changes):
-            print("SyncCoordinator: Fetched database changes - \(changes.modifications.count) zones modified")
+            print("SyncCoordinator [\(source)]: Fetched database changes - \(changes.modifications.count) zones modified")
             await handleFetchedDatabaseChanges(changes)
 
         case .fetchedRecordZoneChanges(let changes):
-            print("SyncCoordinator: Fetched record zone changes - \(changes.modifications.count) records, \(changes.deletions.count) deletions")
+            print("SyncCoordinator [\(source)]: Fetched record zone changes - \(changes.modifications.count) records, \(changes.deletions.count) deletions")
             await handleFetchedRecordZoneChanges(changes)
 
         case .sentDatabaseChanges(let sentChanges):
@@ -250,9 +373,9 @@ actor SyncCoordinator {
 
     // MARK: - Private: Event Handlers
 
-    private func handleStateUpdate(_ stateUpdate: CKSyncEngine.Event.StateUpdate) {
+    private func handleStateUpdate(_ stateUpdate: CKSyncEngine.Event.StateUpdate, isShared: Bool = false) {
         // Persist the state for next launch
-        persistState(stateUpdate.stateSerialization)
+        persistState(stateUpdate.stateSerialization, forShared: isShared)
     }
 
     private func handleAccountChange(_ accountChange: CKSyncEngine.Event.AccountChange) async {
@@ -402,8 +525,13 @@ actor SyncCoordinator {
         "SyncCoordinatorState-\(zoneID.zoneName)"
     }
 
-    private func loadPersistedState() -> CKSyncEngine.State.Serialization? {
-        guard let data = UserDefaults.standard.data(forKey: stateKey) else {
+    private var sharedStateKey: String {
+        "SyncCoordinatorState-shared"
+    }
+
+    private func loadPersistedState(forShared: Bool = false) -> CKSyncEngine.State.Serialization? {
+        let key = forShared ? sharedStateKey : stateKey
+        guard let data = UserDefaults.standard.data(forKey: key) else {
             return nil
         }
 
@@ -419,14 +547,16 @@ actor SyncCoordinator {
     /// Clear persisted state to force a full re-fetch on next start.
     func clearPersistedState() {
         UserDefaults.standard.removeObject(forKey: stateKey)
-        print("SyncCoordinator: Cleared persisted state for zone \(zoneID.zoneName)")
+        UserDefaults.standard.removeObject(forKey: sharedStateKey)
+        print("SyncCoordinator: Cleared persisted state for zone \(zoneID.zoneName) and shared")
     }
 
-    private func persistState(_ state: CKSyncEngine.State.Serialization) {
+    private func persistState(_ state: CKSyncEngine.State.Serialization, forShared: Bool = false) {
+        let key = forShared ? sharedStateKey : stateKey
         do {
             let encoder = JSONEncoder()
             let data = try encoder.encode(state)
-            UserDefaults.standard.set(data, forKey: stateKey)
+            UserDefaults.standard.set(data, forKey: key)
         } catch {
             print("Failed to persist sync state: \(error)")
         }
@@ -446,9 +576,10 @@ actor SyncCoordinator {
 /// Must be a class (not actor) to conform to CKSyncEngineDelegate.
 private final class SyncEngineDelegate: NSObject, CKSyncEngineDelegate, @unchecked Sendable {
     weak var coordinator: SyncCoordinator?
+    var isShared: Bool = false
 
     func handleEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) async {
-        await coordinator?.handleEvent(event)
+        await coordinator?.handleEvent(event, isShared: isShared)
     }
 
     func nextRecordZoneChangeBatch(

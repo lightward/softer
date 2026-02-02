@@ -23,7 +23,7 @@ Also index any fields you query on (e.g., `stateType` on Room3).
 
 **Note**: Room3 embeds both participants and messages as JSON (`participantsJSON` and `messagesJSON` fields) — single record type for the entire room. This eliminates sync ordering issues and simplifies conflict resolution.
 
-**Environment**: Development CloudKit for local builds, Production for TestFlight. The entitlements file is set to Development; Fastlane switches to Production before TestFlight builds.
+**Environment**: Development CloudKit for all builds (local and TestFlight). This allows testers to see the same data as local development. When ready for real users, uncomment the Production switch in `fastlane/Fastfile`.
 
 ## Room Creation Model
 
@@ -85,15 +85,17 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 
 ### What's Next
 
-1. **Real implementations** of remaining protocols:
-   - `CloudKitParticipantResolver` — uses CKUserIdentityLookupInfo (stub exists)
-   - `ApplePayCoordinator` — PKPaymentAuthorizationController (stub exists)
-   - `LightwardRoomEvaluator` — calls Lightward API with roster (stub exists)
-
-2. **Clean up technical debt** — See "Known Technical Debt" in Data Layer Architecture section
+1. **Share acceptance flow** — Handle `ckshare://` URLs so participants can accept room invitations
+2. **Signal "here" UI** — When a participant opens a pending room, show UI to signal presence
+3. **Pending state in RoomView** — Show "waiting for participants" inside the room, not just in list
+4. **CreateRoomView UX** — Contact picker, nickname prefill, visual confirmation of participant validity
 
 ### Recently Completed
 
+- **Multi-user room sharing (CKShare)** — Rooms with multiple humans now create a CKShare. Uses `CKFetchShareParticipantsOperation` for participant validation (not `CKDiscoverUserIdentitiesOperation` which requires opt-in discoverability). SyncCoordinator has dual engines for private + shared databases. Share is created after room save, participants added by email/phone lookup.
+- **Participant resolution via share lookup** — `CloudKitParticipantResolver` now validates participants can receive shares. This is the right validation for eigenstate commitment — verifying existence, not discoverability.
+- **Only originator auto-signals** — Other humans signal after accepting the share. Room stays in `pendingHumans` until all signal.
+- **Development CloudKit for all builds** — TestFlight now uses Development environment (same as local builds) so testers see the same data. Fastlane production switch is commented out.
 - **Single-record-type app** — Room3 now embeds both participants (`participantsJSON`) and messages (`messagesJSON`) as JSON. No separate Message2 records. Single CloudKit record type = simpler sync, fewer edge cases, data shape matches value shape. 50k token room limit ≈ 350-400KB total, well under CloudKit's 1MB limit.
 - **SwiftData @Query refactor** — Views observe SwiftData directly via `@Query`, no manual `dataVersion` counter. RoomView observes room's embedded messages.
 - **SwiftData local persistence** — PersistenceStore with `cloudKitDatabase: .none` as single source of truth.
@@ -159,6 +161,10 @@ xcrun devicectl device install app --device DEVICE_ID \
 # Launch on device
 xcrun devicectl device process launch --device DEVICE_ID \
   --terminate-existing com.lightward.softer
+
+# Launch with console output (streams stdout/stderr - essential for debugging)
+xcrun devicectl device process launch --device DEVICE_ID \
+  --terminate-existing --console com.lightward.softer
 
 # Run tests (simulator)
 xcodebuild -project Softer.xcodeproj -scheme Softer \

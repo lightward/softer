@@ -2,7 +2,9 @@ import Foundation
 import CloudKit
 
 /// Resolves participant identifiers to CloudKit user identities.
-/// Uses CKUserIdentityLookupInfo to find users by email or phone.
+/// Uses CKFetchShareParticipantsOperation to verify users can receive shares.
+/// This is the right validation for "eigenstate commitment" - we verify that
+/// the person exists and can participate before the room is created.
 struct CloudKitParticipantResolver: ParticipantResolver {
     private let container: CKContainer
 
@@ -22,6 +24,7 @@ struct CloudKitParticipantResolver: ParticipantResolver {
                 let userRecordID = try await container.userRecordID()
                 return .success(ResolvedParticipant(spec: spec, userRecordID: userRecordID.recordName))
             } catch {
+                print("CloudKitParticipantResolver: Failed to get current user: \(error)")
                 return .failure(.networkError("Could not get current user: \(error.localizedDescription)"))
             }
         }
@@ -30,8 +33,10 @@ struct CloudKitParticipantResolver: ParticipantResolver {
         let lookupInfo: CKUserIdentity.LookupInfo
         switch spec.identifier {
         case .email(let email):
+            print("CloudKitParticipantResolver: Looking up email: \(email)")
             lookupInfo = CKUserIdentity.LookupInfo(emailAddress: email)
         case .phone(let phone):
+            print("CloudKitParticipantResolver: Looking up phone: \(phone)")
             lookupInfo = CKUserIdentity.LookupInfo(phoneNumber: phone)
         case .lightward, .currentUser:
             // Already handled above, but Swift requires exhaustive switch
@@ -39,19 +44,25 @@ struct CloudKitParticipantResolver: ParticipantResolver {
         }
 
         do {
-            // Use CKDiscoverUserIdentitiesOperation to look up user by email/phone
-            let identity = try await discoverUserIdentity(lookupInfo: lookupInfo)
+            // Use CKFetchShareParticipantsOperation to verify user can receive shares
+            // This is more permissive than CKDiscoverUserIdentitiesOperation -
+            // it just needs a valid iCloud account, not "Look Me Up" enabled
+            let participant = try await fetchShareParticipant(lookupInfo: lookupInfo)
 
-            // User must have a record ID to be usable
-            guard let userRecordID = identity?.userRecordID else {
-                return .failure(.notDiscoverable)
+            guard let participant = participant else {
+                print("CloudKitParticipantResolver: No participant returned for \(spec.nickname)")
+                return .failure(.notFound)
             }
 
-            return .success(ResolvedParticipant(spec: spec, userRecordID: userRecordID.recordName))
+            // Get user record ID from participant's identity
+            let userRecordID = participant.userIdentity.userRecordID?.recordName
+            print("CloudKitParticipantResolver: Resolved \(spec.nickname) -> userRecordID: \(userRecordID ?? "nil")")
+
+            return .success(ResolvedParticipant(spec: spec, userRecordID: userRecordID))
         } catch let ckError as CKError {
+            print("CloudKitParticipantResolver: CKError \(ckError.code.rawValue): \(ckError.localizedDescription)")
             switch ckError.code {
             case .unknownItem:
-                // User not found in CloudKit
                 return .failure(.notFound)
             case .networkUnavailable, .networkFailure:
                 return .failure(.networkError(ckError.localizedDescription))
@@ -61,24 +72,39 @@ struct CloudKitParticipantResolver: ParticipantResolver {
                 return .failure(.networkError(ckError.localizedDescription))
             }
         } catch {
+            print("CloudKitParticipantResolver: Error: \(error)")
             return .failure(.networkError(error.localizedDescription))
         }
     }
 
-    private func discoverUserIdentity(lookupInfo: CKUserIdentity.LookupInfo) async throws -> CKUserIdentity? {
+    /// Fetch a share participant for the given lookup info.
+    /// Returns nil if the user cannot be found as a share participant.
+    private func fetchShareParticipant(lookupInfo: CKUserIdentity.LookupInfo) async throws -> CKShare.Participant? {
         try await withCheckedThrowingContinuation { continuation in
-            let operation = CKDiscoverUserIdentitiesOperation(userIdentityLookupInfos: [lookupInfo])
+            var foundParticipant: CKShare.Participant?
+            var operationError: Error?
 
-            var foundIdentity: CKUserIdentity?
+            let operation = CKFetchShareParticipantsOperation(userIdentityLookupInfos: [lookupInfo])
 
-            operation.userIdentityDiscoveredBlock = { identity, _ in
-                foundIdentity = identity
+            operation.perShareParticipantResultBlock = { _, result in
+                switch result {
+                case .success(let participant):
+                    print("CloudKitParticipantResolver: Found participant: \(participant)")
+                    foundParticipant = participant
+                case .failure(let error):
+                    print("CloudKitParticipantResolver: Per-participant error: \(error)")
+                    operationError = error
+                }
             }
 
-            operation.discoverUserIdentitiesResultBlock = { result in
+            operation.fetchShareParticipantsResultBlock = { result in
                 switch result {
                 case .success:
-                    continuation.resume(returning: foundIdentity)
+                    if let error = operationError {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: foundParticipant)
+                    }
                 case .failure(let error):
                     continuation.resume(throwing: error)
                 }

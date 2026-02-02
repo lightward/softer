@@ -96,6 +96,7 @@ final class SofterStore {
             self.zoneID = zoneID
 
             let coordinator = SyncCoordinator(
+                container: ckContainer,
                 database: ckContainer.privateCloudDatabase,
                 zoneID: zoneID
             )
@@ -214,12 +215,12 @@ final class SofterStore {
 
         try await coordinator.start()
 
-        // Auto-signal for all humans (single-device for now)
-        for participant in spec.humanParticipants {
-            try await coordinator.signalHere(participantID: participant.id)
-        }
+        // Auto-signal only for the originator (they're already present)
+        // Other humans will signal when they accept the share and open the room
+        try await coordinator.signalHere(participantID: spec.originatorID)
 
         let lifecycle = await coordinator.lifecycle
+        let resolvedParticipants = await coordinator.resolvedParticipants
 
         // Create opening narration message
         let originatorName = spec.participants.first { $0.id == spec.originatorID }?.nickname ?? "Someone"
@@ -246,9 +247,25 @@ final class SofterStore {
             // Save single Room3 record (participants and messages embedded)
             let messages = persistedRoom.messages()
             let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
-            RoomLifecycleRecordConverter.apply(lifecycle, to: roomRecord, messages: messages)
+            RoomLifecycleRecordConverter.apply(
+                lifecycle,
+                to: roomRecord,
+                messages: messages,
+                resolvedParticipants: resolvedParticipants
+            )
             await syncCoordinator.save(roomRecord)
             await syncCoordinator.sendChanges()
+
+            // Share with other human participants (by email/phone, not userRecordID)
+            let lookupInfos = RoomLifecycleRecordConverter.otherParticipantLookupInfos(from: roomRecord)
+            if !lookupInfos.isEmpty {
+                do {
+                    try await syncCoordinator.shareRoom(roomRecord, withLookupInfos: lookupInfos)
+                    print("SofterStore: Shared room with \(lookupInfos.count) other participants")
+                } catch {
+                    print("SofterStore: Failed to share room: \(error)")
+                }
+            }
         }
 
         return lifecycle
