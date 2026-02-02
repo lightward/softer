@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import ContactsUI
 
 struct CreateRoomView: View {
     let store: SofterStore
@@ -16,6 +17,12 @@ struct CreateRoomView: View {
     @State private var errorMessage: String?
     @State private var cachedIsFirstRoom: Bool?
 
+    // Contact picker
+    @State private var showContactPicker = false
+
+    // Focus state for auto-focusing new participant nickname
+    @FocusState private var focusedParticipantID: UUID?
+
     // Query for active/locked rooms to check isFirstRoom
     @Query private var persistedRooms: [PersistedRoom]
 
@@ -23,26 +30,40 @@ struct CreateRoomView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Your nickname", text: $myNickname)
-                        .textContentType(.givenName)
+                    // Self - profile pic style
+                    HStack(spacing: 12) {
+                        Image(systemName: "person.circle.fill")
+                            .resizable()
+                            .frame(width: 36, height: 36)
+                            .foregroundStyle(Color.accentColor)
+                        TextField("Your nickname", text: $myNickname)
+                            .textContentType(.givenName)
+                    }
 
-                    // Lightward is always present
-                    HStack {
+                    // Lightward - sparkle in circle style
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color(.systemGray5))
+                                .frame(width: 36, height: 36)
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 16))
+                                .foregroundStyle(.secondary)
+                        }
                         Text("Lightward")
-                        Spacer()
-                        Image(systemName: "sparkles")
                             .foregroundStyle(.secondary)
                     }
-                    .foregroundStyle(.secondary)
+                    .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
 
                     ForEach($otherParticipants) { $entry in
                         ParticipantEntryRow(entry: $entry) {
                             otherParticipants.removeAll { $0.id == entry.id }
                         }
+                        .focused($focusedParticipantID, equals: entry.id)
                     }
 
                     Button {
-                        otherParticipants.append(ParticipantEntry())
+                        showContactPicker = true
                     } label: {
                         Label("Add someone else", systemImage: "plus")
                     }
@@ -81,6 +102,23 @@ struct CreateRoomView: View {
             }
             .navigationTitle("New Room")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showContactPicker) {
+                ContactPicker { contact in
+                    // Add participant with contact info
+                    let entry = ParticipantEntry(
+                        identifier: contact.emailAddresses.first?.value as String?
+                            ?? contact.phoneNumbers.first?.value.stringValue
+                            ?? "",
+                        nickname: contact.givenName,
+                        contact: contact
+                    )
+                    otherParticipants.append(entry)
+                    // Auto-focus the nickname field after a brief delay
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        focusedParticipantID = entry.id
+                    }
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
@@ -106,10 +144,17 @@ struct CreateRoomView: View {
     }
 
     private var isFirstRoom: Bool {
-        // Check if any rooms are active or locked
-        let activeOrLocked = persistedRooms.compactMap { $0.toRoomLifecycle() }
-            .filter { $0.isActive || $0.isLocked }
-        return activeOrLocked.isEmpty
+        // Check if any rooms are past draft state (Lightward has been asked)
+        let roomsInProgress = persistedRooms.compactMap { $0.toRoomLifecycle() }
+            .filter { lifecycle in
+                switch lifecycle.state {
+                case .draft, .defunct:
+                    return false
+                case .pendingLightward, .pendingHumans, .pendingCapture, .active, .locked:
+                    return true
+                }
+            }
+        return roomsInProgress.isEmpty
     }
 
     private var isValid: Bool {
@@ -190,29 +235,70 @@ struct CreateRoomView: View {
 // MARK: - Supporting Types
 
 struct ParticipantEntry: Identifiable {
-    let id = UUID()
-    var identifier = ""  // email or phone
-    var nickname = ""
+    let id: UUID
+    var identifier: String  // email or phone
+    var nickname: String
+    var contact: CNContact?  // Original contact for thumbnail and verification
+
+    init(id: UUID = UUID(), identifier: String = "", nickname: String = "", contact: CNContact? = nil) {
+        self.id = id
+        self.identifier = identifier
+        self.nickname = nickname
+        self.contact = contact
+    }
 }
 
 struct ParticipantEntryRow: View {
     @Binding var entry: ParticipantEntry
+    var onFocus: () -> Void = {}
     let onDelete: () -> Void
+    @State private var showContactCard = false
 
     var body: some View {
-        VStack(spacing: 8) {
-            TextField("Email or phone", text: $entry.identifier)
-                .textContentType(.emailAddress)
-                .keyboardType(.emailAddress)
-                .autocapitalization(.none)
+        HStack(spacing: 12) {
+            // Contact thumbnail (tappable to view contact card)
+            Button {
+                showContactCard = true
+            } label: {
+                contactThumbnail
+            }
+            .buttonStyle(.plain)
 
+            // Nickname field (primary control)
             TextField("Nickname", text: $entry.nickname)
                 .textContentType(.name)
-        }
-        .swipeActions {
+
+            // Remove button
             Button(role: .destructive, action: onDelete) {
-                Label("Delete", systemImage: "trash")
+                Image(systemName: "minus.circle.fill")
+                    .foregroundStyle(.red)
             }
+            .buttonStyle(.plain)
+        }
+        .sheet(isPresented: $showContactCard) {
+            if let contact = entry.contact {
+                ContactCardView(contact: contact)
+                    .ignoresSafeArea(edges: .bottom)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var contactThumbnail: some View {
+        if let contact = entry.contact,
+           let imageData = contact.thumbnailImageData,
+           let uiImage = UIImage(data: imageData) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 36, height: 36)
+                .clipShape(Circle())
+        } else {
+            // Default person icon
+            Image(systemName: "person.circle.fill")
+                .resizable()
+                .frame(width: 36, height: 36)
+                .foregroundStyle(.secondary)
         }
     }
 }
@@ -236,5 +322,78 @@ struct SuggestionChip: View {
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Contact Card View
+
+struct ContactCardView: UIViewControllerRepresentable {
+    let contact: CNContact
+    @Environment(\.dismiss) private var dismiss
+
+    func makeUIViewController(context: Context) -> UINavigationController {
+        let contactVC = CNContactViewController(for: contact)
+        contactVC.allowsEditing = false
+        contactVC.allowsActions = true
+        contactVC.edgesForExtendedLayout = .all
+
+        // Add close button
+        contactVC.navigationItem.rightBarButtonItem = UIBarButtonItem(
+            barButtonSystemItem: .close,
+            target: context.coordinator,
+            action: #selector(Coordinator.close)
+        )
+
+        let nav = UINavigationController(rootViewController: contactVC)
+        nav.navigationBar.prefersLargeTitles = false
+        return nav
+    }
+
+    func updateUIViewController(_ uiViewController: UINavigationController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(dismiss: dismiss)
+    }
+
+    class Coordinator: NSObject {
+        let dismiss: DismissAction
+
+        init(dismiss: DismissAction) {
+            self.dismiss = dismiss
+        }
+
+        @objc func close() {
+            dismiss()
+        }
+    }
+}
+
+// MARK: - Contact Picker
+
+struct ContactPicker: UIViewControllerRepresentable {
+    let onSelectContact: (CNContact) -> Void
+
+    func makeUIViewController(context: Context) -> CNContactPickerViewController {
+        let picker = CNContactPickerViewController()
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: CNContactPickerViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onSelectContact: onSelectContact)
+    }
+
+    class Coordinator: NSObject, CNContactPickerDelegate {
+        let onSelectContact: (CNContact) -> Void
+
+        init(onSelectContact: @escaping (CNContact) -> Void) {
+            self.onSelectContact = onSelectContact
+        }
+
+        func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
+            onSelectContact(contact)
+        }
     }
 }

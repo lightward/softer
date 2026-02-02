@@ -18,10 +18,9 @@ struct RoomListView: View {
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            ScrollView {
+            Group {
                 if !store.initialLoadCompleted {
                     ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if rooms.isEmpty {
                     ContentUnavailableView {
                         Label("No Rooms", systemImage: "bubble.left.and.bubble.right")
@@ -33,17 +32,13 @@ struct RoomListView: View {
                         }
                         .buttonStyle(.borderedProminent)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 400)
                 } else {
-                    LazyVStack(spacing: 0) {
+                    List {
                         ForEach(rooms, id: \.spec.id) { lifecycle in
                             NavigationLink(value: lifecycle.spec.id) {
                                 RoomRow(lifecycle: lifecycle)
-                                    .padding(.horizontal)
-                                    .padding(.vertical, 12)
                             }
-                            .buttonStyle(.plain)
-                            .contextMenu {
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button(role: .destructive) {
                                     Task {
                                         try? await store.deleteRoom(id: lifecycle.spec.id)
@@ -52,8 +47,6 @@ struct RoomListView: View {
                                     Label("Delete", systemImage: "trash")
                                 }
                             }
-                            Divider()
-                                .padding(.leading)
                         }
                     }
                 }
@@ -101,9 +94,8 @@ struct RoomRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            // Participant names
-            Text(lifecycle.spec.participants.map { $0.nickname }.joined(separator: ", "))
-                .font(.headline)
+            // Participant names with turn indicator dot (only when active)
+            participantNamesView
 
             // Status
             HStack {
@@ -117,12 +109,36 @@ struct RoomRow: View {
     }
 
     @ViewBuilder
+    private var participantNamesView: some View {
+        let currentTurnIndex = currentTurnParticipantIndex
+        let participants = lifecycle.spec.participants
+        HStack(spacing: 0) {
+            ForEach(0..<participants.count, id: \.self) { index in
+                if index > 0 {
+                    Text(", ")
+                }
+                HStack(spacing: 3) {
+                    if index == currentTurnIndex {
+                        Circle()
+                            .fill(Color.accentColor)
+                            .frame(width: 6, height: 6)
+                    }
+                    Text(participants[index].nickname)
+                }
+            }
+        }
+        .font(.headline)
+    }
+
+    /// Returns the current turn participant index only if room is active, nil otherwise
+    private var currentTurnParticipantIndex: Int? {
+        guard case .active(let turn) = lifecycle.state else { return nil }
+        return turn.currentTurnIndex % lifecycle.spec.participants.count
+    }
+
+    @ViewBuilder
     private var statusIndicator: some View {
         switch lifecycle.state {
-        case .active:
-            Circle()
-                .fill(.green)
-                .frame(width: 8, height: 8)
         case .locked:
             Image(systemName: "lock.fill")
                 .font(.caption2)
