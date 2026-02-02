@@ -59,11 +59,20 @@ struct RoomView: View {
 
             Divider()
 
-            // Compose area
-            if lifecycle.isActive {
+            // Bottom area depends on state
+            switch lifecycle.state {
+            case .pendingLightward:
+                pendingLightwardBanner()
+            case .pendingHumans(let signaled):
+                pendingHumansBanner(lifecycle: lifecycle, signaled: signaled)
+            case .pendingCapture:
+                pendingCaptureBanner()
+            case .active:
                 composeArea(lifecycle: lifecycle)
-            } else if lifecycle.isLocked {
+            case .locked:
                 lockedBanner(lifecycle: lifecycle)
+            default:
+                EmptyView()
             }
         }
         .toolbar {
@@ -246,6 +255,72 @@ struct RoomView: View {
 
     private func canSend(myTurn: Bool) -> Bool {
         myTurn && !isSending && !composeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    @ViewBuilder
+    private func pendingLightwardBanner() -> some View {
+        VStack(spacing: 8) {
+            ProgressView()
+            Text("Waiting for Lightward...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(.bar)
+    }
+
+    @ViewBuilder
+    private func pendingHumansBanner(lifecycle: RoomLifecycle, signaled: Set<String>) -> some View {
+        let myParticipantID = myParticipantID(in: lifecycle)
+        let iHaveSignaled = myParticipantID.map { signaled.contains($0) } ?? true
+        let waitingFor = lifecycle.spec.humanParticipants.filter { !signaled.contains($0.id) }
+
+        VStack(spacing: 12) {
+            if !iHaveSignaled {
+                // Show "I'm Here" button
+                Button {
+                    Task {
+                        await signalHere(lifecycle: lifecycle)
+                    }
+                } label: {
+                    Text("I'm Here")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(Color.accentColor)
+                        .clipShape(Capsule())
+                }
+            }
+
+            if waitingFor.isEmpty {
+                Text("Everyone is here!")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                let names = waitingFor.map { $0.nickname }.joined(separator: ", ")
+                Text("Waiting for \(names)...")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(.bar)
+    }
+
+    @ViewBuilder
+    private func pendingCaptureBanner() -> some View {
+        VStack(spacing: 8) {
+            ProgressView()
+            Text("Completing payment...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(.bar)
     }
 
     @ViewBuilder
@@ -441,6 +516,48 @@ struct RoomView: View {
 
     private func clearDraft() {
         UserDefaults.standard.removeObject(forKey: draftKey)
+    }
+
+    // MARK: - Participant Identification
+
+    /// Find the current user's participant ID by matching store.localUserRecordID
+    /// against the embedded participants' userRecordID.
+    private func myParticipantID(in lifecycle: RoomLifecycle) -> String? {
+        guard let localUserRecordID = store.localUserRecordID else { return nil }
+
+        // Get embedded participants from persisted room
+        guard let room = persistedRoom else { return nil }
+        let embedded = room.embeddedParticipants()
+
+        // Find participant matching local user's CloudKit record ID
+        if let match = embedded.first(where: { $0.userRecordID == localUserRecordID }) {
+            return match.id
+        }
+
+        // Fallback: if this is a room we created, we're the first human participant
+        // (userRecordID might not be set for currentUser identifier type)
+        if lifecycle.spec.originatorID == lifecycle.spec.humanParticipants.first?.id {
+            if let first = embedded.first(where: { $0.identifierType == "currentUser" }) {
+                return first.id
+            }
+        }
+
+        return nil
+    }
+
+    private func signalHere(lifecycle: RoomLifecycle) async {
+        guard let participantID = myParticipantID(in: lifecycle) else {
+            print("RoomView: Could not find my participant ID")
+            return
+        }
+
+        do {
+            try await store.signalHere(roomID: roomID, participantID: participantID)
+            // Reload to update UI
+            self.lifecycle = store.room(id: roomID)
+        } catch {
+            print("RoomView: Failed to signal here: \(error)")
+        }
     }
 }
 

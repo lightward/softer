@@ -61,6 +61,19 @@ final class PersistenceStore {
         try? modelContext.save()
     }
 
+    // MARK: - Participant State
+
+    func signalHere(roomID: String, participantID: String) {
+        guard let room = room(id: roomID) else { return }
+        var participants = room.embeddedParticipants()
+        if let index = participants.firstIndex(where: { $0.id == participantID }) {
+            participants[index].hasSignaledHere = true
+            room.setParticipants(participants)
+            room.modifiedAt = Date()
+            try? modelContext.save()
+        }
+    }
+
     // MARK: - Turn State
 
     func updateTurnState(roomID: String, turnIndex: Int, raisedHands: Set<String>) {

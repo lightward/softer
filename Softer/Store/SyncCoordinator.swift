@@ -250,6 +250,61 @@ actor SyncCoordinator {
         }
     }
 
+    // MARK: - Share Acceptance
+
+    /// Accept a share from a ckshare:// URL.
+    /// Returns the root record ID (room ID) for navigation, or nil if acceptance failed.
+    func acceptShare(from url: URL) async throws -> String? {
+        print("SyncCoordinator: Accepting share from URL: \(url)")
+
+        // Fetch share metadata from URL
+        let metadata: CKShare.Metadata
+        do {
+            metadata = try await container.shareMetadata(for: url)
+            print("SyncCoordinator: Got share metadata, rootRecordID: \(metadata.rootRecordID.recordName)")
+        } catch {
+            print("SyncCoordinator: Failed to fetch share metadata: \(error)")
+            throw error
+        }
+
+        // Accept the share
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let operation = CKAcceptSharesOperation(shareMetadatas: [metadata])
+
+            operation.perShareResultBlock = { metadata, result in
+                switch result {
+                case .success:
+                    print("SyncCoordinator: Share accepted successfully")
+                case .failure(let error):
+                    print("SyncCoordinator: Share acceptance failed: \(error)")
+                }
+            }
+
+            operation.acceptSharesResultBlock = { result in
+                switch result {
+                case .success:
+                    continuation.resume()
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+
+            container.add(operation)
+        }
+
+        // Fetch changes from shared database to get the room
+        if let sharedEngine = sharedSyncEngine {
+            do {
+                try await sharedEngine.fetchChanges()
+                print("SyncCoordinator: Fetched shared changes after accepting share")
+            } catch {
+                print("SyncCoordinator: Failed to fetch shared changes: \(error)")
+            }
+        }
+
+        return metadata.rootRecordID.recordName
+    }
+
     /// Trigger a fetch of changes from the server (both private and shared).
     func fetchChanges() async {
         print("SyncCoordinator.fetchChanges: Starting fetch...")
@@ -352,7 +407,7 @@ actor SyncCoordinator {
             await handleSentRecordZoneChanges(sentChanges)
 
         case .willFetchChanges, .willFetchRecordZoneChanges, .didFetchRecordZoneChanges,
-             .willSendChanges, .didSendChanges:
+             .didFetchChanges, .willSendChanges, .didSendChanges:
             // Progress events - could update UI
             break
 

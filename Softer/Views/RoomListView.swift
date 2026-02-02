@@ -3,6 +3,7 @@ import SwiftData
 
 struct RoomListView: View {
     let store: SofterStore
+    @Binding var pendingRoomID: String?
     @State private var showCreateRoom = false
     @State private var navigationPath = NavigationPath()
 
@@ -84,6 +85,12 @@ struct RoomListView: View {
                 Task {
                     await store.refreshRooms()
                 }
+            }
+            .onChange(of: pendingRoomID) { _, roomID in
+                guard let roomID = roomID else { return }
+                // Clear pending and navigate
+                pendingRoomID = nil
+                navigationPath.append(roomID)
             }
         }
     }

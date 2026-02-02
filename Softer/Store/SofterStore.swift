@@ -169,6 +169,40 @@ final class SofterStore {
         await syncCoordinator.fetchChanges()
     }
 
+    // MARK: - Share Acceptance
+
+    /// Accept a share from a ckshare:// URL.
+    /// Returns the room ID for navigation, or nil if acceptance failed.
+    func acceptShare(url: URL) async throws -> String? {
+        guard let syncCoordinator = syncCoordinator else {
+            throw StoreError.notConfigured
+        }
+        return try await syncCoordinator.acceptShare(from: url)
+    }
+
+    /// Signal "here" for a participant in a room.
+    /// Used when accepting a shared room invitation.
+    func signalHere(roomID: String, participantID: String) async throws {
+        guard let syncCoordinator = syncCoordinator,
+              let zoneID = zoneID,
+              let dataStore = dataStore else {
+            throw StoreError.notConfigured
+        }
+
+        // Update local state
+        dataStore.signalHere(roomID: roomID, participantID: participantID)
+
+        // Sync to CloudKit
+        if let room = dataStore.room(id: roomID),
+           let lifecycle = room.toRoomLifecycle() {
+            let messages = room.messages()
+            let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
+            RoomLifecycleRecordConverter.apply(lifecycle, to: roomRecord, messages: messages)
+            await syncCoordinator.save(roomRecord)
+            await syncCoordinator.sendChanges()
+        }
+    }
+
     /// Gets a room by ID from local DB.
     func room(id: String) -> RoomLifecycle? {
         dataStore?.room(id: id)?.toRoomLifecycle()
