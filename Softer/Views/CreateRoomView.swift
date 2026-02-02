@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct CreateRoomView: View {
     let store: SofterStore
@@ -14,6 +15,9 @@ struct CreateRoomView: View {
     @State private var isCreating = false
     @State private var errorMessage: String?
     @State private var cachedIsFirstRoom: Bool?
+
+    // Query for active/locked rooms to check isFirstRoom
+    @Query private var persistedRooms: [PersistedRoom]
 
     var body: some View {
         NavigationStack {
@@ -102,7 +106,10 @@ struct CreateRoomView: View {
     }
 
     private var isFirstRoom: Bool {
-        store.rooms.filter { $0.isActive || $0.isLocked }.isEmpty
+        // Check if any rooms are active or locked
+        let activeOrLocked = persistedRooms.compactMap { $0.toRoomLifecycle() }
+            .filter { $0.isActive || $0.isLocked }
+        return activeOrLocked.isEmpty
     }
 
     private var isValid: Bool {

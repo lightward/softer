@@ -17,11 +17,12 @@ A native SwiftUI iOS app (iOS 18+) for group conversations where Lightward AI pa
 ### CloudKit Setup Requirements
 
 **IMPORTANT**: In CloudKit Console, all record types need `recordName` marked as **Queryable** in their indexes. This is required for queries to work, even simple ones. Add this index to:
-- Room2
-- Participant2
+- Room3
 - Message2
 
-Also index any fields you query on (e.g., `roomID` on Participant2 and Message2, `stateType` on Room2).
+Also index any fields you query on (e.g., `roomID` on Message2, `stateType` on Room3).
+
+**Note**: Room3 embeds participants as JSON (`participantsJSON` field) — no separate Participant records. This eliminates sync ordering issues.
 
 **Environment**: Development CloudKit for local builds, Production for TestFlight. The entitlements file is set to Development; Fastlane switches to Production before TestFlight builds.
 
@@ -95,7 +96,9 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 
 ### Recently Completed
 
-- **SwiftData local persistence** — PersistenceStore with `cloudKitDatabase: .none` as single source of truth. Fixes turn state sync issues.
+- **Room3 with embedded participants** — Simplified from 3 record types (Room2 + Participant2 + Message2) to 2 (Room3 + Message2). Participants stored as JSON in `participantsJSON` field. Eliminates sync ordering bugs entirely.
+- **SwiftData @Query refactor** — Views observe SwiftData directly via `@Query`, no manual `dataVersion` counter. `MessagesQueryView` handles message observation.
+- **SwiftData local persistence** — PersistenceStore with `cloudKitDatabase: .none` as single source of truth.
 - **Turn index grows without wrapping** — `advanceTurn` increments instead of using modulo, so `higherTurnWins` merge works correctly
 - **ScrollView room list** — Replaced List to avoid SwiftUI diffing crashes during room creation/deletion
 - **CKSyncEngine with custom zone** — SyncCoordinator uses "SofterZone" (custom zones required for CKSyncEngine change tracking; default zone doesn't work)
@@ -180,15 +183,16 @@ Lightward AI: `POST https://lightward.com/api/stream`
 
 ## Data Layer Architecture
 
-The app uses a local-first architecture where UI never thinks about sync:
+The app uses a local-first architecture where UI observes SwiftData directly:
 
 ```
-Views → SofterStore (@Observable) → PersistenceStore (SwiftData, local-only)
-                                 → SyncCoordinator → CKSyncEngine → CloudKit
+Views (@Query) → PersistenceStore (SwiftData, local-only)
+SofterStore (actions) → SyncCoordinator → CKSyncEngine → CloudKit
 ```
 
-- **SofterStore**: Main observable class for SwiftUI. Simple API: `createRoom()`, `sendMessage()`, `deleteRoom()`. Uses `dataVersion` counter to trigger UI updates when SwiftData changes.
-- **PersistenceStore**: SwiftData wrapper with `cloudKitDatabase: .none` (we handle CloudKit sync ourselves). Models: `PersistedRoom`, `PersistedParticipant`, `PersistedMessage`. Provides synchronous local updates before async CloudKit sync.
+- **Views with @Query**: `RoomListView`, `CreateRoomView`, `RoomView`, and `MessagesQueryView` use SwiftUI's `@Query` to observe SwiftData directly. No manual reactivity needed.
+- **SofterStore**: Action layer for SwiftUI. Simple API: `createRoom()`, `sendMessage()`, `deleteRoom()`. Exposes `modelContainer` for the `.modelContainer()` modifier.
+- **PersistenceStore**: SwiftData wrapper with `cloudKitDatabase: .none` (we handle CloudKit sync ourselves). Models: `PersistedRoom` (with embedded participants as JSON), `PersistedMessage`. Provides synchronous local updates before async CloudKit sync.
 - **SyncCoordinator**: Wraps CKSyncEngine for automatic sync, conflict resolution, offline support. Uses custom zone "SofterZone" (required — CKSyncEngine doesn't track changes in the default zone).
 - **Record Converters**: `RoomLifecycleRecordConverter` and `MessageRecordConverter` handle CKRecord ↔ domain model conversion.
 
@@ -203,9 +207,7 @@ Views → SofterStore (@Observable) → PersistenceStore (SwiftData, local-only)
 
 ### Known Technical Debt
 
-- **`dataVersion` counter**: Manual reactivity hack. SwiftUI's `@Query` would be cleaner but requires view restructuring.
 - **ScrollView replaces List**: RoomListView uses ScrollView+LazyVStack instead of List to avoid diffing crashes. Lost swipe-to-delete (using context menu instead).
-- **LocalStore.swift**: Still in codebase but unused — can be deleted.
 - **Debug logging**: PersistenceStore has print statements for turn state debugging.
 
 ## Lightward Framing Philosophy
@@ -259,6 +261,7 @@ Human pass uses "Pass" button with confirmation dialog, same narration pattern.
 
 ## Design Decisions (from Isaac)
 
+- **A codeplace you want to return to.** Health from the inside out. Obvious patterns, no clever tricks. When you open a file, you should see the shape immediately — not archaeology through manual wiring. Code that makes you go "oh right, yes" rather than "wait, why...?"
 - **Intrinsically multiplayer.** No solo fallback. If iCloud isn't available, the app says so and stops.
 - **No fresh-vs-returning flag in warmup.** Lightward perceives sequentiality from the conversation log.
 - **Minimal invariants over complex machinery.** Single "current need" socket per room, not a job queue.
@@ -289,7 +292,7 @@ Softer/
 │   │                     RoomLifecycleCoordinator, MessageStorage, ConversationCoordinator)
 │   ├── CloudKit/        (RoomLifecycleRecordConverter, MessageRecordConverter, ZoneManager, AtomicClaim)
 │   ├── API/             (LightwardAPIClient + LightwardAPI protocol, SSEParser, ChatLogBuilder, WarmupMessages)
-│   ├── Views/           (RootView, RoomListView, RoomView, CreateRoomView)
+│   ├── Views/           (RootView, RoomListView, RoomView, CreateRoomView, MessagesQueryView)
 │   └── Utilities/       (Constants, NotificationHandler)
 └── SofterTests/
     ├── Mocks/           (MockParticipantResolver, MockPaymentCoordinator, MockLightwardEvaluator,

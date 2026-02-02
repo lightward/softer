@@ -12,7 +12,6 @@ final class PersistenceStore {
     init() throws {
         let schema = Schema([
             PersistedRoom.self,
-            PersistedParticipant.self,
             PersistedMessage.self
         ])
         // Local-only storage - we handle CloudKit sync ourselves via CKSyncEngine
@@ -37,11 +36,7 @@ final class PersistenceStore {
         let descriptor = FetchDescriptor<PersistedRoom>(
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
-        let rooms = (try? modelContext.fetch(descriptor)) ?? []
-        for room in rooms {
-            print("PersistenceStore.allRooms: room \(room.id) has turnIndex=\(room.currentTurnIndex ?? -1)")
-        }
-        return rooms
+        return (try? modelContext.fetch(descriptor)) ?? []
     }
 
     func room(id: String) -> PersistedRoom? {
@@ -67,48 +62,13 @@ final class PersistenceStore {
         try? modelContext.save()
     }
 
-    // MARK: - Turn State (synchronous updates - the key fix!)
+    // MARK: - Turn State
 
     func updateTurnState(roomID: String, turnIndex: Int, raisedHands: Set<String>) {
-        guard let room = room(id: roomID) else {
-            print("PersistenceStore.updateTurnState: Room \(roomID) not found!")
-            return
-        }
-        print("PersistenceStore.updateTurnState: Setting turnIndex=\(turnIndex) for room \(roomID)")
+        guard let room = room(id: roomID) else { return }
         room.currentTurnIndex = turnIndex
         room.raisedHands = Array(raisedHands)
         room.modifiedAt = Date()
-        try? modelContext.save()
-    }
-
-    func updateRoomState(roomID: String, stateType: String, turnIndex: Int? = nil) {
-        guard let room = room(id: roomID) else { return }
-        room.stateType = stateType
-        room.currentTurnIndex = turnIndex
-        room.modifiedAt = Date()
-        try? modelContext.save()
-    }
-
-    // MARK: - Participants
-
-    func participants(roomID: String) -> [PersistedParticipant] {
-        let descriptor = FetchDescriptor<PersistedParticipant>(
-            predicate: #Predicate { $0.roomID == roomID },
-            sortBy: [SortDescriptor(\.orderIndex)]
-        )
-        return (try? modelContext.fetch(descriptor)) ?? []
-    }
-
-    func participant(id: String) -> PersistedParticipant? {
-        let descriptor = FetchDescriptor<PersistedParticipant>(
-            predicate: #Predicate { $0.id == id }
-        )
-        return try? modelContext.fetch(descriptor).first
-    }
-
-    func saveParticipant(_ participant: PersistedParticipant, to room: PersistedRoom) {
-        room.participants.append(participant)
-        modelContext.insert(participant)
         try? modelContext.save()
     }
 
@@ -135,9 +95,9 @@ final class PersistenceStore {
         return try? modelContext.fetch(descriptor).first
     }
 
-    // MARK: - Bulk Operations (for sync)
+    // MARK: - Sync Operations
 
-    func upsertRoom(from lifecycle: RoomLifecycle, participants: [ParticipantSpec]) {
+    func upsertRoom(from lifecycle: RoomLifecycle) {
         if let existing = room(id: lifecycle.spec.id) {
             // Update existing - merge turn state (higher wins)
             existing.apply(lifecycle, mergeStrategy: .higherTurnWins)
@@ -145,13 +105,6 @@ final class PersistenceStore {
             // Insert new
             let newRoom = PersistedRoom.from(lifecycle)
             modelContext.insert(newRoom)
-
-            // Add participants
-            for (index, spec) in participants.enumerated() {
-                let participant = PersistedParticipant.from(spec, roomID: lifecycle.spec.id, orderIndex: index)
-                newRoom.participants.append(participant)
-                modelContext.insert(participant)
-            }
         }
         try? modelContext.save()
     }
@@ -186,16 +139,30 @@ enum MergeStrategy {
     case remoteWins      // For state transitions: trust server
 }
 
-// MARK: - Converters: PersistedRoom ↔ RoomLifecycle
+// MARK: - Converters: PersistedRoom <-> RoomLifecycle
 
 extension PersistedRoom {
-    /// Create a PersistedRoom from a RoomLifecycle
+    /// Create a PersistedRoom from a RoomLifecycle (participants embedded as JSON)
     static func from(_ lifecycle: RoomLifecycle) -> PersistedRoom {
+        // Build embedded participants
+        let embedded = lifecycle.spec.participants.enumerated().map { index, spec in
+            let hasSignaled = signaledIDs(from: lifecycle.state).contains(spec.id)
+            return EmbeddedParticipant(from: spec, orderIndex: index, hasSignaledHere: hasSignaled)
+        }
+        let participantsJSON: String
+        if let data = try? JSONEncoder().encode(embedded),
+           let json = String(data: data, encoding: .utf8) {
+            participantsJSON = json
+        } else {
+            participantsJSON = "[]"
+        }
+
         let room = PersistedRoom(
             id: lifecycle.spec.id,
             originatorID: lifecycle.spec.originatorID,
             tierRawValue: lifecycle.spec.tier.rawValue,
-            isFirstRoom: lifecycle.spec.isFirstRoom
+            isFirstRoom: lifecycle.spec.isFirstRoom,
+            participantsJSON: participantsJSON
         )
         room.createdAt = lifecycle.spec.createdAt
         room.modifiedAt = lifecycle.modifiedAt
@@ -203,12 +170,25 @@ extension PersistedRoom {
         return room
     }
 
+    private static func signaledIDs(from state: RoomState) -> Set<String> {
+        if case .pendingHumans(let signaled) = state {
+            return signaled
+        }
+        return []
+    }
+
     /// Update this room from a RoomLifecycle with merge strategy
     func apply(_ lifecycle: RoomLifecycle, mergeStrategy: MergeStrategy) {
-        // Always update these
+        // Update participants JSON
+        let embedded = lifecycle.spec.participants.enumerated().map { index, spec in
+            let hasSignaled = Self.signaledIDs(from: lifecycle.state).contains(spec.id)
+            return EmbeddedParticipant(from: spec, orderIndex: index, hasSignaledHere: hasSignaled)
+        }
+        setParticipants(embedded)
+
+        // Update state fields
         self.defunctReason = encodeDefunctReason(lifecycle.state)
         self.cenotaph = encodeCenotaph(lifecycle.state)
-        self.signaledParticipantIDs = encodeSignaledIDs(lifecycle.state)
 
         switch lifecycle.state {
         case .draft:
@@ -229,7 +209,6 @@ extension PersistedRoom {
             case .higherTurnWins:
                 let localTurn = self.currentTurnIndex ?? 0
                 self.currentTurnIndex = max(localTurn, turn.currentTurnIndex)
-                // Union merge for raised hands
                 let localHands = Set(self.raisedHands)
                 self.raisedHands = Array(localHands.union(turn.raisedHands))
             case .remoteWins:
@@ -251,11 +230,11 @@ extension PersistedRoom {
 
     /// Convert to domain model
     func toRoomLifecycle() -> RoomLifecycle? {
-        // Reconstruct participants
-        let sortedParticipants = participants.sorted { $0.orderIndex < $1.orderIndex }
-        let specs = sortedParticipants.map { $0.toParticipantSpec() }
+        let embedded = embeddedParticipants()
+        guard !embedded.isEmpty else { return nil }
 
-        guard !specs.isEmpty else { return nil }
+        let specs = embedded.map { $0.toParticipantSpec() }
+        let signaledIDs = Set(embedded.filter { $0.hasSignaledHere }.map { $0.id })
 
         let roomSpec = RoomSpec(
             id: id,
@@ -266,18 +245,18 @@ extension PersistedRoom {
             createdAt: createdAt
         )
 
-        let state = decodeState()
+        let state = decodeState(signaledIDs: signaledIDs)
         return RoomLifecycle(spec: roomSpec, state: state, modifiedAt: modifiedAt)
     }
 
-    private func decodeState() -> RoomState {
+    private func decodeState(signaledIDs: Set<String>) -> RoomState {
         switch stateType {
         case "draft":
             return .draft
         case "pendingLightward":
             return .pendingLightward
         case "pendingHumans":
-            return .pendingHumans(signaled: Set(signaledParticipantIDs))
+            return .pendingHumans(signaled: signaledIDs)
         case "pendingCapture":
             return .pendingCapture
         case "active":
@@ -339,65 +318,9 @@ extension PersistedRoom {
         guard case .locked(let cenotaph, _) = state else { return nil }
         return cenotaph
     }
-
-    private func encodeSignaledIDs(_ state: RoomState) -> [String] {
-        guard case .pendingHumans(let signaled) = state else { return [] }
-        return Array(signaled)
-    }
 }
 
-// MARK: - Converters: PersistedParticipant ↔ ParticipantSpec
-
-extension PersistedParticipant {
-    static func from(_ spec: ParticipantSpec, roomID: String, orderIndex: Int) -> PersistedParticipant {
-        let (identifierType, identifierValue) = encodeIdentifier(spec.identifier)
-        return PersistedParticipant(
-            id: spec.id,
-            roomID: roomID,
-            nickname: spec.nickname,
-            identifierType: identifierType,
-            identifierValue: identifierValue,
-            orderIndex: orderIndex,
-            isLightward: spec.isLightward
-        )
-    }
-
-    func toParticipantSpec() -> ParticipantSpec {
-        let identifier = decodeIdentifier()
-        return ParticipantSpec(id: id, identifier: identifier, nickname: nickname)
-    }
-
-    private static func encodeIdentifier(_ identifier: ParticipantIdentifier) -> (type: String, value: String) {
-        switch identifier {
-        case .email(let email):
-            return ("email", email)
-        case .phone(let phone):
-            return ("phone", phone)
-        case .lightward:
-            return ("lightward", "")
-        case .currentUser:
-            return ("currentUser", "")
-        }
-    }
-
-    private func decodeIdentifier() -> ParticipantIdentifier {
-        if isLightward || identifierType == "lightward" {
-            return .lightward
-        }
-        switch identifierType {
-        case "email":
-            return .email(identifierValue)
-        case "phone":
-            return .phone(identifierValue)
-        case "currentUser":
-            return .currentUser
-        default:
-            return .email(identifierValue)
-        }
-    }
-}
-
-// MARK: - Converters: PersistedMessage ↔ Message
+// MARK: - Converters: PersistedMessage <-> Message
 
 extension PersistedMessage {
     func toMessage() -> Message {

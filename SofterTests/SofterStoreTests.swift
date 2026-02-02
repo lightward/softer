@@ -19,7 +19,6 @@ final class SofterStoreTests: XCTestCase {
 
         // Without a container, sync status should not be synced
         XCTAssertEqual(store.syncStatus, SyncStatus.idle)
-        XCTAssertTrue(store.rooms.isEmpty)
         XCTAssertFalse(store.initialLoadCompleted)
     }
 
@@ -30,11 +29,6 @@ final class SofterStoreTests: XCTestCase {
     }
 
     // MARK: - Room Operations
-
-    func testRoomsInitiallyEmpty() async {
-        let store = makeMockStore()
-        XCTAssertTrue(store.rooms.isEmpty)
-    }
 
     func testDeleteRoomThrowsWhenNotConfigured() async {
         let store = SofterStore(

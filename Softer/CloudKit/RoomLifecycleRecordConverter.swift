@@ -1,16 +1,65 @@
 import Foundation
 import CloudKit
 
+/// Embedded participant data for Room3 records.
+/// Stored as JSON in the participantsJSON field.
+struct EmbeddedParticipant: Codable {
+    let id: String
+    let nickname: String
+    let identifierType: String
+    let identifierValue: String?
+    let orderIndex: Int
+    var hasSignaledHere: Bool
+
+    init(from spec: ParticipantSpec, orderIndex: Int, hasSignaledHere: Bool) {
+        self.id = spec.id
+        self.nickname = spec.nickname
+        self.orderIndex = orderIndex
+        self.hasSignaledHere = hasSignaledHere
+
+        switch spec.identifier {
+        case .email(let email):
+            self.identifierType = "email"
+            self.identifierValue = email
+        case .phone(let phone):
+            self.identifierType = "phone"
+            self.identifierValue = phone
+        case .lightward:
+            self.identifierType = "lightward"
+            self.identifierValue = nil
+        case .currentUser:
+            self.identifierType = "currentUser"
+            self.identifierValue = nil
+        }
+    }
+
+    func toParticipantSpec() -> ParticipantSpec {
+        let identifier: ParticipantIdentifier
+        switch identifierType {
+        case "email":
+            identifier = .email(identifierValue ?? "")
+        case "phone":
+            identifier = .phone(identifierValue ?? "")
+        case "lightward":
+            identifier = .lightward
+        case "currentUser":
+            identifier = .currentUser
+        default:
+            identifier = .lightward
+        }
+        return ParticipantSpec(id: id, identifier: identifier, nickname: nickname)
+    }
+}
+
 /// Converts between RoomLifecycle domain models and CloudKit records.
-/// Uses "Room2" and "Participant2" record types to avoid collision with legacy model.
+/// Uses "Room3" record type with embedded participants (no separate Participant records).
 enum RoomLifecycleRecordConverter {
 
-    // MARK: - Record Type Names
+    // MARK: - Record Type Name
 
-    static let roomRecordType = "Room2"
-    static let participantRecordType = "Participant2"
+    static let roomRecordType = "Room3"
 
-    // MARK: - Room2 Record (RoomSpec + RoomState)
+    // MARK: - Room3 Record (RoomSpec + RoomState + Participants)
 
     static func record(from lifecycle: RoomLifecycle, zoneID: CKRecordZone.ID) -> CKRecord {
         let recordID = CKRecord.ID(recordName: lifecycle.spec.id, zoneID: zoneID)
@@ -28,6 +77,16 @@ enum RoomLifecycleRecordConverter {
         record["isFirstRoom"] = (spec.isFirstRoom ? 1 : 0) as NSNumber
         record["createdAtDate"] = spec.createdAt as NSDate
         record["modifiedAtDate"] = lifecycle.modifiedAt as NSDate
+
+        // Embedded participants as JSON
+        let embeddedParticipants = spec.participants.enumerated().map { index, participantSpec in
+            let hasSignaled = signaledParticipantIDs(from: lifecycle.state).contains(participantSpec.id)
+            return EmbeddedParticipant(from: participantSpec, orderIndex: index, hasSignaledHere: hasSignaled)
+        }
+        if let jsonData = try? JSONEncoder().encode(embeddedParticipants),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            record["participantsJSON"] = jsonString as NSString
+        }
 
         // RoomState fields
         let encoded = encodeState(lifecycle.state)
@@ -66,28 +125,28 @@ enum RoomLifecycleRecordConverter {
         }
     }
 
-    /// Reconstructs a RoomLifecycle from a Room2 record and participant data.
-    /// - Parameters:
-    ///   - record: The Room2 CloudKit record
-    ///   - participants: Array of ParticipantSpec extracted from Participant2 records
-    ///   - signaledParticipantIDs: Set of participant IDs who have signaled "here"
-    static func lifecycle(
-        from record: CKRecord,
-        participants: [ParticipantSpec],
-        signaledParticipantIDs: Set<String>
-    ) -> RoomLifecycle? {
+    /// Reconstructs a RoomLifecycle from a Room3 record (participants embedded).
+    static func lifecycle(from record: CKRecord) -> RoomLifecycle? {
         guard let originatorID = record["originatorID"] as? String,
               let tierRaw = record["tier"] as? Int,
               let tier = PaymentTier(rawValue: tierRaw),
               let isFirstRoomInt = record["isFirstRoom"] as? Int,
-              let stateType = record["stateType"] as? String else {
+              let stateType = record["stateType"] as? String,
+              let participantsJSON = record["participantsJSON"] as? String,
+              let jsonData = participantsJSON.data(using: .utf8),
+              let embeddedParticipants = try? JSONDecoder().decode([EmbeddedParticipant].self, from: jsonData) else {
             return nil
         }
+
+        // Convert embedded participants to specs (sorted by orderIndex)
+        let sortedParticipants = embeddedParticipants.sorted { $0.orderIndex < $1.orderIndex }
+        let participantSpecs = sortedParticipants.map { $0.toParticipantSpec() }
+        let signaledIDs = Set(sortedParticipants.filter { $0.hasSignaledHere }.map { $0.id })
 
         let spec = RoomSpec(
             id: record.recordID.recordName,
             originatorID: originatorID,
-            participants: participants,
+            participants: participantSpecs,
             tier: tier,
             isFirstRoom: isFirstRoomInt == 1,
             createdAt: record["createdAtDate"] as? Date ?? record.creationDate ?? Date()
@@ -101,12 +160,25 @@ enum RoomLifecycleRecordConverter {
             defunctReason: record["defunctReason"] as? String,
             cenotaph: record["cenotaph"] as? String,
             turnState: turnState,
-            signaledParticipantIDs: Array(signaledParticipantIDs)
+            signaledParticipantIDs: Array(signaledIDs)
         )
 
         let modifiedAt = record["modifiedAtDate"] as? Date ?? record.modificationDate ?? Date()
 
         return RoomLifecycle(spec: spec, state: state, modifiedAt: modifiedAt)
+    }
+
+    /// Extract signaled participant IDs from room state (for encoding to record).
+    private static func signaledParticipantIDs(from state: RoomState) -> Set<String> {
+        switch state {
+        case .pendingHumans(let signaled):
+            return signaled
+        case .active, .locked:
+            // In active/locked states, all humans have signaled
+            return []  // We track via hasSignaledHere on each participant
+        default:
+            return []
+        }
     }
 
     // MARK: - State Encoding/Decoding
@@ -118,7 +190,6 @@ enum RoomLifecycleRecordConverter {
         case .pendingLightward:
             return ("pendingLightward", nil, nil, nil)
         case .pendingHumans:
-            // Signaled participants tracked via Participant2.hasSignaledHere
             return ("pendingHumans", nil, nil, nil)
         case .pendingCapture:
             return ("pendingCapture", nil, nil, nil)
@@ -218,91 +289,4 @@ enum RoomLifecycleRecordConverter {
         default: return .cancelled
         }
     }
-
-    // MARK: - Participant2 Record
-
-    static func record(from spec: ParticipantSpec, roomID: String, userRecordID: String?, hasSignaledHere: Bool, orderIndex: Int, zoneID: CKRecordZone.ID) -> CKRecord {
-        let recordID = CKRecord.ID(recordName: spec.id, zoneID: zoneID)
-        let record = CKRecord(recordType: participantRecordType, recordID: recordID)
-        apply(spec: spec, roomID: roomID, userRecordID: userRecordID, hasSignaledHere: hasSignaledHere, orderIndex: orderIndex, to: record)
-        return record
-    }
-
-    static func apply(spec: ParticipantSpec, roomID: String, userRecordID: String?, hasSignaledHere: Bool, orderIndex: Int, to record: CKRecord) {
-        record["roomID"] = roomID as NSString
-        record["nickname"] = spec.nickname as NSString
-        record["orderIndex"] = orderIndex as NSNumber
-
-        let (identifierType, identifierValue) = encodeIdentifier(spec.identifier)
-        record["identifierType"] = identifierType as NSString
-        record["identifierValue"] = identifierValue as NSString?
-
-        record["userRecordID"] = userRecordID as NSString?
-        record["hasSignaledHere"] = (hasSignaledHere ? 1 : 0) as NSNumber
-    }
-
-    static func orderIndex(from record: CKRecord) -> Int {
-        record["orderIndex"] as? Int ?? 0
-    }
-
-    static func participantSpec(from record: CKRecord) -> ParticipantSpec? {
-        guard let nickname = record["nickname"] as? String,
-              let identifierType = record["identifierType"] as? String else {
-            return nil
-        }
-
-        let identifier = decodeIdentifier(
-            type: identifierType,
-            value: record["identifierValue"] as? String
-        )
-
-        return ParticipantSpec(
-            id: record.recordID.recordName,
-            identifier: identifier,
-            nickname: nickname
-        )
-    }
-
-    static func userRecordID(from record: CKRecord) -> String? {
-        record["userRecordID"] as? String
-    }
-
-    static func hasSignaledHere(from record: CKRecord) -> Bool {
-        (record["hasSignaledHere"] as? Int) == 1
-    }
-
-    static func roomID(from record: CKRecord) -> String? {
-        record["roomID"] as? String
-    }
-
-    // MARK: - Identifier Encoding/Decoding
-
-    private static func encodeIdentifier(_ identifier: ParticipantIdentifier) -> (type: String, value: String?) {
-        switch identifier {
-        case .email(let email):
-            return ("email", email)
-        case .phone(let phone):
-            return ("phone", phone)
-        case .lightward:
-            return ("lightward", nil)
-        case .currentUser:
-            return ("currentUser", nil)
-        }
-    }
-
-    private static func decodeIdentifier(type: String, value: String?) -> ParticipantIdentifier {
-        switch type {
-        case "email":
-            return .email(value ?? "")
-        case "phone":
-            return .phone(value ?? "")
-        case "lightward":
-            return .lightward
-        case "currentUser":
-            return .currentUser
-        default:
-            return .lightward
-        }
-    }
 }
-

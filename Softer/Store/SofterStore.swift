@@ -15,18 +15,6 @@ final class SofterStore {
     /// Current sync status.
     private(set) var syncStatus: SyncStatus = .idle
 
-    /// Triggers view updates when SwiftData content changes.
-    /// Increment this to force views to re-read `rooms`.
-    private(set) var dataVersion: Int = 0
-
-    /// All active rooms, sorted by creation date.
-    /// Computed from SwiftData - always fresh.
-    var rooms: [RoomLifecycle] {
-        // Touch dataVersion so @Observable knows to re-evaluate when it changes
-        _ = dataVersion
-        return dataStore?.allRooms().compactMap { $0.toRoomLifecycle() } ?? []
-    }
-
     /// Whether initial data load has completed.
     private(set) var initialLoadCompleted = false
 
@@ -41,12 +29,23 @@ final class SofterStore {
     private var zoneID: CKRecordZone.ID?
     private let apiClient: any LightwardAPI
 
+    /// Exposes the SwiftData ModelContainer for @Query in views.
+    var modelContainer: ModelContainer? {
+        dataStore?.modelContainer
+    }
+
     // MARK: - Initialization
 
     init(apiClient: any LightwardAPI = LightwardAPIClient()) {
         self.apiClient = apiClient
+        // Initialize SwiftData synchronously - required for .modelContainer() modifier
+        do {
+            self.dataStore = try PersistenceStore()
+        } catch {
+            print("SofterStore: Failed to initialize PersistenceStore: \(error)")
+        }
         Task {
-            await setup()
+            await setupCloudKit()
         }
     }
 
@@ -70,27 +69,25 @@ final class SofterStore {
 
     // MARK: - Setup
 
-    private func setup() async {
-        do {
-            // Initialize SwiftData first - this is our source of truth
-            print("SofterStore: Initializing PersistenceStore...")
-            let dataStore = try PersistenceStore()
-            self.dataStore = dataStore
-            print("SofterStore: PersistenceStore initialized successfully")
+    private func setupCloudKit() async {
+        guard dataStore != nil else {
+            syncStatus = .error("Failed to initialize local storage")
+            initialLoadCompleted = true
+            return
+        }
 
+        do {
             let ckContainer = CKContainer(identifier: Constants.containerIdentifier)
 
             let accountStatus = try await ckContainer.accountStatus()
             guard accountStatus == .available else {
                 syncStatus = .error("Softer requires iCloud. Sign in via Settings to begin.")
-                // Still mark as loaded - we have local data
                 initialLoadCompleted = true
                 return
             }
 
             self.container = ckContainer
 
-            // Get user ID
             let userID = try await ckContainer.userRecordID()
             localUserRecordID = userID.recordName
 
@@ -98,7 +95,6 @@ final class SofterStore {
             let zoneID = CKRecordZone.ID(zoneName: "SofterZone", ownerName: CKCurrentUserDefaultName)
             self.zoneID = zoneID
 
-            // Create and start SyncCoordinator
             let coordinator = SyncCoordinator(
                 database: ckContainer.privateCloudDatabase,
                 zoneID: zoneID
@@ -116,18 +112,15 @@ final class SofterStore {
                     await self?.handleStatusChange(status)
                 },
                 onBatchComplete: { [weak self] in
-                    // No longer needed - PersistenceStore handles persistence
                     _ = self
                 }
             )
 
-            // Fetch changes from CloudKit and merge into local DB
             await coordinator.fetchChanges()
             initialLoadCompleted = true
 
         } catch {
             print("SofterStore: Setup failed with error: \(error)")
-            print("SofterStore: Error type: \(type(of: error))")
             syncStatus = .error("Failed to initialize: \(error.localizedDescription)")
             initialLoadCompleted = true
         }
@@ -142,10 +135,11 @@ final class SofterStore {
 
         switch record.recordType {
         case RoomLifecycleRecordConverter.roomRecordType:
-            await handleRoomRecordFetched(record, dataStore: dataStore)
-
-        case RoomLifecycleRecordConverter.participantRecordType:
-            await handleParticipantRecordFetched(record, dataStore: dataStore)
+            // Room3 with embedded participants - simple!
+            if let lifecycle = RoomLifecycleRecordConverter.lifecycle(from: record) {
+                dataStore.upsertRoom(from: lifecycle)
+                print("SofterStore: Room \(record.recordID.recordName) synced from CloudKit")
+            }
 
         case MessageRecordConverter.recordType:
             if let message = MessageRecordConverter.message(from: record) {
@@ -157,66 +151,11 @@ final class SofterStore {
         }
     }
 
-    private func handleRoomRecordFetched(_ record: CKRecord, dataStore: PersistenceStore) async {
-        let roomID = record.recordID.recordName
-
-        // Get participants from local DB
-        let participants = dataStore.participants(roomID: roomID)
-
-        guard !participants.isEmpty else {
-            print("SofterStore: Room \(roomID) has no participants yet, skipping")
-            return
-        }
-
-        let specs = participants.map { $0.toParticipantSpec() }
-        let signaledIDs = Set(participants.filter(\.hasSignaledHere).map(\.id))
-
-        if let lifecycle = RoomLifecycleRecordConverter.lifecycle(
-            from: record,
-            participants: specs,
-            signaledParticipantIDs: signaledIDs
-        ) {
-            // upsertRoom handles merging (higher turn index wins)
-            dataStore.upsertRoom(from: lifecycle, participants: specs)
-            print("SofterStore: Room \(roomID) synced from CloudKit")
-        }
-    }
-
-    private func handleParticipantRecordFetched(_ record: CKRecord, dataStore: PersistenceStore) async {
-        guard let roomID = RoomLifecycleRecordConverter.roomID(from: record),
-              let spec = RoomLifecycleRecordConverter.participantSpec(from: record) else {
-            print("SofterStore: Failed to parse Participant2 record")
-            return
-        }
-
-        let orderIndex = RoomLifecycleRecordConverter.orderIndex(from: record)
-        let hasSignaled = RoomLifecycleRecordConverter.hasSignaledHere(from: record)
-
-        // Check if participant already exists
-        if let existing = dataStore.participant(id: spec.id) {
-            existing.hasSignaledHere = existing.hasSignaledHere || hasSignaled
-            if let room = dataStore.room(id: roomID) {
-                dataStore.updateRoom(room)
-            }
-        } else {
-            // Create new participant - need to attach to room
-            if let room = dataStore.room(id: roomID) {
-                let participant = PersistedParticipant.from(spec, roomID: roomID, orderIndex: orderIndex)
-                participant.hasSignaledHere = hasSignaled
-                dataStore.saveParticipant(participant, to: room)
-            }
-        }
-
-        print("SofterStore: Synced participant \(spec.nickname) for room \(roomID)")
-    }
-
     private func handleRecordDeleted(_ recordID: CKRecord.ID) async {
         guard let dataStore = dataStore else { return }
         let id = recordID.recordName
-        // Only delete and update UI if the room actually exists
         if dataStore.room(id: id) != nil {
             dataStore.deleteRoom(id: id)
-            dataVersion += 1
         }
     }
 
@@ -231,8 +170,6 @@ final class SofterStore {
     func refreshRooms() async {
         guard let syncCoordinator = syncCoordinator else { return }
         await syncCoordinator.fetchChanges()
-        // Trigger view update after sync
-        dataVersion += 1
     }
 
     /// Gets a room by ID from local DB.
@@ -253,14 +190,12 @@ final class SofterStore {
             throw StoreError.notConfigured
         }
 
-        // Find or create originator spec
         let originatorSpec = participants.first { !$0.isLightward } ?? ParticipantSpec(
             identifier: .email(""),
             nickname: originatorNickname
         )
 
-        // For now, always treat as first room (free) to test save flow
-        let isFirstRoom = true
+        let isFirstRoom = true  // TODO: Check actual room count
 
         let spec = RoomSpec(
             originatorID: originatorSpec.id,
@@ -281,7 +216,6 @@ final class SofterStore {
             lightward: lightward
         )
 
-        // Start creation flow
         try await coordinator.start()
 
         // Auto-signal for all humans (single-device for now)
@@ -290,27 +224,16 @@ final class SofterStore {
         }
 
         let lifecycle = await coordinator.lifecycle
-        let resolvedParticipants = await coordinator.resolvedParticipants
 
-        // Save to local DB FIRST (synchronous, immediate)
+        // Save to local DB (participants are embedded in lifecycle)
         let persistedRoom = PersistedRoom.from(lifecycle)
         dataStore.saveRoom(persistedRoom)
 
-        // Add participants to local DB
-        for (index, resolved) in resolvedParticipants.enumerated() {
-            let participant = PersistedParticipant.from(resolved.spec, roomID: lifecycle.spec.id, orderIndex: index)
-            participant.hasSignaledHere = true
-            dataStore.saveParticipant(participant, to: persistedRoom)
-        }
-
-        // Save opening narration to local DB
+        // Save opening narration
         let originatorName = spec.participants.first { $0.id == spec.originatorID }?.nickname ?? "Someone"
-        let narrationText: String
-        if spec.isFirstRoom {
-            narrationText = "\(originatorName) opened their first room."
-        } else {
-            narrationText = "\(originatorName) opened the room with \(spec.tier.displayString)."
-        }
+        let narrationText = spec.isFirstRoom
+            ? "\(originatorName) opened their first room."
+            : "\(originatorName) opened the room with \(spec.tier.displayString)."
 
         let openingMessage = PersistedMessage(
             roomID: lifecycle.spec.id,
@@ -322,27 +245,11 @@ final class SofterStore {
         )
         dataStore.saveMessage(openingMessage, to: persistedRoom)
 
-        // Trigger view update
-        dataVersion += 1
-
-        // NOW sync to CloudKit (async, fire-and-forget)
+        // Sync to CloudKit in background
         Task {
-            // Save room record
+            // Save single Room3 record (participants embedded)
             let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
             await syncCoordinator.save(roomRecord)
-
-            // Save participant records
-            for (index, resolved) in resolvedParticipants.enumerated() {
-                let participantRecord = RoomLifecycleRecordConverter.record(
-                    from: resolved.spec,
-                    roomID: lifecycle.spec.id,
-                    userRecordID: resolved.userRecordID,
-                    hasSignaledHere: true,
-                    orderIndex: index,
-                    zoneID: zoneID
-                )
-                await syncCoordinator.save(participantRecord)
-            }
 
             // Save message record
             let messageRecord = MessageRecordConverter.record(
@@ -366,19 +273,15 @@ final class SofterStore {
         return lifecycle
     }
 
-    /// Updates a room's turn state. SYNCHRONOUS local update.
+    /// Updates a room's turn state.
     func updateTurnState(roomID: String, turnState: TurnState) {
         guard let dataStore = dataStore else { return }
 
-        // Update local DB immediately (THIS IS THE KEY FIX)
         dataStore.updateTurnState(
             roomID: roomID,
             turnIndex: turnState.currentTurnIndex,
             raisedHands: turnState.raisedHands
         )
-
-        // Trigger view update
-        dataVersion += 1
 
         // Sync to CloudKit in background
         Task {
@@ -400,13 +303,11 @@ final class SofterStore {
             throw StoreError.notConfigured
         }
 
-        // Update local DB immediately
         if let room = dataStore.room(id: lifecycle.spec.id) {
             room.apply(lifecycle, mergeStrategy: .remoteWins)
             dataStore.updateRoom(room)
         }
 
-        // Sync to CloudKit
         let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
         await syncCoordinator.save(roomRecord)
         await syncCoordinator.sendChanges()
@@ -420,24 +321,14 @@ final class SofterStore {
             throw StoreError.notConfigured
         }
 
-        // Get data for CloudKit deletion
-        let participants = dataStore.participants(roomID: id)
         let messages = dataStore.messages(roomID: id)
 
-        // Delete from local DB immediately
+        // Delete from local DB
         dataStore.deleteRoom(id: id)
-
-        // Trigger view update
-        dataVersion += 1
 
         // Delete from CloudKit
         let roomRecordID = CKRecord.ID(recordName: id, zoneID: zoneID)
         await syncCoordinator.delete(recordID: roomRecordID)
-
-        for participant in participants {
-            let participantRecordID = CKRecord.ID(recordName: participant.id, zoneID: zoneID)
-            await syncCoordinator.delete(recordID: participantRecordID)
-        }
 
         for message in messages {
             let messageRecordID = CKRecord.ID(recordName: message.id, zoneID: zoneID)
@@ -449,41 +340,10 @@ final class SofterStore {
 
     // MARK: - Public API: Messages
 
-    /// Gets messages for a room from local DB.
     func messages(roomID: String) -> [Message] {
         dataStore?.messages(roomID: roomID).map { $0.toMessage() } ?? []
     }
 
-    /// Observes messages for a room.
-    /// Returns current messages immediately and a stream for updates.
-    func observeMessages(roomID: String) async -> (initial: [Message], stream: AsyncStream<[Message]>) {
-        let initial = messages(roomID: roomID)
-
-        // Create a stream that polls for changes
-        // TODO: Replace with proper SwiftData observation when available
-        let stream = AsyncStream<[Message]> { continuation in
-            let task = Task {
-                var lastCount = initial.count
-                while !Task.isCancelled {
-                    try? await Task.sleep(for: .milliseconds(500))
-                    let current = self.messages(roomID: roomID)
-                    if current.count != lastCount {
-                        lastCount = current.count
-                        continuation.yield(current)
-                    }
-                }
-                continuation.finish()
-            }
-
-            continuation.onTermination = { _ in
-                task.cancel()
-            }
-        }
-
-        return (initial, stream)
-    }
-
-    /// Saves a message to storage.
     func saveMessage(_ message: Message) async throws {
         guard let syncCoordinator = syncCoordinator,
               let zoneID = zoneID,
@@ -491,7 +351,6 @@ final class SofterStore {
             throw StoreError.notConfigured
         }
 
-        // Save to local DB immediately
         if let room = dataStore.room(id: message.roomID) {
             let persisted = PersistedMessage(
                 id: message.id,
@@ -505,7 +364,6 @@ final class SofterStore {
             dataStore.saveMessage(persisted, to: room)
         }
 
-        // Sync to CloudKit
         let messageRecord = MessageRecordConverter.record(from: message, zoneID: zoneID)
         await syncCoordinator.save(messageRecord)
         await syncCoordinator.sendChanges()
@@ -513,7 +371,6 @@ final class SofterStore {
 
     // MARK: - Public API: Conversation Coordinator
 
-    /// Creates a ConversationCoordinator for an active room.
     func conversationCoordinator(
         for lifecycle: RoomLifecycle,
         onTurnChange: @escaping @Sendable (TurnState) -> Void = { _ in },
@@ -524,18 +381,13 @@ final class SofterStore {
 
         let roomID = lifecycle.spec.id
 
-        // Wrap onTurnChange to update local DB SYNCHRONOUSLY
         let wrappedOnTurnChange: @Sendable (TurnState) -> Void = { [weak self] newTurnState in
-            // Call the view's callback first
             onTurnChange(newTurnState)
-
-            // Update local DB synchronously (on main actor)
             Task { @MainActor [weak self] in
                 self?.updateTurnState(roomID: roomID, turnState: newTurnState)
             }
         }
 
-        // Create message storage backed by PersistenceStore
         let messageStorage = PersistenceStoreMessageStorage(
             dataStore: dataStore,
             syncCoordinator: syncCoordinator,
@@ -556,7 +408,6 @@ final class SofterStore {
 
 // MARK: - PersistenceStore-Backed Message Storage
 
-/// MessageStorage implementation that uses PersistenceStore for persistence.
 private final class PersistenceStoreMessageStorage: MessageStorage, @unchecked Sendable {
     private let dataStore: PersistenceStore
     private let syncCoordinator: SyncCoordinator?
@@ -570,7 +421,6 @@ private final class PersistenceStoreMessageStorage: MessageStorage, @unchecked S
 
     @MainActor
     func save(_ message: Message, roomID: String) async throws {
-        // Save to local DB immediately
         if let room = dataStore.room(id: roomID) {
             let persisted = PersistedMessage(
                 id: message.id,
@@ -584,7 +434,6 @@ private final class PersistenceStoreMessageStorage: MessageStorage, @unchecked S
             dataStore.saveMessage(persisted, to: room)
         }
 
-        // Sync to CloudKit
         if let syncCoordinator = syncCoordinator, let zoneID = zoneID {
             let messageRecord = MessageRecordConverter.record(from: message, zoneID: zoneID)
             await syncCoordinator.save(messageRecord)
@@ -599,17 +448,12 @@ private final class PersistenceStoreMessageStorage: MessageStorage, @unchecked S
 
     @MainActor
     func observeMessages(roomID: String, handler: @escaping @Sendable ([Message]) -> Void) async -> ObservationToken {
-        // For now, just return current messages and poll
-        // TODO: Use SwiftData's @Query for reactive updates
         let messages = dataStore.messages(roomID: roomID).map { $0.toMessage() }
         handler(messages)
-
-        // Return a no-op token for now
         return NoOpObservationToken()
     }
 }
 
-/// No-op observation token.
 private final class NoOpObservationToken: ObservationToken, @unchecked Sendable {
     func cancel() {}
 }

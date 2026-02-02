@@ -1,20 +1,37 @@
 import SwiftUI
+import SwiftData
 
 struct RoomView: View {
     let store: SofterStore
     let roomID: String
 
     @State private var lifecycle: RoomLifecycle?
-    @State private var messages: [Message] = []
     @State private var composeText = ""
     @State private var streamingText = ""
     @State private var isLoading = true
     @State private var turnState: TurnState?
     @State private var conversationCoordinator: ConversationCoordinator?
-    @State private var messageObservationTask: Task<Void, Never>?
     @State private var isSending = false
     @State private var isLightwardThinking = false
     @State private var showYieldConfirmation = false
+
+    // Query messages for checking Lightward response state
+    @Query private var persistedMessages: [PersistedMessage]
+
+    init(store: SofterStore, roomID: String) {
+        self.store = store
+        self.roomID = roomID
+        _persistedMessages = Query(
+            filter: #Predicate<PersistedMessage> { message in
+                message.roomID == roomID
+            },
+            sort: \PersistedMessage.createdAt
+        )
+    }
+
+    private var messages: [Message] {
+        persistedMessages.map { $0.toMessage() }
+    }
 
     var body: some View {
         Group {
@@ -29,67 +46,18 @@ struct RoomView: View {
         .task {
             await loadRoom()
         }
-        .onDisappear {
-            messageObservationTask?.cancel()
-        }
     }
 
     @ViewBuilder
     private func conversationView(lifecycle: RoomLifecycle) -> some View {
         VStack(spacing: 0) {
-            // Messages
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
-                        ForEach(messages) { message in
-                            MessageBubble(
-                                message: message,
-                                isLightward: message.authorName == Constants.lightwardParticipantName
-                            )
-                            .id(message.id)
-                        }
-
-                        // Typing indicator while waiting for Lightward
-                        if isLightwardThinking && streamingText.isEmpty {
-                            HStack {
-                                TypingIndicator()
-                                Spacer()
-                            }
-                            .id("thinking")
-                        }
-
-                        // Streaming text from Lightward
-                        if !streamingText.isEmpty {
-                            MessageBubble(
-                                text: streamingText,
-                                authorName: lifecycle.spec.lightwardParticipant?.nickname ?? "Lightward",
-                                isLightward: true,
-                                isStreaming: true
-                            )
-                            .id("streaming")
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .scrollBounceBehavior(.basedOnSize)
-                .defaultScrollAnchor(.bottom)
-                .onChange(of: messages.count) {
-                    if let last = messages.last {
-                        withAnimation {
-                            proxy.scrollTo(last.id, anchor: .bottom)
-                        }
-                    }
-                }
-                .onChange(of: streamingText) {
-                    if !streamingText.isEmpty {
-                        withAnimation {
-                            proxy.scrollTo("streaming", anchor: .bottom)
-                        }
-                    }
-                }
-                .scrollDismissesKeyboard(.interactively)
-            }
+            // Messages - using @Query for automatic SwiftData observation
+            MessagesQueryView(
+                roomID: roomID,
+                lifecycle: lifecycle,
+                streamingText: $streamingText,
+                isLightwardThinking: $isLightwardThinking
+            )
 
             Divider()
 
@@ -253,7 +221,7 @@ struct RoomView: View {
     private func loadRoom() async {
         isLoading = true
         do {
-            lifecycle = await store.room(id: roomID)
+            lifecycle = store.room(id: roomID)
             loadDraft()
 
             // Set up conversation coordinator if room is active
@@ -285,24 +253,6 @@ struct RoomView: View {
                 )
                 conversationCoordinator = convCoord
                 turnState = lifecycle.turnState
-
-                // Observe messages from local store
-                let (initial, stream) = await store.observeMessages(roomID: roomID)
-                messages = initial
-
-                // Start observing updates
-                messageObservationTask = Task {
-                    for await updatedMessages in stream {
-                        // Only clear streaming if the new message is in the array
-                        if !self.streamingText.isEmpty {
-                            let streamingContent = self.streamingText
-                            if updatedMessages.contains(where: { $0.text == streamingContent }) {
-                                self.streamingText = ""
-                            }
-                        }
-                        self.messages = updatedMessages
-                    }
-                }
 
                 // Done loading — show the room before triggering Lightward
                 isLoading = false

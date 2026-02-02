@@ -2,6 +2,7 @@ import SwiftData
 import Foundation
 
 /// Persisted room data. Single source of truth for room state.
+/// Participants are embedded as JSON (no separate Participant records).
 @available(iOS 18, *)
 @Model
 final class PersistedRoom {
@@ -17,17 +18,14 @@ final class PersistedRoom {
     var defunctReason: String?
     var cenotaph: String?
 
-    // Signaled participants (for pendingHumans state)
-    var signaledParticipantIDs: [String]
+    // Embedded participants as JSON (uses EmbeddedParticipant from RoomLifecycleRecordConverter)
+    var participantsJSON: String
 
     // Timestamps
     var createdAt: Date
     var modifiedAt: Date
 
-    // Relationships (simplified - no inverse for now)
-    @Relationship(deleteRule: .cascade)
-    var participants: [PersistedParticipant] = []
-
+    // Messages relationship
     @Relationship(deleteRule: .cascade)
     var messages: [PersistedMessage] = []
 
@@ -35,50 +33,40 @@ final class PersistedRoom {
         id: String = UUID().uuidString,
         originatorID: String,
         tierRawValue: Int,
-        isFirstRoom: Bool
+        isFirstRoom: Bool,
+        participantsJSON: String = "[]"
     ) {
         self.id = id
         self.originatorID = originatorID
         self.tierRawValue = tierRawValue
         self.isFirstRoom = isFirstRoom
+        self.participantsJSON = participantsJSON
         self.stateType = "draft"
-        self.signaledParticipantIDs = []
         self.raisedHands = []
         self.createdAt = Date()
         self.modifiedAt = Date()
     }
-}
 
-/// Persisted participant data.
-@available(iOS 18, *)
-@Model
-final class PersistedParticipant {
-    @Attribute(.unique) var id: String
-    var roomID: String  // denormalized for queries
-    var nickname: String
-    var identifierType: String  // "email" or "phone"
-    var identifierValue: String
-    var orderIndex: Int
-    var hasSignaledHere: Bool
-    var isLightward: Bool
+    /// Decode embedded participants from JSON.
+    func embeddedParticipants() -> [EmbeddedParticipant] {
+        guard let data = participantsJSON.data(using: .utf8),
+              let participants = try? JSONDecoder().decode([EmbeddedParticipant].self, from: data) else {
+            return []
+        }
+        return participants.sorted { $0.orderIndex < $1.orderIndex }
+    }
 
-    init(
-        id: String = UUID().uuidString,
-        roomID: String,
-        nickname: String,
-        identifierType: String,
-        identifierValue: String,
-        orderIndex: Int,
-        isLightward: Bool = false
-    ) {
-        self.id = id
-        self.roomID = roomID
-        self.nickname = nickname
-        self.identifierType = identifierType
-        self.identifierValue = identifierValue
-        self.orderIndex = orderIndex
-        self.hasSignaledHere = false
-        self.isLightward = isLightward
+    /// Encode participants to JSON and save.
+    func setParticipants(_ participants: [EmbeddedParticipant]) {
+        if let data = try? JSONEncoder().encode(participants),
+           let json = String(data: data, encoding: .utf8) {
+            self.participantsJSON = json
+        }
+    }
+
+    /// Get signaled participant IDs from embedded data.
+    func signaledParticipantIDs() -> Set<String> {
+        Set(embeddedParticipants().filter { $0.hasSignaledHere }.map { $0.id })
     }
 }
 

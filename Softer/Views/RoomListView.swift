@@ -1,9 +1,19 @@
 import SwiftUI
+import SwiftData
 
 struct RoomListView: View {
     let store: SofterStore
     @State private var showCreateRoom = false
     @State private var navigationPath = NavigationPath()
+
+    // SwiftUI's @Query observes SwiftData directly — no manual reactivity needed
+    @Query(sort: \PersistedRoom.createdAt, order: .reverse)
+    private var persistedRooms: [PersistedRoom]
+
+    /// Transform persisted rooms to domain models, filtering out defunct rooms
+    private var rooms: [RoomLifecycle] {
+        persistedRooms.compactMap { $0.toRoomLifecycle() }.filter { !$0.isDefunct }
+    }
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -11,7 +21,7 @@ struct RoomListView: View {
                 if !store.initialLoadCompleted {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if store.rooms.isEmpty {
+                } else if rooms.isEmpty {
                     ContentUnavailableView {
                         Label("No Rooms", systemImage: "bubble.left.and.bubble.right")
                     } description: {
@@ -25,7 +35,7 @@ struct RoomListView: View {
                     .frame(maxWidth: .infinity, minHeight: 400)
                 } else {
                     LazyVStack(spacing: 0) {
-                        ForEach(store.rooms, id: \.spec.id) { lifecycle in
+                        ForEach(rooms, id: \.spec.id) { lifecycle in
                             NavigationLink(value: lifecycle.spec.id) {
                                 RoomRow(lifecycle: lifecycle)
                                     .padding(.horizontal)
@@ -49,7 +59,7 @@ struct RoomListView: View {
             }
             .navigationTitle("Softer")
             .toolbar {
-                if !store.rooms.isEmpty {
+                if !rooms.isEmpty {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
                             showCreateRoom = true

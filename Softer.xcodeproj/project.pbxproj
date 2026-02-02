@@ -10,7 +10,6 @@
 		0026756D8A23D54D210F10F4 /* ConversationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7279B13D892A2E56D34AF8 /* ConversationCoordinatorTests.swift */; };
 		040AA0EE24894605960C2BB4 /* CloudKitParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = C22228C8697C4D5C81FDB537 /* CloudKitParticipantResolver.swift */; };
 		0933C2F4E143E6FD79F9B11C /* PersistentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 479C528F372C163688F94F75 /* PersistentModels.swift */; };
-		0A36E2CC6A014B979D0F0EBA /* RoomLifecycleStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617C94927D5D49A6BFA34E68 /* RoomLifecycleStorage.swift */; };
 		19443CAEA5EA459C8BC45074 /* RoomLifecycleCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82FD2273F7CB489CA7FF61A0 /* RoomLifecycleCoordinator.swift */; };
 		2136E9EBE1CC51222EE3C5D3 /* SofterStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EBF7A5B844B07826B5E5565 /* SofterStoreTests.swift */; };
 		224D566BFCDD4F57AC7054D8 /* ApplePayCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CCBBDF48A5A43C9A3E6028D /* ApplePayCoordinator.swift */; };
@@ -30,11 +29,10 @@
 		73DD665B00CFA41EC2794BA7 /* MessageStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A913BED596006F4F9B6E0A0B /* MessageStorage.swift */; };
 		7AA97F64830DC9F420F4426F /* MessageRecordConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36A2566E6041F7A49A6473A4 /* MessageRecordConverter.swift */; };
 		7F303E6B75FFF52FE441DA5B /* ConversationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D018F12715007C2C67015AA4 /* ConversationCoordinator.swift */; };
-		82C9256EFD09CD9819A4E9D5 /* LocalStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9859C4B5BAAFBB43D6BEBBEB /* LocalStoreTests.swift */; };
 		8333545EC5AB47BC977E81B8 /* MockPaymentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93AB894828754745B5158C25 /* MockPaymentCoordinator.swift */; };
 		869B95E779AC4AF9A167C4BE /* ParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD42E62B74C4A27966E2A5F /* ParticipantResolver.swift */; };
 		87ABFD3E123E407590749227 /* LightwardEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04CAFE64AAC44DB398020362 /* LightwardEvaluator.swift */; };
-		89FFF0FAF6DC6F70049BF1FB /* LocalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8DB06C7871D8CE120E32C7E /* LocalStore.swift */; };
+		B1C2D3E4F5A60001000B0001 /* MessagesQueryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A60002000B0001 /* MessagesQueryView.swift */; };
 		8A1C3D5E7F2B4A6C9E0D1B3F /* CloudKitMessageStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E9F7A2B6C8D4E1F5A0B2C4D /* CloudKitMessageStorage.swift */; };
 		A0FBE3C6173532AE05A5BFBA /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC38359FE0404435F413B4A0 /* SyncCoordinator.swift */; };
 		A1B2C3D4E5F60001000A0001 /* SofterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0001 /* SofterApp.swift */; };
@@ -93,7 +91,6 @@
 		4298F64186A04345A0042E1C /* RoomLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleTests.swift; sourceTree = "<group>"; };
 		479C528F372C163688F94F75 /* PersistentModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PersistentModels.swift; sourceTree = "<group>"; };
 		4C689E9D510743E99AABCCDA /* RoomSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomSpec.swift; sourceTree = "<group>"; };
-		617C94927D5D49A6BFA34E68 /* RoomLifecycleStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleStorage.swift; sourceTree = "<group>"; };
 		747396D5996F4EC99BA754F8 /* PaymentTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentTier.swift; sourceTree = "<group>"; };
 		7849235FF4804E9197625236 /* LightwardRoomEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightwardRoomEvaluator.swift; sourceTree = "<group>"; };
 		7CCD68076381EEFBD294C261 /* SyncStatus.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SyncStatus.swift; sourceTree = "<group>"; };
@@ -102,7 +99,6 @@
 		9014901F9CE34A7CA6A4961E /* PaymentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentCoordinator.swift; sourceTree = "<group>"; };
 		93AB894828754745B5158C25 /* MockPaymentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPaymentCoordinator.swift; sourceTree = "<group>"; };
 		95BB0D385568422E69A1A59E /* SofterStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SofterStore.swift; sourceTree = "<group>"; };
-		9859C4B5BAAFBB43D6BEBBEB /* LocalStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalStoreTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0001 /* SofterApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SofterApp.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0003 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0005 /* Need.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Need.swift; sourceTree = "<group>"; };
@@ -124,7 +120,7 @@
 		A1B2C3D4E5F60002000A0031 /* SSEParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEParserTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0032 /* ChatLogBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatLogBuilderTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0040 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		A8DB06C7871D8CE120E32C7E /* LocalStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalStore.swift; sourceTree = "<group>"; };
+		B1C2D3E4F5A60002000B0001 /* MessagesQueryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesQueryView.swift; sourceTree = "<group>"; };
 		A913BED596006F4F9B6E0A0B /* MessageStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MessageStorage.swift; path = MessageStorage.swift; sourceTree = "<group>"; };
 		B8234E08A4114A86A9050D03 /* MockParticipantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockParticipantResolver.swift; sourceTree = "<group>"; };
 		C22228C8697C4D5C81FDB537 /* CloudKitParticipantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitParticipantResolver.swift; sourceTree = "<group>"; };
@@ -234,7 +230,6 @@
 			children = (
 				A1B2C3D4E5F60002000A000B /* ZoneManager.swift */,
 				A1B2C3D4E5F60002000A000D /* AtomicClaim.swift */,
-				617C94927D5D49A6BFA34E68 /* RoomLifecycleStorage.swift */,
 				1CD59F08D9F846108AA8B17C /* RoomLifecycleRecordConverter.swift */,
 				3E9F7A2B6C8D4E1F5A0B2C4D /* CloudKitMessageStorage.swift */,
 				36A2566E6041F7A49A6473A4 /* MessageRecordConverter.swift */,
@@ -260,6 +255,7 @@
 				A1B2C3D4E5F60002000A0016 /* RoomView.swift */,
 				A1B2C3D4E5F60002000A001C /* CreateRoomView.swift */,
 				240B4B7CE85349DCA8FFBA0C /* RootView.swift */,
+				B1C2D3E4F5A60002000B0001 /* MessagesQueryView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -284,7 +280,6 @@
 				16DE1199EEC14EC3874EB0D8 /* RoomSpecTests.swift */,
 				F987120DCC0AF8607E32CBC0 /* MessageStorageTests.swift */,
 				FA7279B13D892A2E56D34AF8 /* ConversationCoordinatorTests.swift */,
-				9859C4B5BAAFBB43D6BEBBEB /* LocalStoreTests.swift */,
 				3EBF7A5B844B07826B5E5565 /* SofterStoreTests.swift */,
 			);
 			path = SofterTests;
@@ -319,7 +314,6 @@
 		C753B664296F400E41DDF3BE /* Store */ = {
 			isa = PBXGroup;
 			children = (
-				A8DB06C7871D8CE120E32C7E /* LocalStore.swift */,
 				7CCD68076381EEFBD294C261 /* SyncStatus.swift */,
 				95BB0D385568422E69A1A59E /* SofterStore.swift */,
 				CC38359FE0404435F413B4A0 /* SyncCoordinator.swift */,
@@ -444,7 +438,6 @@
 				A1B2C3D4E5F60001000A0021 /* Constants.swift in Sources */,
 				A1B2C3D4E5F60001000A0022 /* NotificationHandler.swift in Sources */,
 				3039B9E64A2946D3906B3D6B /* RootView.swift in Sources */,
-				0A36E2CC6A014B979D0F0EBA /* RoomLifecycleStorage.swift in Sources */,
 				479688D073BD418B977DD84D /* RoomLifecycleRecordConverter.swift in Sources */,
 				C620D63F20724F28A2F831BA /* PaymentTier.swift in Sources */,
 				27CA62019F0540BBABFCC032 /* ParticipantSpec.swift in Sources */,
@@ -461,7 +454,7 @@
 				73DD665B00CFA41EC2794BA7 /* MessageStorage.swift in Sources */,
 				7F303E6B75FFF52FE441DA5B /* ConversationCoordinator.swift in Sources */,
 				8A1C3D5E7F2B4A6C9E0D1B3F /* CloudKitMessageStorage.swift in Sources */,
-				89FFF0FAF6DC6F70049BF1FB /* LocalStore.swift in Sources */,
+				B1C2D3E4F5A60001000B0001 /* MessagesQueryView.swift in Sources */,
 				5968C4F91621004E261EF372 /* SyncStatus.swift in Sources */,
 				E2C6F3CDE7290B416D8509BC /* SofterStore.swift in Sources */,
 				A0FBE3C6173532AE05A5BFBA /* SyncCoordinator.swift in Sources */,
@@ -489,7 +482,6 @@
 				DCE065A7397DFEA9B4952462 /* MockLightwardAPIClient.swift in Sources */,
 				FBE471D8915CD8321CD8A682 /* MessageStorageTests.swift in Sources */,
 				0026756D8A23D54D210F10F4 /* ConversationCoordinatorTests.swift in Sources */,
-				82C9256EFD09CD9819A4E9D5 /* LocalStoreTests.swift in Sources */,
 				2136E9EBE1CC51222EE3C5D3 /* SofterStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

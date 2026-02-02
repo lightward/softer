@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct RootView: View {
     @State private var store = SofterStore()
@@ -17,7 +18,12 @@ struct RootView: View {
                 }
 
             case .syncing, .synced, .offline:
-                RoomListView(store: store)
+                if let container = store.modelContainer {
+                    RoomListView(store: store)
+                        .modelContainer(container)
+                } else {
+                    ProgressView("Loading...")
+                }
             }
         }
     }
