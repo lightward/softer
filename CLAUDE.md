@@ -91,9 +91,11 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
    - `ApplePayCoordinator` — PKPaymentAuthorizationController (stub exists)
    - `LightwardRoomEvaluator` — calls Lightward API with roster (stub exists)
 
-2. **Push-based sync** — SyncCoordinator wraps CKSyncEngine for real-time updates
+2. **LocalStore persistence** — Currently in-memory only; sync state is cleared on startup to force re-fetch
 
 ### Recently Completed
+
+- **CKSyncEngine with custom zone** — SyncCoordinator uses "SofterZone" (custom zones required for CKSyncEngine change tracking; default zone doesn't work)
 
 - **Unified data layer** — SofterStore, LocalStore, SyncCoordinator replace AppCoordinator
 - **Minimal Lightward framing** — warmup: "You're here with [names], taking turns", narrator prompt: just "(your turn)" or "(name raised their hand)"
@@ -184,8 +186,8 @@ Views → SofterStore (@Observable) → LocalStore (single source of truth)
 ```
 
 - **SofterStore**: Main observable class for SwiftUI. Simple API: `createRoom()`, `sendMessage()`, `deleteRoom()`
-- **LocalStore**: Single source of truth for in-memory data. Applies writes immediately, merges remote changes. Caches participants for Room reconstruction from CKSyncEngine events.
-- **SyncCoordinator**: Wraps CKSyncEngine for automatic sync, conflict resolution, offline support. All CloudKit reads/writes go through here.
+- **LocalStore**: Single source of truth for in-memory data. Applies writes immediately, merges remote changes. Caches participants for Room reconstruction from CKSyncEngine events. **Note**: Currently in-memory only — data doesn't persist across app launches.
+- **SyncCoordinator**: Wraps CKSyncEngine for automatic sync, conflict resolution, offline support. Uses custom zone "SofterZone" (required — CKSyncEngine doesn't track changes in the default zone). Clears persisted sync state on startup since LocalStore doesn't persist yet.
 - **Record Converters**: `RoomLifecycleRecordConverter` and `MessageRecordConverter` handle CKRecord ↔ domain model conversion.
 
 ### Conflict Resolution Policies

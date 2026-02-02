@@ -73,8 +73,8 @@ final class SofterStore {
             let userID = try await ckContainer.userRecordID()
             localUserRecordID = userID.recordName
 
-            // Use default zone for simplicity
-            let zoneID = CKRecordZone.default().zoneID
+            // Use custom zone (required for CKSyncEngine to track changes)
+            let zoneID = CKRecordZone.ID(zoneName: "SofterZone", ownerName: CKCurrentUserDefaultName)
             self.zoneID = zoneID
 
             // Create and start SyncCoordinator
@@ -83,6 +83,11 @@ final class SofterStore {
                 zoneID: zoneID
             )
             self.syncCoordinator = coordinator
+
+            // Clear persisted sync state on startup since LocalStore is in-memory.
+            // This ensures we always fetch all records from CloudKit.
+            // TODO: Remove this once LocalStore persists data.
+            await coordinator.clearPersistedState()
 
             await coordinator.start(
                 onRecordFetched: { [weak self] record in

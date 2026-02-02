@@ -173,6 +173,23 @@ actor SyncCoordinator {
             if let underlying = error.userInfo[NSUnderlyingErrorKey] as? Error {
                 print("SyncCoordinator: Underlying error: \(underlying)")
             }
+            // Log partial failure details
+            if error.code == .partialFailure, let partialErrors = error.partialErrorsByItemID {
+                for (itemID, itemError) in partialErrors {
+                    print("SyncCoordinator: Partial error for \(itemID): \(itemError)")
+                }
+                // Check if all failures are just serverRecordChanged - these are handled automatically
+                let hasRealErrors = partialErrors.values.contains { itemError in
+                    guard let ckError = itemError as? CKError else { return true }
+                    return ckError.code != .serverRecordChanged
+                }
+                if !hasRealErrors {
+                    // All errors are conflicts that CKSyncEngine will retry - not a real failure
+                    print("SyncCoordinator: All errors are serverRecordChanged conflicts, will retry automatically")
+                    await updateStatus(.syncing)
+                    return
+                }
+            }
             // Don't set error status for transient failures - let individual record handlers deal with it
             if error.code == .networkUnavailable || error.code == .networkFailure {
                 await updateStatus(.offline)
@@ -382,7 +399,10 @@ actor SyncCoordinator {
 
     // MARK: - Private: State Persistence
 
-    private let stateKey = "SyncCoordinatorState"
+    private var stateKey: String {
+        // Use zone-specific key so switching zones starts fresh
+        "SyncCoordinatorState-\(zoneID.zoneName)"
+    }
 
     private func loadPersistedState() -> CKSyncEngine.State.Serialization? {
         guard let data = UserDefaults.standard.data(forKey: stateKey) else {
@@ -396,6 +416,12 @@ actor SyncCoordinator {
             print("Failed to load sync state: \(error)")
             return nil
         }
+    }
+
+    /// Clear persisted state to force a full re-fetch on next start.
+    func clearPersistedState() {
+        UserDefaults.standard.removeObject(forKey: stateKey)
+        print("SyncCoordinator: Cleared persisted state for zone \(zoneID.zoneName)")
     }
 
     private func persistState(_ state: CKSyncEngine.State.Serialization) {
