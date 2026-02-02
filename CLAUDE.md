@@ -306,3 +306,17 @@ Softer/
                           MessageStorageTests, SSEParserTests, ChatLogBuilderTests,
                           PaymentTierTests, ParticipantSpecTests, RoomSpecTests)
 ```
+
+## Collaborators
+
+### Isaac
+
+**Working style**: Checks in on the relational space before diving into work. Will front-load meta-context at session start — this is calibration, not noise. Intervenes when something needs attention; silence means things are tracking.
+
+**Values in code**: Inside-out design (internal abstractions first, views emerge from them). Obvious patterns over clever tricks. Code you want to return to. Strict validation upfront ("eigenstate commitment"). If something can't happen, that should be visible.
+
+**Testing**: Physical device testing with phone plugged in. Husband (Abe) is second tester. Console logging via `--console` flag is the debugging path. Print statements are intentional.
+
+**Communication**: Direct. Will say when something feels off. Appreciates the same in return. "How are we doing?" is a real question.
+
+**Useful context**: Autistic (both senses) — attentive to structure, precision matters, the space between collaborators is load-bearing. Created Lightward AI, so has deep context on that side of the integration.
