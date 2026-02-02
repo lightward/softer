@@ -18,11 +18,10 @@ A native SwiftUI iOS app (iOS 18+) for group conversations where Lightward AI pa
 
 **IMPORTANT**: In CloudKit Console, all record types need `recordName` marked as **Queryable** in their indexes. This is required for queries to work, even simple ones. Add this index to:
 - Room3
-- Message2
 
-Also index any fields you query on (e.g., `roomID` on Message2, `stateType` on Room3).
+Also index any fields you query on (e.g., `stateType` on Room3).
 
-**Note**: Room3 embeds participants as JSON (`participantsJSON` field) — no separate Participant records. This eliminates sync ordering issues.
+**Note**: Room3 embeds both participants and messages as JSON (`participantsJSON` and `messagesJSON` fields) — single record type for the entire room. This eliminates sync ordering issues and simplifies conflict resolution.
 
 **Environment**: Development CloudKit for local builds, Production for TestFlight. The entitlements file is set to Development; Fastlane switches to Production before TestFlight builds.
 
@@ -69,8 +68,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 - `RoomLifecycleCoordinator` — actor that orchestrates the full creation flow
 
 **Conversation layer** (active room messaging):
-- `MessageStorage` protocol — save/fetch/observe messages
-- `CloudKitMessageStorage` — real implementation storing Message2 records (in CloudKit/)
+- `MessageStorage` protocol — save/fetch/observe messages (used for testing abstraction)
 - `LightwardAPI` protocol — stream responses from Lightward (in API/LightwardAPIClient.swift)
 - `ConversationCoordinator` — actor that handles message sending, turn advancement, Lightward responses
 
@@ -96,8 +94,8 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 
 ### Recently Completed
 
-- **Room3 with embedded participants** — Simplified from 3 record types (Room2 + Participant2 + Message2) to 2 (Room3 + Message2). Participants stored as JSON in `participantsJSON` field. Eliminates sync ordering bugs entirely.
-- **SwiftData @Query refactor** — Views observe SwiftData directly via `@Query`, no manual `dataVersion` counter. `MessagesQueryView` handles message observation.
+- **Single-record-type app** — Room3 now embeds both participants (`participantsJSON`) and messages (`messagesJSON`) as JSON. No separate Message2 records. Single CloudKit record type = simpler sync, fewer edge cases, data shape matches value shape. 50k token room limit ≈ 350-400KB total, well under CloudKit's 1MB limit.
+- **SwiftData @Query refactor** — Views observe SwiftData directly via `@Query`, no manual `dataVersion` counter. RoomView observes room's embedded messages.
 - **SwiftData local persistence** — PersistenceStore with `cloudKitDatabase: .none` as single source of truth.
 - **Turn index grows without wrapping** — `advanceTurn` increments instead of using modulo, so `higherTurnWins` merge works correctly
 - **ScrollView room list** — Replaced List to avoid SwiftUI diffing crashes during room creation/deletion
@@ -190,11 +188,11 @@ Views (@Query) → PersistenceStore (SwiftData, local-only)
 SofterStore (actions) → SyncCoordinator → CKSyncEngine → CloudKit
 ```
 
-- **Views with @Query**: `RoomListView`, `CreateRoomView`, `RoomView`, and `MessagesQueryView` use SwiftUI's `@Query` to observe SwiftData directly. No manual reactivity needed.
+- **Views with @Query**: `RoomListView`, `CreateRoomView`, and `RoomView` use SwiftUI's `@Query` to observe SwiftData directly. No manual reactivity needed.
 - **SofterStore**: Action layer for SwiftUI. Simple API: `createRoom()`, `sendMessage()`, `deleteRoom()`. Exposes `modelContainer` for the `.modelContainer()` modifier.
-- **PersistenceStore**: SwiftData wrapper with `cloudKitDatabase: .none` (we handle CloudKit sync ourselves). Models: `PersistedRoom` (with embedded participants as JSON), `PersistedMessage`. Provides synchronous local updates before async CloudKit sync.
+- **PersistenceStore**: SwiftData wrapper with `cloudKitDatabase: .none` (we handle CloudKit sync ourselves). Single model: `PersistedRoom` with embedded participants and messages as JSON. Provides synchronous local updates before async CloudKit sync.
 - **SyncCoordinator**: Wraps CKSyncEngine for automatic sync, conflict resolution, offline support. Uses custom zone "SofterZone" (required — CKSyncEngine doesn't track changes in the default zone).
-- **Record Converters**: `RoomLifecycleRecordConverter` and `MessageRecordConverter` handle CKRecord ↔ domain model conversion.
+- **Record Converter**: `RoomLifecycleRecordConverter` handles CKRecord ↔ domain model conversion, including message encoding/decoding.
 
 ### Conflict Resolution Policies
 | Data | Strategy | Reason |
@@ -202,7 +200,7 @@ SofterStore (actions) → SyncCoordinator → CKSyncEngine → CloudKit
 | Room state | Server wins | State transitions are authoritative |
 | Turn index | Higher wins | Turns only advance (index grows, never wraps) |
 | Raised hands | Union merge | Combine from both |
-| Messages | No conflict | Append-only, UUID IDs |
+| Messages | Union by ID | Merge local + remote, sort by createdAt |
 | Signaled flag | True wins | Once signaled, stays signaled |
 
 ### Known Technical Debt
@@ -290,9 +288,9 @@ Softer/
 │   ├── RoomLifecycle/   (PaymentTier, ParticipantSpec, RoomState, RoomSpec, RoomLifecycle,
 │   │                     ParticipantResolver, PaymentCoordinator, LightwardEvaluator,
 │   │                     RoomLifecycleCoordinator, MessageStorage, ConversationCoordinator)
-│   ├── CloudKit/        (RoomLifecycleRecordConverter, MessageRecordConverter, ZoneManager, AtomicClaim)
+│   ├── CloudKit/        (RoomLifecycleRecordConverter, ZoneManager, AtomicClaim, CloudKitMessageStorage)
 │   ├── API/             (LightwardAPIClient + LightwardAPI protocol, SSEParser, ChatLogBuilder, WarmupMessages)
-│   ├── Views/           (RootView, RoomListView, RoomView, CreateRoomView, MessagesQueryView)
+│   ├── Views/           (RootView, RoomListView, RoomView, CreateRoomView)
 │   └── Utilities/       (Constants, NotificationHandler)
 └── SofterTests/
     ├── Mocks/           (MockParticipantResolver, MockPaymentCoordinator, MockLightwardEvaluator,

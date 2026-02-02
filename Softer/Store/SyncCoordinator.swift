@@ -352,7 +352,7 @@ actor SyncCoordinator {
         let merged = server
 
         switch local.recordType {
-        case "Room2":
+        case "Room3":
             // Turn index: higher wins
             if let localTurn = local["currentTurnIndex"] as? Int,
                let serverTurn = server["currentTurnIndex"] as? Int {
@@ -362,24 +362,21 @@ actor SyncCoordinator {
             // Raised hands: union merge (stored as array)
             let localHands = Set(local["raisedHands"] as? [String] ?? [])
             let serverHands = Set(server["raisedHands"] as? [String] ?? [])
-            let union = localHands.union(serverHands)
-            if union.isEmpty {
+            let handsUnion = localHands.union(serverHands)
+            if handsUnion.isEmpty {
                 merged["raisedHands"] = nil
             } else {
-                merged["raisedHands"] = Array(union) as NSArray
+                merged["raisedHands"] = Array(handsUnion) as NSArray
             }
 
-        case "Participant2":
-            // Signaled flag: true wins
-            if let localSignaled = local["hasSignaledHere"] as? Int,
-               let serverSignaled = server["hasSignaledHere"] as? Int {
-                merged["hasSignaledHere"] = max(localSignaled, serverSignaled) as NSNumber
-            }
-
-        case "Message2":
-            // Messages are append-only with UUID IDs - no conflicts expected
-            // If somehow conflicted, server wins
-            break
+            // Messages: union by ID, sorted by createdAt
+            let localMessagesJSON = local["messagesJSON"] as? String ?? "[]"
+            let serverMessagesJSON = server["messagesJSON"] as? String ?? "[]"
+            let roomID = local.recordID.recordName
+            let localMessages = RoomLifecycleRecordConverter.decodeMessages(from: localMessagesJSON, roomID: roomID)
+            let serverMessages = RoomLifecycleRecordConverter.decodeMessages(from: serverMessagesJSON, roomID: roomID)
+            let mergedMessages = RoomLifecycleRecordConverter.mergeMessages(local: localMessages, remote: serverMessages)
+            merged["messagesJSON"] = RoomLifecycleRecordConverter.encodeMessages(mergedMessages) as NSString
 
         default:
             break

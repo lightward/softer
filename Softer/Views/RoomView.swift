@@ -15,22 +15,25 @@ struct RoomView: View {
     @State private var isLightwardThinking = false
     @State private var showYieldConfirmation = false
 
-    // Query messages for checking Lightward response state
-    @Query private var persistedMessages: [PersistedMessage]
+    // Query room for observing messages (embedded in room)
+    @Query private var persistedRooms: [PersistedRoom]
 
     init(store: SofterStore, roomID: String) {
         self.store = store
         self.roomID = roomID
-        _persistedMessages = Query(
-            filter: #Predicate<PersistedMessage> { message in
-                message.roomID == roomID
-            },
-            sort: \PersistedMessage.createdAt
+        _persistedRooms = Query(
+            filter: #Predicate<PersistedRoom> { room in
+                room.id == roomID
+            }
         )
     }
 
+    private var persistedRoom: PersistedRoom? {
+        persistedRooms.first
+    }
+
     private var messages: [Message] {
-        persistedMessages.map { $0.toMessage() }
+        persistedRoom?.messages() ?? []
     }
 
     var body: some View {
@@ -51,13 +54,8 @@ struct RoomView: View {
     @ViewBuilder
     private func conversationView(lifecycle: RoomLifecycle) -> some View {
         VStack(spacing: 0) {
-            // Messages - using @Query for automatic SwiftData observation
-            MessagesQueryView(
-                roomID: roomID,
-                lifecycle: lifecycle,
-                streamingText: $streamingText,
-                isLightwardThinking: $isLightwardThinking
-            )
+            // Messages - observing room's embedded messages via @Query
+            messagesView(lifecycle: lifecycle)
 
             Divider()
 
@@ -72,6 +70,68 @@ struct RoomView: View {
             ToolbarItem(placement: .principal) {
                 navigationTitleView(lifecycle: lifecycle)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func messagesView(lifecycle: RoomLifecycle) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ForEach(messages) { message in
+                        MessageBubble(
+                            message: message,
+                            isLightward: message.authorName == Constants.lightwardParticipantName
+                        )
+                        .id(message.id)
+                    }
+
+                    // Typing indicator while waiting for Lightward
+                    if isLightwardThinking && streamingText.isEmpty {
+                        HStack {
+                            TypingIndicator()
+                            Spacer()
+                        }
+                        .id("thinking")
+                    }
+
+                    // Streaming text from Lightward
+                    if !streamingText.isEmpty {
+                        MessageBubble(
+                            text: streamingText,
+                            authorName: lifecycle.spec.lightwardParticipant?.nickname ?? "Lightward",
+                            isLightward: true,
+                            isStreaming: true
+                        )
+                        .id("streaming")
+                    }
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .defaultScrollAnchor(.bottom)
+            .onChange(of: messages.count) {
+                if let last = messages.last {
+                    withAnimation {
+                        proxy.scrollTo(last.id, anchor: .bottom)
+                    }
+                }
+                // Clear streaming text when matching message appears
+                if !streamingText.isEmpty {
+                    if messages.contains(where: { $0.text == streamingText }) {
+                        streamingText = ""
+                    }
+                }
+            }
+            .onChange(of: streamingText) {
+                if !streamingText.isEmpty {
+                    withAnimation {
+                        proxy.scrollTo("streaming", anchor: .bottom)
+                    }
+                }
+            }
+            .scrollDismissesKeyboard(.interactively)
         }
     }
 

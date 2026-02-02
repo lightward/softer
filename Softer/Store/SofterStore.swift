@@ -135,15 +135,11 @@ final class SofterStore {
 
         switch record.recordType {
         case RoomLifecycleRecordConverter.roomRecordType:
-            // Room3 with embedded participants - simple!
+            // Room3 with embedded participants and messages
             if let lifecycle = RoomLifecycleRecordConverter.lifecycle(from: record) {
-                dataStore.upsertRoom(from: lifecycle)
+                let messagesJSON = record["messagesJSON"] as? String
+                dataStore.upsertRoom(from: lifecycle, remoteMessagesJSON: messagesJSON)
                 print("SofterStore: Room \(record.recordID.recordName) synced from CloudKit")
-            }
-
-        case MessageRecordConverter.recordType:
-            if let message = MessageRecordConverter.message(from: record) {
-                dataStore.upsertMessage(from: message)
             }
 
         default:
@@ -225,17 +221,13 @@ final class SofterStore {
 
         let lifecycle = await coordinator.lifecycle
 
-        // Save to local DB (participants are embedded in lifecycle)
-        let persistedRoom = PersistedRoom.from(lifecycle)
-        dataStore.saveRoom(persistedRoom)
-
-        // Save opening narration
+        // Create opening narration message
         let originatorName = spec.participants.first { $0.id == spec.originatorID }?.nickname ?? "Someone"
         let narrationText = spec.isFirstRoom
             ? "\(originatorName) opened their first room."
             : "\(originatorName) opened the room with \(spec.tier.displayString)."
 
-        let openingMessage = PersistedMessage(
+        let openingMessage = Message(
             roomID: lifecycle.spec.id,
             authorID: "narrator",
             authorName: "Narrator",
@@ -243,30 +235,19 @@ final class SofterStore {
             isLightward: false,
             isNarration: true
         )
-        dataStore.saveMessage(openingMessage, to: persistedRoom)
+
+        // Save to local DB (participants and messages embedded in room)
+        let persistedRoom = PersistedRoom.from(lifecycle)
+        persistedRoom.addMessage(openingMessage)
+        dataStore.saveRoom(persistedRoom)
 
         // Sync to CloudKit in background
         Task {
-            // Save single Room3 record (participants embedded)
+            // Save single Room3 record (participants and messages embedded)
+            let messages = persistedRoom.messages()
             let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
+            RoomLifecycleRecordConverter.apply(lifecycle, to: roomRecord, messages: messages)
             await syncCoordinator.save(roomRecord)
-
-            // Save message record
-            let messageRecord = MessageRecordConverter.record(
-                from: Message(
-                    id: openingMessage.id,
-                    roomID: openingMessage.roomID,
-                    authorID: openingMessage.authorID,
-                    authorName: openingMessage.authorName,
-                    text: openingMessage.text,
-                    createdAt: openingMessage.createdAt,
-                    isLightward: openingMessage.isLightward,
-                    isNarration: openingMessage.isNarration
-                ),
-                zoneID: zoneID
-            )
-            await syncCoordinator.save(messageRecord)
-
             await syncCoordinator.sendChanges()
         }
 
@@ -288,7 +269,9 @@ final class SofterStore {
             guard let syncCoordinator = syncCoordinator, let zoneID = zoneID else { return }
             if let room = dataStore.room(id: roomID),
                let lifecycle = room.toRoomLifecycle() {
+                let messages = room.messages()
                 let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
+                RoomLifecycleRecordConverter.apply(lifecycle, to: roomRecord, messages: messages)
                 await syncCoordinator.save(roomRecord)
                 await syncCoordinator.sendChanges()
             }
@@ -303,12 +286,15 @@ final class SofterStore {
             throw StoreError.notConfigured
         }
 
-        if let room = dataStore.room(id: lifecycle.spec.id) {
+        let room = dataStore.room(id: lifecycle.spec.id)
+        if let room = room {
             room.apply(lifecycle, mergeStrategy: .remoteWins)
             dataStore.updateRoom(room)
         }
 
+        let messages = room?.messages() ?? []
         let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
+        RoomLifecycleRecordConverter.apply(lifecycle, to: roomRecord, messages: messages)
         await syncCoordinator.save(roomRecord)
         await syncCoordinator.sendChanges()
     }
@@ -321,27 +307,19 @@ final class SofterStore {
             throw StoreError.notConfigured
         }
 
-        let messages = dataStore.messages(roomID: id)
-
         // Delete from local DB
         dataStore.deleteRoom(id: id)
 
-        // Delete from CloudKit
+        // Delete from CloudKit (single Room3 record - messages are embedded)
         let roomRecordID = CKRecord.ID(recordName: id, zoneID: zoneID)
         await syncCoordinator.delete(recordID: roomRecordID)
-
-        for message in messages {
-            let messageRecordID = CKRecord.ID(recordName: message.id, zoneID: zoneID)
-            await syncCoordinator.delete(recordID: messageRecordID)
-        }
-
         await syncCoordinator.sendChanges()
     }
 
     // MARK: - Public API: Messages
 
     func messages(roomID: String) -> [Message] {
-        dataStore?.messages(roomID: roomID).map { $0.toMessage() } ?? []
+        dataStore?.messages(roomID: roomID) ?? []
     }
 
     func saveMessage(_ message: Message) async throws {
@@ -351,22 +329,21 @@ final class SofterStore {
             throw StoreError.notConfigured
         }
 
-        if let room = dataStore.room(id: message.roomID) {
-            let persisted = PersistedMessage(
-                id: message.id,
-                roomID: message.roomID,
-                authorID: message.authorID,
-                authorName: message.authorName,
-                text: message.text,
-                isLightward: message.isLightward,
-                isNarration: message.isNarration
-            )
-            dataStore.saveMessage(persisted, to: room)
+        guard let room = dataStore.room(id: message.roomID) else {
+            throw StoreError.notConfigured
         }
 
-        let messageRecord = MessageRecordConverter.record(from: message, zoneID: zoneID)
-        await syncCoordinator.save(messageRecord)
-        await syncCoordinator.sendChanges()
+        // Add message to room's embedded messages
+        dataStore.addMessage(message, to: room)
+
+        // Sync room record to CloudKit (messages are embedded)
+        if let lifecycle = room.toRoomLifecycle() {
+            let messages = room.messages()
+            let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
+            RoomLifecycleRecordConverter.apply(lifecycle, to: roomRecord, messages: messages)
+            await syncCoordinator.save(roomRecord)
+            await syncCoordinator.sendChanges()
+        }
     }
 
     // MARK: - Public API: Conversation Coordinator
@@ -421,34 +398,31 @@ private final class PersistenceStoreMessageStorage: MessageStorage, @unchecked S
 
     @MainActor
     func save(_ message: Message, roomID: String) async throws {
-        if let room = dataStore.room(id: roomID) {
-            let persisted = PersistedMessage(
-                id: message.id,
-                roomID: message.roomID,
-                authorID: message.authorID,
-                authorName: message.authorName,
-                text: message.text,
-                isLightward: message.isLightward,
-                isNarration: message.isNarration
-            )
-            dataStore.saveMessage(persisted, to: room)
-        }
+        guard let room = dataStore.room(id: roomID) else { return }
 
+        // Add message to room's embedded messages
+        dataStore.addMessage(message, to: room)
+
+        // Sync room record to CloudKit (messages are embedded)
         if let syncCoordinator = syncCoordinator, let zoneID = zoneID {
-            let messageRecord = MessageRecordConverter.record(from: message, zoneID: zoneID)
-            await syncCoordinator.save(messageRecord)
-            await syncCoordinator.sendChanges()
+            if let lifecycle = room.toRoomLifecycle() {
+                let messages = room.messages()
+                let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
+                RoomLifecycleRecordConverter.apply(lifecycle, to: roomRecord, messages: messages)
+                await syncCoordinator.save(roomRecord)
+                await syncCoordinator.sendChanges()
+            }
         }
     }
 
     @MainActor
     func fetchMessages(roomID: String) async throws -> [Message] {
-        dataStore.messages(roomID: roomID).map { $0.toMessage() }
+        dataStore.messages(roomID: roomID)
     }
 
     @MainActor
     func observeMessages(roomID: String, handler: @escaping @Sendable ([Message]) -> Void) async -> ObservationToken {
-        let messages = dataStore.messages(roomID: roomID).map { $0.toMessage() }
+        let messages = dataStore.messages(roomID: roomID)
         handler(messages)
         return NoOpObservationToken()
     }

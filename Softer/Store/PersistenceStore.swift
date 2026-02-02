@@ -11,8 +11,7 @@ final class PersistenceStore {
 
     init() throws {
         let schema = Schema([
-            PersistedRoom.self,
-            PersistedMessage.self
+            PersistedRoom.self
         ])
         // Local-only storage - we handle CloudKit sync ourselves via CKSyncEngine
         let config = ModelConfiguration(
@@ -74,60 +73,39 @@ final class PersistenceStore {
 
     // MARK: - Messages
 
-    func messages(roomID: String) -> [PersistedMessage] {
-        let descriptor = FetchDescriptor<PersistedMessage>(
-            predicate: #Predicate { $0.roomID == roomID },
-            sortBy: [SortDescriptor(\.createdAt)]
-        )
-        return (try? modelContext.fetch(descriptor)) ?? []
+    func messages(roomID: String) -> [Message] {
+        room(id: roomID)?.messages() ?? []
     }
 
-    func saveMessage(_ message: PersistedMessage, to room: PersistedRoom) {
-        room.messages.append(message)
-        modelContext.insert(message)
+    func addMessage(_ message: Message, to room: PersistedRoom) {
+        room.addMessage(message)
+        room.modifiedAt = Date()
         try? modelContext.save()
     }
 
-    func message(id: String) -> PersistedMessage? {
-        let descriptor = FetchDescriptor<PersistedMessage>(
-            predicate: #Predicate { $0.id == id }
-        )
-        return try? modelContext.fetch(descriptor).first
+    func message(id: String, roomID: String) -> Message? {
+        room(id: roomID)?.messages().first { $0.id == id }
     }
 
     // MARK: - Sync Operations
 
-    func upsertRoom(from lifecycle: RoomLifecycle) {
+    func upsertRoom(from lifecycle: RoomLifecycle, remoteMessagesJSON: String? = nil) {
         if let existing = room(id: lifecycle.spec.id) {
             // Update existing - merge turn state (higher wins)
             existing.apply(lifecycle, mergeStrategy: .higherTurnWins)
+            // Merge messages if provided
+            if let json = remoteMessagesJSON {
+                existing.mergeMessages(from: json)
+            }
         } else {
             // Insert new
             let newRoom = PersistedRoom.from(lifecycle)
+            // Apply remote messages if provided
+            if let json = remoteMessagesJSON {
+                newRoom.messagesJSON = json
+            }
             modelContext.insert(newRoom)
         }
-        try? modelContext.save()
-    }
-
-    func upsertMessage(from message: Message) {
-        if self.message(id: message.id) != nil {
-            // Message already exists, skip (messages are append-only)
-            return
-        }
-
-        guard let room = room(id: message.roomID) else { return }
-
-        let persisted = PersistedMessage(
-            id: message.id,
-            roomID: message.roomID,
-            authorID: message.authorID,
-            authorName: message.authorName,
-            text: message.text,
-            isLightward: message.isLightward,
-            isNarration: message.isNarration
-        )
-        room.messages.append(persisted)
-        modelContext.insert(persisted)
         try? modelContext.save()
     }
 }
@@ -317,22 +295,5 @@ extension PersistedRoom {
     private func encodeCenotaph(_ state: RoomState) -> String? {
         guard case .locked(let cenotaph, _) = state else { return nil }
         return cenotaph
-    }
-}
-
-// MARK: - Converters: PersistedMessage <-> Message
-
-extension PersistedMessage {
-    func toMessage() -> Message {
-        Message(
-            id: id,
-            roomID: roomID,
-            authorID: authorID,
-            authorName: authorName,
-            text: text,
-            createdAt: createdAt,
-            isLightward: isLightward,
-            isNarration: isNarration
-        )
     }
 }

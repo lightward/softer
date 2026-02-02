@@ -3,7 +3,7 @@ import CloudKit
 
 /// Embedded participant data for Room3 records.
 /// Stored as JSON in the participantsJSON field.
-struct EmbeddedParticipant: Codable {
+struct EmbeddedParticipant: Codable, Equatable {
     let id: String
     let nickname: String
     let identifierType: String
@@ -51,6 +51,41 @@ struct EmbeddedParticipant: Codable {
     }
 }
 
+/// Embedded message data for Room3 records.
+/// Stored as JSON in the messagesJSON field.
+struct EmbeddedMessage: Codable, Equatable {
+    let id: String
+    let authorID: String
+    let authorName: String
+    let text: String
+    let createdAt: Date
+    let isLightward: Bool
+    let isNarration: Bool
+
+    init(from message: Message) {
+        self.id = message.id
+        self.authorID = message.authorID
+        self.authorName = message.authorName
+        self.text = message.text
+        self.createdAt = message.createdAt
+        self.isLightward = message.isLightward
+        self.isNarration = message.isNarration
+    }
+
+    func toMessage(roomID: String) -> Message {
+        Message(
+            id: id,
+            roomID: roomID,
+            authorID: authorID,
+            authorName: authorName,
+            text: text,
+            createdAt: createdAt,
+            isLightward: isLightward,
+            isNarration: isNarration
+        )
+    }
+}
+
 /// Converts between RoomLifecycle domain models and CloudKit records.
 /// Uses "Room3" record type with embedded participants (no separate Participant records).
 enum RoomLifecycleRecordConverter {
@@ -68,7 +103,7 @@ enum RoomLifecycleRecordConverter {
         return record
     }
 
-    static func apply(_ lifecycle: RoomLifecycle, to record: CKRecord) {
+    static func apply(_ lifecycle: RoomLifecycle, to record: CKRecord, messages: [Message] = []) {
         let spec = lifecycle.spec
 
         // RoomSpec fields
@@ -87,6 +122,9 @@ enum RoomLifecycleRecordConverter {
            let jsonString = String(data: jsonData, encoding: .utf8) {
             record["participantsJSON"] = jsonString as NSString
         }
+
+        // Embedded messages as JSON
+        record["messagesJSON"] = encodeMessages(messages) as NSString
 
         // RoomState fields
         let encoded = encodeState(lifecycle.state)
@@ -288,5 +326,40 @@ enum RoomLifecycleRecordConverter {
         case "expired": return .expired
         default: return .cancelled
         }
+    }
+
+    // MARK: - Message Encoding/Decoding
+
+    /// Encode messages to JSON string for storage in CKRecord.
+    static func encodeMessages(_ messages: [Message]) -> String {
+        let embedded = messages.map { EmbeddedMessage(from: $0) }
+        if let data = try? JSONEncoder().encode(embedded),
+           let json = String(data: data, encoding: .utf8) {
+            return json
+        }
+        return "[]"
+    }
+
+    /// Decode messages from JSON string in CKRecord.
+    static func decodeMessages(from json: String, roomID: String) -> [Message] {
+        guard let data = json.data(using: .utf8),
+              let embedded = try? JSONDecoder().decode([EmbeddedMessage].self, from: data) else {
+            return []
+        }
+        return embedded
+            .map { $0.toMessage(roomID: roomID) }
+            .sorted { $0.createdAt < $1.createdAt }
+    }
+
+    /// Merge local and remote messages by union on ID, sorted by createdAt.
+    static func mergeMessages(local: [Message], remote: [Message]) -> [Message] {
+        var byID: [String: Message] = [:]
+        for message in local {
+            byID[message.id] = message
+        }
+        for message in remote {
+            byID[message.id] = message
+        }
+        return byID.values.sorted { $0.createdAt < $1.createdAt }
     }
 }

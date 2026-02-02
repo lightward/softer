@@ -2,7 +2,7 @@ import SwiftData
 import Foundation
 
 /// Persisted room data. Single source of truth for room state.
-/// Participants are embedded as JSON (no separate Participant records).
+/// Participants and messages are embedded as JSON (single record type).
 @available(iOS 18, *)
 @Model
 final class PersistedRoom {
@@ -21,26 +21,27 @@ final class PersistedRoom {
     // Embedded participants as JSON (uses EmbeddedParticipant from RoomLifecycleRecordConverter)
     var participantsJSON: String
 
+    // Embedded messages as JSON (uses EmbeddedMessage from RoomLifecycleRecordConverter)
+    var messagesJSON: String
+
     // Timestamps
     var createdAt: Date
     var modifiedAt: Date
-
-    // Messages relationship
-    @Relationship(deleteRule: .cascade)
-    var messages: [PersistedMessage] = []
 
     init(
         id: String = UUID().uuidString,
         originatorID: String,
         tierRawValue: Int,
         isFirstRoom: Bool,
-        participantsJSON: String = "[]"
+        participantsJSON: String = "[]",
+        messagesJSON: String = "[]"
     ) {
         self.id = id
         self.originatorID = originatorID
         self.tierRawValue = tierRawValue
         self.isFirstRoom = isFirstRoom
         self.participantsJSON = participantsJSON
+        self.messagesJSON = messagesJSON
         self.stateType = "draft"
         self.raisedHands = []
         self.createdAt = Date()
@@ -68,37 +69,47 @@ final class PersistedRoom {
     func signaledParticipantIDs() -> Set<String> {
         Set(embeddedParticipants().filter { $0.hasSignaledHere }.map { $0.id })
     }
-}
 
-/// Persisted message data.
-@available(iOS 18, *)
-@Model
-final class PersistedMessage {
-    @Attribute(.unique) var id: String
-    var roomID: String  // denormalized for queries
-    var authorID: String
-    var authorName: String
-    var text: String
-    var isLightward: Bool
-    var isNarration: Bool
-    var createdAt: Date
+    // MARK: - Message Accessors
 
-    init(
-        id: String = UUID().uuidString,
-        roomID: String,
-        authorID: String,
-        authorName: String,
-        text: String,
-        isLightward: Bool,
-        isNarration: Bool
-    ) {
-        self.id = id
-        self.roomID = roomID
-        self.authorID = authorID
-        self.authorName = authorName
-        self.text = text
-        self.isLightward = isLightward
-        self.isNarration = isNarration
-        self.createdAt = Date()
+    /// Decode embedded messages from JSON.
+    func embeddedMessages() -> [EmbeddedMessage] {
+        guard let data = messagesJSON.data(using: .utf8),
+              let messages = try? JSONDecoder().decode([EmbeddedMessage].self, from: data) else {
+            return []
+        }
+        return messages.sorted { $0.createdAt < $1.createdAt }
+    }
+
+    /// Get messages as domain models.
+    func messages() -> [Message] {
+        embeddedMessages().map { $0.toMessage(roomID: id) }
+    }
+
+    /// Add a message to the room.
+    func addMessage(_ message: Message) {
+        var current = embeddedMessages()
+        // Avoid duplicates
+        if !current.contains(where: { $0.id == message.id }) {
+            current.append(EmbeddedMessage(from: message))
+            setMessages(current)
+        }
+    }
+
+    /// Set messages from embedded message array.
+    func setMessages(_ messages: [EmbeddedMessage]) {
+        if let data = try? JSONEncoder().encode(messages),
+           let json = String(data: data, encoding: .utf8) {
+            self.messagesJSON = json
+        }
+    }
+
+    /// Merge remote messages with local messages (union by ID, sorted by createdAt).
+    func mergeMessages(from remoteJSON: String) {
+        let remote = RoomLifecycleRecordConverter.decodeMessages(from: remoteJSON, roomID: id)
+        let local = messages()
+        let merged = RoomLifecycleRecordConverter.mergeMessages(local: local, remote: remote)
+        let embedded = merged.map { EmbeddedMessage(from: $0) }
+        setMessages(embedded)
     }
 }
