@@ -30,15 +30,6 @@ platform :ios do
       code_sign_identity: "Apple Distribution"
     )
 
-    # NOTE: Keeping Development CloudKit for now (no production users yet)
-    # When ready for real users, uncomment this to switch TestFlight to Production:
-    # update_plist(
-    #   plist_path: "Softer/Softer.entitlements",
-    #   block: proc do |plist|
-    #     plist["com.apple.developer.icloud-container-environment"] = "Production"
-    #   end
-    # )
-
     build_app(
       project: "Softer.xcodeproj",
       scheme: "Softer",
@@ -46,7 +37,9 @@ platform :ios do
       export_options: {
         provisioningProfiles: {
           "com.lightward.softer" => "match AppStore com.lightward.softer"
-        }
+        },
+        # Use Development CloudKit until we're ready for production users
+        iCloudContainerEnvironment: "Development"
       }
     )
 
