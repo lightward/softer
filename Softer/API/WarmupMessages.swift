@@ -1,9 +1,14 @@
 import Foundation
 
+// Private class to anchor bundle lookup (must be a class for Bundle(for:))
+private class BundleToken {}
+
 enum WarmupMessages {
     /// Load README.md from bundle for framing context.
     private static var readmeContent: String {
-        guard let url = Bundle.main.url(forResource: "README", withExtension: "md"),
+        // Use Bundle(for:) to find README in the correct bundle (works in both app and tests)
+        let bundle = Bundle(for: BundleToken.self)
+        guard let url = bundle.url(forResource: "README", withExtension: "md"),
               let content = try? String(contentsOf: url, encoding: .utf8) else {
             return ""
         }

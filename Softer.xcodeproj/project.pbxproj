@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0026756D8A23D54D210F10F4 /* ConversationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7279B13D892A2E56D34AF8 /* ConversationCoordinatorTests.swift */; };
 		03D1B0D10C7E7223102AB321 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 0009F7848120B6FC39C1D83B /* README.md */; };
+		03D1B0D10C7E7223102AB322 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 0009F7848120B6FC39C1D83B /* README.md */; };
 		040AA0EE24894605960C2BB4 /* CloudKitParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = C22228C8697C4D5C81FDB537 /* CloudKitParticipantResolver.swift */; };
 		0933C2F4E143E6FD79F9B11C /* PersistentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 479C528F372C163688F94F75 /* PersistentModels.swift */; };
 		19443CAEA5EA459C8BC45074 /* RoomLifecycleCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82FD2273F7CB489CA7FF61A0 /* RoomLifecycleCoordinator.swift */; };
@@ -411,6 +412,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				03D1B0D10C7E7223102AB322 /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -21,9 +21,10 @@ final class ChatLogBuilderTests: XCTestCase {
         // First message should be user role (warmup with cache_control)
         XCTAssertEqual(chatLog[0]["role"] as? String, "user")
 
-        // Warmup should have cache_control and not be merged
+        // Warmup should have cache_control somewhere (on the room context block, not README)
         let warmupBlocks = chatLog[0]["content"] as? [[String: Any]]
-        XCTAssertNotNil(warmupBlocks?.first?["cache_control"], "Warmup should have cache_control")
+        let hasCacheControl = warmupBlocks?.contains { $0["cache_control"] != nil } ?? false
+        XCTAssertTrue(hasCacheControl, "Warmup should have cache_control on one of its blocks")
 
         // Should have at least one assistant message (Lightward)
         let assistantMessages = chatLog.filter { $0["role"] as? String == "assistant" }
