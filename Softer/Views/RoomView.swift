@@ -550,6 +550,15 @@ struct RoomView: View {
             }
         }
 
+        // Fallback: match by stored email (for share recipients whose userRecordID wasn't populated)
+        if let storedEmail = UserDefaults.standard.string(forKey: "SofterUserEmail")?.lowercased() {
+            if let match = embedded.first(where: {
+                $0.identifierType == "email" && $0.identifierValue?.lowercased() == storedEmail
+            }) {
+                return match.id
+            }
+        }
+
         return nil
     }
 

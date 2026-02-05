@@ -118,6 +118,10 @@ final class SofterStore {
             )
 
             await coordinator.fetchChanges()
+
+            // Fetch pending invitations from public database
+            await fetchInvitations()
+
             initialLoadCompleted = true
 
         } catch {
@@ -180,6 +184,43 @@ final class SofterStore {
         return try await syncCoordinator.acceptShare(from: url)
     }
 
+    // MARK: - Invitations
+
+    /// Pending invitations from other users (fetched from public database).
+    private(set) var pendingInvitations: [Invitation] = []
+
+    /// Fetch pending invitations for the current user.
+    func fetchInvitations() async {
+        guard let syncCoordinator = syncCoordinator else { return }
+        do {
+            let invitations = try await syncCoordinator.fetchInvitations()
+            await MainActor.run {
+                self.pendingInvitations = invitations
+            }
+        } catch {
+            print("SofterStore: Failed to fetch invitations: \(error)")
+        }
+    }
+
+    /// Accept an invitation and navigate to the room.
+    func acceptInvitation(_ invitation: Invitation) async throws -> String? {
+        guard let syncCoordinator = syncCoordinator else {
+            throw StoreError.notConfigured
+        }
+
+        let roomID = try await syncCoordinator.acceptShareFromInvitation(invitation)
+
+        // Remove from local list
+        await MainActor.run {
+            pendingInvitations.removeAll { $0.id == invitation.id }
+        }
+
+        // Refresh to get the shared room
+        await refreshRooms()
+
+        return roomID
+    }
+
     /// Signal "here" for a participant in a room.
     /// Used when accepting a shared room invitation.
     func signalHere(roomID: String, participantID: String) async throws {
@@ -196,10 +237,96 @@ final class SofterStore {
         if let room = dataStore.room(id: roomID),
            let lifecycle = room.toRoomLifecycle() {
             let messages = room.messages()
-            let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
-            RoomLifecycleRecordConverter.apply(lifecycle, to: roomRecord, messages: messages)
-            await syncCoordinator.save(roomRecord)
-            await syncCoordinator.sendChanges()
+
+            // Check if this is a shared room (we're not the originator)
+            let isSharedWithUs = !isRoomOwner(room)
+
+            if isSharedWithUs {
+                // For shared rooms, we need to fetch the existing record and modify it
+                // Use the owner's zone (from the room's originatorID or stored zone info)
+                // For now, try to save directly to shared database
+                print("SofterStore: Saving signal to shared database")
+                do {
+                    // Fetch the existing record from shared database
+                    let recordID = CKRecord.ID(recordName: roomID)
+                    let existingRecord = try await syncCoordinator.fetchRecordFromSharedDatabase(recordID: recordID)
+                    RoomLifecycleRecordConverter.apply(lifecycle, to: existingRecord, messages: messages)
+                    try await syncCoordinator.saveToSharedDatabase(existingRecord)
+                } catch {
+                    print("SofterStore: Failed to save signal to shared database: \(error)")
+                    throw error
+                }
+            } else {
+                // For our own rooms, use the normal sync flow
+                let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
+                RoomLifecycleRecordConverter.apply(lifecycle, to: roomRecord, messages: messages)
+                await syncCoordinator.save(roomRecord)
+                await syncCoordinator.sendChanges()
+            }
+        }
+    }
+
+    /// Check if we own a room (we're the originator).
+    private func isRoomOwner(_ room: PersistedRoom) -> Bool {
+        guard let localUserRecordID = localUserRecordID else { return false }
+        let embedded = room.embeddedParticipants()
+        // Check if we're the currentUser participant (originator)
+        if embedded.first(where: { $0.identifierType == "currentUser" && $0.userRecordID == localUserRecordID }) != nil {
+            return true
+        }
+        // Also check if first human participant is us
+        if let first = embedded.first(where: { $0.identifierType == "currentUser" }) {
+            return first.userRecordID == localUserRecordID || first.userRecordID == nil
+        }
+        return false
+    }
+
+    /// Claim participant identity in a shared room.
+    /// Matches by email and sets the participant's userRecordID to our local ID.
+    /// This is called after accepting a share to establish identity.
+    func claimParticipantIdentity(roomID: String) async {
+        guard let localUserRecordID = localUserRecordID,
+              let dataStore = dataStore,
+              let room = dataStore.room(id: roomID) else {
+            print("SofterStore: Cannot claim identity - missing prerequisites")
+            return
+        }
+
+        // Get stored email (from CloudKit discoverability or workaround)
+        guard let myEmail = UserDefaults.standard.string(forKey: "SofterUserEmail")?.lowercased() else {
+            print("SofterStore: Cannot claim identity - no stored email")
+            return
+        }
+
+        // Find and update matching participant
+        var embedded = room.embeddedParticipants()
+        var updated = false
+
+        for i in embedded.indices {
+            if embedded[i].identifierType == "email",
+               embedded[i].identifierValue?.lowercased() == myEmail,
+               embedded[i].userRecordID == nil {
+                embedded[i] = embedded[i].withUserRecordID(localUserRecordID)
+                updated = true
+                print("SofterStore: Claimed identity for participant \(embedded[i].id) with userRecordID \(localUserRecordID)")
+                break
+            }
+        }
+
+        if updated {
+            room.setParticipants(embedded)
+            dataStore.updateRoom(room)
+
+            // Sync to CloudKit
+            if let syncCoordinator = syncCoordinator, let zoneID = zoneID {
+                if let lifecycle = room.toRoomLifecycle() {
+                    let messages = room.messages()
+                    let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
+                    RoomLifecycleRecordConverter.apply(lifecycle, to: roomRecord, messages: messages)
+                    await syncCoordinator.save(roomRecord)
+                    await syncCoordinator.sendChanges()
+                }
+            }
         }
     }
 
@@ -303,6 +430,33 @@ final class SofterStore {
                             if let room = dataStore.room(id: lifecycle.spec.id) {
                                 room.shareURL = shareURL.absoluteString
                                 dataStore.updateRoom(room)
+                            }
+                        }
+
+                        // Create invitations in public database for in-app discovery
+                        // Use the email addresses from participant specs (what was used to invite them)
+                        let otherParticipantEmails = spec.participants
+                            .filter { $0.id != spec.originatorID && !$0.isLightward }
+                            .compactMap { participant -> String? in
+                                if case .email(let email) = participant.identifier {
+                                    return email
+                                }
+                                return nil
+                            }
+
+                        if !otherParticipantEmails.isEmpty, let fromUserRecordID = localUserRecordID {
+                            let senderName = spec.participants.first { $0.id == spec.originatorID }?.nickname ?? "Someone"
+                            do {
+                                try await syncCoordinator.createInvitations(
+                                    for: otherParticipantEmails,
+                                    shareURL: shareURL,
+                                    roomID: lifecycle.spec.id,
+                                    senderName: senderName,
+                                    fromUserRecordID: fromUserRecordID
+                                )
+                                print("SofterStore: Created invitations for \(otherParticipantEmails.count) participant(s)")
+                            } catch {
+                                print("SofterStore: Failed to create invitations: \(error)")
                             }
                         }
                     }

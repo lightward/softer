@@ -44,6 +44,10 @@ struct RootView: View {
         await store.refreshRooms()
         // Small delay to allow sync to complete
         try? await Task.sleep(for: .milliseconds(500))
+
+        // Claim our participant identity in the room (match by email, set our userRecordID)
+        await store.claimParticipantIdentity(roomID: roomID)
+
         pendingRoomID = roomID
     }
 }

@@ -35,6 +35,32 @@ struct EmbeddedParticipant: Codable, Equatable {
         }
     }
 
+    /// Create a copy with the userRecordID set.
+    func withUserRecordID(_ userRecordID: String) -> EmbeddedParticipant {
+        var copy = self
+        // Need to reconstruct since userRecordID is let
+        return EmbeddedParticipant(
+            id: id,
+            nickname: nickname,
+            identifierType: identifierType,
+            identifierValue: identifierValue,
+            orderIndex: orderIndex,
+            hasSignaledHere: hasSignaledHere,
+            userRecordID: userRecordID
+        )
+    }
+
+    /// Memberwise initializer for all fields.
+    init(id: String, nickname: String, identifierType: String, identifierValue: String?, orderIndex: Int, hasSignaledHere: Bool, userRecordID: String?) {
+        self.id = id
+        self.nickname = nickname
+        self.identifierType = identifierType
+        self.identifierValue = identifierValue
+        self.orderIndex = orderIndex
+        self.hasSignaledHere = hasSignaledHere
+        self.userRecordID = userRecordID
+    }
+
     func toParticipantSpec() -> ParticipantSpec {
         let identifier: ParticipantIdentifier
         switch identifierType {
