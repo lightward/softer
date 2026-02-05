@@ -259,8 +259,8 @@ final class SofterStore {
         // Create opening narration message
         let originatorName = spec.participants.first { $0.id == spec.originatorID }?.nickname ?? "Someone"
         let narrationText = spec.isFirstRoom
-            ? "\(originatorName) opened their first room."
-            : "\(originatorName) opened the room with \(spec.tier.displayString)."
+            ? "\(originatorName) opened their first room. It's free."
+            : "\(originatorName) opened the room at \(spec.tier.displayString)."
 
         let openingMessage = Message(
             roomID: lifecycle.spec.id,

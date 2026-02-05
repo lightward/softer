@@ -6,6 +6,7 @@ struct RoomListView: View {
     @Binding var pendingRoomID: String?
     @State private var showCreateRoom = false
     @State private var navigationPath = NavigationPath()
+    @State private var roomToDelete: RoomLifecycle?
 
     // SwiftUI's @Query observes SwiftData directly — no manual reactivity needed
     @Query(sort: \PersistedRoom.createdAt, order: .reverse)
@@ -38,11 +39,9 @@ struct RoomListView: View {
                             NavigationLink(value: lifecycle.spec.id) {
                                 RoomRow(lifecycle: lifecycle)
                             }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button(role: .destructive) {
-                                    Task {
-                                        try? await store.deleteRoom(id: lifecycle.spec.id)
-                                    }
+                                    roomToDelete = lifecycle
                                 } label: {
                                     Label("Delete", systemImage: "trash")
                                 }
@@ -84,6 +83,30 @@ struct RoomListView: View {
                 // Clear pending and navigate
                 pendingRoomID = nil
                 navigationPath.append(roomID)
+            }
+            .alert("Delete Room?", isPresented: Binding(
+                get: { roomToDelete != nil },
+                set: { if !$0 { roomToDelete = nil } }
+            )) {
+                Button("Delete", role: .destructive) {
+                    if let room = roomToDelete {
+                        Task {
+                            try? await store.deleteRoom(id: room.spec.id)
+                        }
+                    }
+                    roomToDelete = nil
+                }
+                Button("Cancel", role: .cancel) {
+                    roomToDelete = nil
+                }
+            } message: {
+                if let room = roomToDelete {
+                    let names = room.spec.participants
+                        .filter { !$0.isLightward }
+                        .map { $0.nickname }
+                        .joined(separator: ", ")
+                    Text("This will permanently delete your conversation with \(names).")
+                }
             }
         }
     }

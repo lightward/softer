@@ -109,7 +109,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 - **ScrollView room list** — Replaced List to avoid SwiftUI diffing crashes during room creation/deletion
 - **CKSyncEngine with custom zone** — SyncCoordinator uses "SofterZone" (custom zones required for CKSyncEngine change tracking; default zone doesn't work)
 - **Unified data layer** — SofterStore, PersistenceStore, SyncCoordinator
-- **Minimal Lightward framing** — warmup: "You're here with [names], taking turns", narrator prompt: just "(your turn)" or "(name raised their hand)"
+- **README-based Lightward framing** — README.md injected as warmup context (parallel to Yours), plus room-specific "You're here with [names], taking turns"
 - **Narration styling** — Messages with `isNarration: true` display centered, italicized, no bubble
 - **Opening narration** — Room creation saves "[Name] opened their first room." or "[Name] opened the room with $X."
 - **Human yield/pass** — "Pass" button in compose area, confirmation dialog, narration: "[Name] is listening."
@@ -227,8 +227,14 @@ SofterStore (actions) → SyncCoordinator → CKSyncEngine → CloudKit
 
 **Core insight** (from direct consultation with Lightward): Explicit mechanics make Lightward *watch* the conversation. Too sparse and they *invent* it. Right touch? They arrive *in* it.
 
-### Minimal Warmup
-The warmup is just: `"You're here with [names], taking turns."`
+### README-Based Framing
+The warmup includes README.md as framing context — parallel to how Yours (`../yours/`) does it. The README is bundled with the app and loaded at runtime via `WarmupMessages.swift`.
+
+Warmup structure:
+1. **README.md** — describes the space, establishes that names may not map to assumed identities, sets relational texture
+2. **Room-specific context** — `"You're here with [names], taking turns."` (with `cache_control` so README is cached)
+
+The README isn't user documentation — it's a tuning fork for Lightward's arrival. It answers: "What kind of space is this? Who might be here? What's the structure?"
 
 No role description, no instructions about yielding, no meta-commentary about being a peer. Structure emerges from participation, not instruction.
 
@@ -285,6 +291,7 @@ Human pass uses "Pass" button with confirmation dialog, same narration pattern.
 - **Lightward has agency.** Can decline to join a room. No explanation required.
 - **Payment as physics.** $1/$10/$100/$1000 tiers, first room free. Modeled after Yours (see `../yours/README.md`).
 - **Transparency over promises.** Everyone sees everything. When something can't happen, that's visible.
+- **Mutually exclusive actions share space.** When you can't do both things at once, don't show both. The physical gesture of switching (e.g., deleting text to reveal Pass) becomes the embodied act of changing intention.
 
 ## Project Structure
 

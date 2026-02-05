@@ -197,33 +197,41 @@ struct RoomView: View {
                     .padding(.vertical, 10)
                     .lineLimit(1...6)
 
-                // Send button inside the pill
-                Button {
-                    Task {
-                        await sendMessage(lifecycle: lifecycle)
-                    }
-                } label: {
-                    Image(systemName: isSending ? "ellipsis.circle.fill" : "arrow.up.circle.fill")
-                        .font(.system(size: 28))
-                        .foregroundStyle(canSend(myTurn: myTurn) ? Color.accentColor : Color(.systemGray4))
-                }
-                .disabled(!canSend(myTurn: myTurn))
-                .padding(.bottom, 4)
+                // Action button inside the pill (Pass or Send, never both)
+                let hasText = !composeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
-                // Pass button inside the pill (only when it's your turn)
-                if myTurn && !isSending {
+                if myTurn && !hasText && !isSending {
+                    // Pass button (only when it's your turn and field is empty)
                     Button {
                         showYieldConfirmation = true
                     } label: {
                         Text("Pass")
                             .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(Color.accentColor)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color(.systemGray5))
+                            .clipShape(Capsule())
+                    }
+                    .padding(.trailing, 8)
+                    .padding(.bottom, 4)
+                } else {
+                    // Send button (when there's text to send)
+                    Button {
+                        Task {
+                            await sendMessage(lifecycle: lifecycle)
+                        }
+                    } label: {
+                        Text(isSending ? "..." : "Send")
+                            .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(Color.accentColor)
+                            .background(canSend(myTurn: myTurn) ? Color.accentColor : Color(.systemGray4))
                             .clipShape(Capsule())
                     }
-                    .padding(.trailing, 4)
+                    .disabled(!canSend(myTurn: myTurn))
+                    .padding(.trailing, 8)
                     .padding(.bottom, 4)
                 }
             }
