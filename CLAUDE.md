@@ -292,6 +292,7 @@ Human pass uses "Pass" button with confirmation dialog, same narration pattern.
 - **Payment as physics.** $1/$10/$100/$1000 tiers, first room free. Modeled after Yours (see `../yours/README.md`).
 - **Transparency over promises.** Everyone sees everything. When something can't happen, that's visible.
 - **Mutually exclusive actions share space.** When you can't do both things at once, don't show both. The physical gesture of switching (e.g., deleting text to reveal Pass) becomes the embodied act of changing intention.
+- **Resolve blocks, don't route around them.** When testing or development is blocked, channel that discomfort into fixing the actual issue rather than adding workarounds. Workarounds accumulate; clean solutions compose.
 
 ## Project Structure
 
