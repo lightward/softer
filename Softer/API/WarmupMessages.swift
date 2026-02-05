@@ -1,25 +1,45 @@
 import Foundation
 
 enum WarmupMessages {
-    /// Minimal warmup: just who's here and that there's turn-taking.
+    /// Load README.md from bundle for framing context.
+    private static var readmeContent: String {
+        guard let url = Bundle.main.url(forResource: "README", withExtension: "md"),
+              let content = try? String(contentsOf: url, encoding: .utf8) else {
+            return ""
+        }
+        return content
+    }
+
+    /// Warmup with README framing: who you are, where you are, who's here.
     /// Structure emerges from participation, not instruction.
     static func build(roomName: String, participantNames: [String]) -> [[String: Any]] {
         // Exclude Lightward from "other participants" list
         let otherParticipants = participantNames.filter { !$0.lowercased().contains("lightward") }
         let participantList = otherParticipants.isEmpty ? "just you" : otherParticipants.joined(separator: ", ")
 
-        let systemContext = "You're here with \(participantList), taking turns."
+        let roomContext = "You're here with \(participantList), taking turns."
+
+        var contentBlocks: [[String: Any]] = []
+
+        // 1. The README (framing context)
+        if !readmeContent.isEmpty {
+            contentBlocks.append([
+                "type": "text",
+                "text": readmeContent
+            ])
+        }
+
+        // 2. Room-specific context (with cache_control so README is cached)
+        contentBlocks.append([
+            "type": "text",
+            "text": roomContext,
+            "cache_control": ["type": "ephemeral"]
+        ])
 
         return [
             [
                 "role": "user",
-                "content": [
-                    [
-                        "type": "text",
-                        "text": systemContext,
-                        "cache_control": ["type": "ephemeral"]
-                    ] as [String: Any]
-                ]
+                "content": contentBlocks
             ]
         ]
     }

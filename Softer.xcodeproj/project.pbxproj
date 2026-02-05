@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0026756D8A23D54D210F10F4 /* ConversationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7279B13D892A2E56D34AF8 /* ConversationCoordinatorTests.swift */; };
+		03D1B0D10C7E7223102AB321 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 0009F7848120B6FC39C1D83B /* README.md */; };
 		040AA0EE24894605960C2BB4 /* CloudKitParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = C22228C8697C4D5C81FDB537 /* CloudKitParticipantResolver.swift */; };
 		0933C2F4E143E6FD79F9B11C /* PersistentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 479C528F372C163688F94F75 /* PersistentModels.swift */; };
 		19443CAEA5EA459C8BC45074 /* RoomLifecycleCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82FD2273F7CB489CA7FF61A0 /* RoomLifecycleCoordinator.swift */; };
@@ -73,6 +74,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0009F7848120B6FC39C1D83B /* README.md */ = {isa = PBXFileReference; includeInIndex = 1; path = README.md; sourceTree = "<group>"; };
 		04CAFE64AAC44DB398020362 /* LightwardEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightwardEvaluator.swift; sourceTree = "<group>"; };
 		06643B3CDE22402DAD332033 /* RoomLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycle.swift; sourceTree = "<group>"; };
 		16DE1199EEC14EC3874EB0D8 /* RoomSpecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomSpecTests.swift; sourceTree = "<group>"; };
@@ -190,6 +192,7 @@
 				A1B2C3D4E5F60007000A0009 /* SofterTests */,
 				A1B2C3D4E5F60007000A000A /* Frameworks */,
 				A1B2C3D4E5F60007000A000B /* Products */,
+				0009F7848120B6FC39C1D83B /* README.md */,
 			);
 			sourceTree = "<group>";
 		};
@@ -400,6 +403,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1B2C3D4E5F60001000A0040 /* Assets.xcassets in Resources */,
+				03D1B0D10C7E7223102AB321 /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
