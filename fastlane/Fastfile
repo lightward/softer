@@ -30,14 +30,13 @@ platform :ios do
       code_sign_identity: "Apple Distribution"
     )
 
-    # NOTE: Keeping Development CloudKit for now (no production users yet)
-    # When ready for real users, uncomment this to switch TestFlight to Production:
-    # update_plist(
-    #   plist_path: "Softer/Softer.entitlements",
-    #   block: proc do |plist|
-    #     plist["com.apple.developer.icloud-container-environment"] = "Production"
-    #   end
-    # )
+    # Switch TestFlight to Production CloudKit (required for CKShare to work)
+    update_plist(
+      plist_path: "Softer/Softer.entitlements",
+      block: proc do |plist|
+        plist["com.apple.developer.icloud-container-environment"] = "Production"
+      end
+    )
 
     build_app(
       project: "Softer.xcodeproj",
