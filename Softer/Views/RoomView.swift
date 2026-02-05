@@ -49,6 +49,12 @@ struct RoomView: View {
         .task {
             await loadRoom()
         }
+        .onChange(of: persistedRoom?.stateType) {
+            refreshLifecycle()
+        }
+        .onChange(of: persistedRoom?.currentTurnIndex) {
+            refreshLifecycle()
+        }
     }
 
     @ViewBuilder
@@ -420,6 +426,44 @@ struct RoomView: View {
             print("Failed to load room: \(error)")
         }
         isLoading = false
+    }
+
+    /// Rebuild lifecycle from the @Query-observed persisted room.
+    /// Called when stateType or turnIndex changes in SwiftData.
+    private func refreshLifecycle() {
+        guard let newLifecycle = persistedRoom?.toRoomLifecycle() else { return }
+
+        let wasActive = lifecycle?.isActive ?? false
+        lifecycle = newLifecycle
+        turnState = newLifecycle.turnState
+
+        // If room just became active, set up ConversationCoordinator
+        if newLifecycle.isActive && (!wasActive || conversationCoordinator == nil) {
+            let convCoord = store.conversationCoordinator(
+                for: newLifecycle,
+                onTurnChange: { [self] newState in
+                    Task { @MainActor in
+                        turnState = newState
+                        let participants = newLifecycle.spec.participants
+                        if !participants.isEmpty {
+                            let currentIndex = newState.currentTurnIndex % participants.count
+                            if participants[currentIndex].isLightward {
+                                isLightwardThinking = true
+                            }
+                        }
+                    }
+                },
+                onStreamingText: { [self] text in
+                    Task { @MainActor in
+                        streamingText = text
+                        if !text.isEmpty {
+                            isLightwardThinking = false
+                        }
+                    }
+                }
+            )
+            conversationCoordinator = convCoord
+        }
     }
 
     private func sendMessage(lifecycle: RoomLifecycle) async {

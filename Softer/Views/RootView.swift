@@ -3,6 +3,7 @@ import SwiftData
 
 struct RootView: View {
     @EnvironmentObject var appDelegate: AppDelegate
+    @Environment(\.scenePhase) private var scenePhase
     @State private var store = SofterStore()
     @State private var pendingRoomID: String?
     @State private var acceptingShare = false
@@ -26,6 +27,13 @@ struct RootView: View {
                         .modelContainer(container)
                 } else {
                     ProgressView("Loading...")
+                }
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                Task {
+                    await store.refreshRooms()
                 }
             }
         }

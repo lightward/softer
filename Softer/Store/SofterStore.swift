@@ -149,6 +149,10 @@ final class SofterStore {
                 if let room = dataStore.room(id: record.recordID.recordName) {
                     room.ckSystemFields = RoomLifecycleRecordConverter.encodeSystemFields(of: record)
                     room.isSharedWithMe = isShared
+
+                    // Check if room needs state transition (e.g., all humans signaled → active)
+                    checkAndTransitionRoom(room)
+
                     dataStore.updateRoom(room)
                 }
 
@@ -185,6 +189,30 @@ final class SofterStore {
     @MainActor
     private func handleStatusChange(_ status: SyncStatus) async {
         self.syncStatus = status
+    }
+
+    // MARK: - State Transition Helpers
+
+    /// Check if a room needs an automatic state transition.
+    /// e.g., pendingHumans with all humans signaled → active.
+    private func checkAndTransitionRoom(_ room: PersistedRoom) {
+        guard var lifecycle = room.toRoomLifecycle() else { return }
+
+        if case .pendingHumans = lifecycle.state {
+            // Check each signaled participant through the state machine
+            let signaled = room.embeddedParticipants().filter { $0.hasSignaledHere }
+            for participant in signaled {
+                let effects = lifecycle.apply(event: .humanSignaledHere(participantID: participant.id))
+                if effects.contains(.capturePayment) {
+                    // Skip payment for now — go straight to active
+                    _ = lifecycle.apply(event: .paymentCaptured)
+                    break
+                }
+            }
+
+            // Apply the potentially-transitioned state back
+            room.apply(lifecycle, mergeStrategy: .remoteWins)
+        }
     }
 
     // MARK: - CloudKit Sync (Unified)
@@ -247,16 +275,29 @@ final class SofterStore {
 
     /// Signal "here" for a participant in a room.
     /// Used when accepting a shared room invitation.
+    /// Runs the state machine — if all humans are present, transitions to active.
     func signalHere(roomID: String, participantID: String) async throws {
         guard let dataStore = dataStore else {
             throw StoreError.notConfigured
         }
 
-        // Update local state
+        // Update the participant's signaled flag
         dataStore.signalHere(roomID: roomID, participantID: participantID)
 
-        // Sync to CloudKit
-        if let room = dataStore.room(id: roomID) {
+        // Run the state machine to check for transition
+        if let room = dataStore.room(id: roomID),
+           var lifecycle = room.toRoomLifecycle() {
+            let effects = lifecycle.apply(event: .humanSignaledHere(participantID: participantID))
+
+            // If state machine says capture payment, skip to active for now (payment not wired yet)
+            if effects.contains(.capturePayment) {
+                _ = lifecycle.apply(event: .paymentCaptured)
+            }
+
+            // Apply the new state back to the persisted room
+            room.apply(lifecycle, mergeStrategy: .remoteWins)
+            dataStore.updateRoom(room)
+
             await syncRoomToCloudKit(room)
         }
     }
