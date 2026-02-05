@@ -178,10 +178,18 @@ extension PersistedRoom {
 
     /// Update this room from a RoomLifecycle with merge strategy
     func apply(_ lifecycle: RoomLifecycle, mergeStrategy: MergeStrategy) {
-        // Update participants JSON
+        // Preserve existing userRecordIDs (lifecycle doesn't carry them)
+        let existingRecordIDs = Dictionary(
+            uniqueKeysWithValues: embeddedParticipants().compactMap { p -> (String, String)? in
+                guard let recordID = p.userRecordID else { return nil }
+                return (p.id, recordID)
+            }
+        )
+
+        // Update participants JSON, preserving userRecordIDs
         let embedded = lifecycle.spec.participants.enumerated().map { index, spec in
             let hasSignaled = Self.signaledIDs(from: lifecycle.state).contains(spec.id)
-            return EmbeddedParticipant(from: spec, orderIndex: index, hasSignaledHere: hasSignaled)
+            return EmbeddedParticipant(from: spec, orderIndex: index, hasSignaledHere: hasSignaled, userRecordID: existingRecordIDs[spec.id])
         }
         setParticipants(embedded)
 
