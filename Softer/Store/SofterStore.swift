@@ -198,25 +198,17 @@ final class SofterStore {
     private func checkAndTransitionRoom(_ room: PersistedRoom) {
         guard var lifecycle = room.toRoomLifecycle() else { return }
 
-        if case .pendingHumans(let alreadySignaled) = lifecycle.state {
-            let allHumans = Set(lifecycle.spec.humanParticipants.map { $0.id })
+        if case .pendingHumans = lifecycle.state {
             let signaled = room.embeddedParticipants().filter { $0.hasSignaledHere }
-            print("checkAndTransitionRoom: state=pendingHumans alreadySignaled=\(alreadySignaled) embeddedSignaled=\(signaled.map { $0.id }) allHumans=\(allHumans)")
-
             for participant in signaled {
                 let effects = lifecycle.apply(event: .humanSignaledHere(participantID: participant.id))
-                print("checkAndTransitionRoom: applied humanSignaledHere(\(participant.id)) effects=\(effects) newState=\(lifecycle.state)")
                 if effects.contains(.capturePayment) {
+                    // Skip payment for now — go straight to active
                     _ = lifecycle.apply(event: .paymentCaptured)
-                    print("checkAndTransitionRoom: transitioned to active!")
                     break
                 }
             }
-
             room.apply(lifecycle, mergeStrategy: .remoteWins)
-            print("checkAndTransitionRoom: final stateType=\(room.stateType)")
-        } else {
-            print("checkAndTransitionRoom: room \(room.id) state=\(room.stateType), not pendingHumans — skipping")
         }
     }
 
