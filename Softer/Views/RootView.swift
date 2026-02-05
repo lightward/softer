@@ -5,6 +5,7 @@ struct RootView: View {
     @EnvironmentObject var appDelegate: AppDelegate
     @State private var store = SofterStore()
     @State private var pendingRoomID: String?
+    @State private var acceptingShare = false
 
     var body: some View {
         Group {
@@ -21,7 +22,7 @@ struct RootView: View {
 
             case .syncing, .synced, .offline:
                 if let container = store.modelContainer {
-                    RoomListView(store: store, pendingRoomID: $pendingRoomID)
+                    RoomListView(store: store, pendingRoomID: $pendingRoomID, acceptingShare: acceptingShare)
                         .modelContainer(container)
                 } else {
                     ProgressView("Loading...")
@@ -30,6 +31,9 @@ struct RootView: View {
         }
         .onChange(of: appDelegate.pendingShareRoomID) { _, roomID in
             guard let roomID = roomID else { return }
+            // Show spinner immediately — before any async work
+            acceptingShare = true
+            appDelegate.pendingShareRoomID = nil
             Task {
                 await handleShareAccepted(roomID: roomID)
             }
@@ -37,17 +41,12 @@ struct RootView: View {
     }
 
     private func handleShareAccepted(roomID: String) async {
-        // Clear the pending room ID immediately
-        appDelegate.pendingShareRoomID = nil
-
         // Share was already accepted by SceneDelegate, just need to sync and navigate
         await store.refreshRooms()
         // Small delay to allow sync to complete
         try? await Task.sleep(for: .milliseconds(500))
 
-        // Claim our participant identity in the room (match by email, set our userRecordID)
-        await store.claimParticipantIdentity(roomID: roomID)
-
+        acceptingShare = false
         pendingRoomID = roomID
     }
 }

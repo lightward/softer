@@ -8,7 +8,8 @@ actor SyncCoordinator {
     // MARK: - Types
 
     /// Callback for when records are fetched from the server.
-    typealias RecordHandler = @Sendable (CKRecord) async -> Void
+    /// Parameters: (record, isShared) — isShared is true when fetched from shared database.
+    typealias RecordHandler = @Sendable (CKRecord, Bool) async -> Void
 
     /// Callback for when records are deleted on the server.
     typealias DeletionHandler = @Sendable (CKRecord.ID) async -> Void
@@ -18,6 +19,10 @@ actor SyncCoordinator {
 
     /// Callback for when a batch of records has been processed.
     typealias BatchCompleteHandler = @Sendable () async -> Void
+
+    /// Callback for when a record has been successfully saved to CloudKit.
+    /// Parameters: (savedRecord, isShared) — the server's version with updated change tag.
+    typealias RecordSavedHandler = @Sendable (CKRecord, Bool) async -> Void
 
     // MARK: - Properties
 
@@ -34,10 +39,13 @@ actor SyncCoordinator {
     private var onRecordDeleted: DeletionHandler?
     private var onStatusChange: StatusHandler?
     private var onBatchComplete: BatchCompleteHandler?
+    private var onRecordSaved: RecordSavedHandler?
 
-    /// Records pending save, keyed by record ID.
-    /// CKSyncEngine calls back to get these when sending changes.
-    private var pendingRecords: [CKRecord.ID: CKRecord] = [:]
+    /// Records pending save to private database, keyed by record ID.
+    private var privatePendingRecords: [CKRecord.ID: CKRecord] = [:]
+
+    /// Records pending save to shared database, keyed by record ID.
+    private var sharedPendingRecords: [CKRecord.ID: CKRecord] = [:]
 
     /// Shares pending save, keyed by the root record ID.
     private var pendingShares: [CKRecord.ID: CKShare] = [:]
@@ -62,12 +70,14 @@ actor SyncCoordinator {
         onRecordFetched: @escaping RecordHandler,
         onRecordDeleted: @escaping DeletionHandler,
         onStatusChange: @escaping StatusHandler,
-        onBatchComplete: @escaping BatchCompleteHandler = {}
+        onBatchComplete: @escaping BatchCompleteHandler = {},
+        onRecordSaved: @escaping RecordSavedHandler = { _, _ in }
     ) async {
         self.onRecordFetched = onRecordFetched
         self.onRecordDeleted = onRecordDeleted
         self.onStatusChange = onStatusChange
         self.onBatchComplete = onBatchComplete
+        self.onRecordSaved = onRecordSaved
 
         // Load persisted state if available
         let state = loadPersistedState()
@@ -131,60 +141,51 @@ actor SyncCoordinator {
     func save(_ record: CKRecord) {
         guard let engine = syncEngine else { return }
 
-        pendingRecords[record.recordID] = record
+        privatePendingRecords[record.recordID] = record
         engine.state.add(pendingRecordZoneChanges: [.saveRecord(record.recordID)])
     }
 
-    /// Fetch a record from the shared database.
-    func fetchRecordFromSharedDatabase(recordID: CKRecord.ID) async throws -> CKRecord {
-        return try await sharedDatabase.record(for: recordID)
+    /// Queue a record to be saved to CloudKit (shared database).
+    func saveShared(_ record: CKRecord) {
+        guard let engine = sharedSyncEngine else { return }
+
+        sharedPendingRecords[record.recordID] = record
+        engine.state.add(pendingRecordZoneChanges: [.saveRecord(record.recordID)])
     }
 
-    /// Save a record to the shared database (for records shared with us).
-    func saveToSharedDatabase(_ record: CKRecord) async throws {
-        let operation = CKModifyRecordsOperation(recordsToSave: [record], recordIDsToDelete: nil)
-        operation.savePolicy = .changedKeys
-
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            operation.modifyRecordsResultBlock = { result in
-                switch result {
-                case .success:
-                    print("SyncCoordinator: Saved record to shared database: \(record.recordID.recordName)")
-                    continuation.resume()
-                case .failure(let error):
-                    print("SyncCoordinator: Failed to save to shared database: \(error)")
-                    continuation.resume(throwing: error)
-                }
-            }
-            self.sharedDatabase.add(operation)
-        }
-    }
-
-    /// Queue multiple records to be saved.
+    /// Queue multiple records to be saved (private database).
     func save(_ records: [CKRecord]) {
         guard let engine = syncEngine else { return }
 
         for record in records {
-            pendingRecords[record.recordID] = record
+            privatePendingRecords[record.recordID] = record
         }
         let changes = records.map { CKSyncEngine.PendingRecordZoneChange.saveRecord($0.recordID) }
         engine.state.add(pendingRecordZoneChanges: changes)
     }
 
-    /// Queue a record to be deleted from CloudKit.
+    /// Queue a record to be deleted from CloudKit (private database).
     func delete(recordID: CKRecord.ID) {
         guard let engine = syncEngine else { return }
 
-        pendingRecords.removeValue(forKey: recordID)
+        privatePendingRecords.removeValue(forKey: recordID)
         engine.state.add(pendingRecordZoneChanges: [.deleteRecord(recordID)])
     }
 
-    /// Queue multiple records to be deleted.
+    /// Queue a record to be deleted from CloudKit (shared database).
+    func deleteShared(recordID: CKRecord.ID) {
+        guard let engine = sharedSyncEngine else { return }
+
+        sharedPendingRecords.removeValue(forKey: recordID)
+        engine.state.add(pendingRecordZoneChanges: [.deleteRecord(recordID)])
+    }
+
+    /// Queue multiple records to be deleted (private database).
     func delete(recordIDs: [CKRecord.ID]) {
         guard let engine = syncEngine else { return }
 
         for id in recordIDs {
-            pendingRecords.removeValue(forKey: id)
+            privatePendingRecords.removeValue(forKey: id)
         }
         let changes = recordIDs.map { CKSyncEngine.PendingRecordZoneChange.deleteRecord($0) }
         engine.state.add(pendingRecordZoneChanges: changes)
@@ -364,49 +365,66 @@ actor SyncCoordinator {
         await updateStatus(.synced)
     }
 
-    /// Send pending changes to the server.
+    /// Send pending changes to the server (both private and shared engines).
     func sendChanges() async {
-        guard let engine = syncEngine else {
-            print("SyncCoordinator: No sync engine available")
-            return
-        }
-
         await updateStatus(.syncing)
 
-        do {
-            try await engine.sendChanges()
-            await updateStatus(.synced)
-        } catch let error as CKError {
-            print("SyncCoordinator: CKError \(error.code.rawValue): \(error.localizedDescription)")
-            if let underlying = error.userInfo[NSUnderlyingErrorKey] as? Error {
-                print("SyncCoordinator: Underlying error: \(underlying)")
+        // Send private changes
+        if let engine = syncEngine {
+            do {
+                try await engine.sendChanges()
+            } catch let error as CKError {
+                await handleSendError(error)
+                return
+            } catch {
+                print("SyncCoordinator: Non-CK error (private): \(error)")
+                await updateStatus(.error("Sync failed"))
+                return
             }
-            // Log partial failure details
-            if error.code == .partialFailure, let partialErrors = error.partialErrorsByItemID {
-                for (itemID, itemError) in partialErrors {
-                    print("SyncCoordinator: Partial error for \(itemID): \(itemError)")
-                }
-                // Check if all failures are just serverRecordChanged - these are handled automatically
-                let hasRealErrors = partialErrors.values.contains { itemError in
-                    guard let ckError = itemError as? CKError else { return true }
-                    return ckError.code != .serverRecordChanged
-                }
-                if !hasRealErrors {
-                    // All errors are conflicts that CKSyncEngine will retry - not a real failure
-                    print("SyncCoordinator: All errors are serverRecordChanged conflicts, will retry automatically")
-                    await updateStatus(.syncing)
-                    return
-                }
+        }
+
+        // Send shared changes
+        if let sharedEngine = sharedSyncEngine {
+            do {
+                try await sharedEngine.sendChanges()
+            } catch let error as CKError {
+                await handleSendError(error)
+                return
+            } catch {
+                print("SyncCoordinator: Non-CK error (shared): \(error)")
+                await updateStatus(.error("Sync failed"))
+                return
             }
-            // Don't set error status for transient failures - let individual record handlers deal with it
-            if error.code == .networkUnavailable || error.code == .networkFailure {
-                await updateStatus(.offline)
-            } else {
-                await updateStatus(.error("Sync failed: \(error.code.rawValue)"))
+        }
+
+        await updateStatus(.synced)
+    }
+
+    private func handleSendError(_ error: CKError) async {
+        print("SyncCoordinator: CKError \(error.code.rawValue): \(error.localizedDescription)")
+        if let underlying = error.userInfo[NSUnderlyingErrorKey] as? Error {
+            print("SyncCoordinator: Underlying error: \(underlying)")
+        }
+        // Log partial failure details
+        if error.code == .partialFailure, let partialErrors = error.partialErrorsByItemID {
+            for (itemID, itemError) in partialErrors {
+                print("SyncCoordinator: Partial error for \(itemID): \(itemError)")
             }
-        } catch {
-            print("SyncCoordinator: Non-CK error: \(error)")
-            await updateStatus(.error("Sync failed"))
+            // Check if all failures are just serverRecordChanged - these are handled automatically
+            let hasRealErrors = partialErrors.values.contains { itemError in
+                guard let ckError = itemError as? CKError else { return true }
+                return ckError.code != .serverRecordChanged
+            }
+            if !hasRealErrors {
+                print("SyncCoordinator: All errors are serverRecordChanged conflicts, will retry automatically")
+                await updateStatus(.syncing)
+                return
+            }
+        }
+        if error.code == .networkUnavailable || error.code == .networkFailure {
+            await updateStatus(.offline)
+        } else {
+            await updateStatus(.error("Sync failed: \(error.code.rawValue)"))
         }
     }
 
@@ -429,13 +447,13 @@ actor SyncCoordinator {
 
         case .fetchedRecordZoneChanges(let changes):
             print("SyncCoordinator [\(source)]: Fetched record zone changes - \(changes.modifications.count) records, \(changes.deletions.count) deletions")
-            await handleFetchedRecordZoneChanges(changes)
+            await handleFetchedRecordZoneChanges(changes, isShared: isShared)
 
         case .sentDatabaseChanges(let sentChanges):
             handleSentDatabaseChanges(sentChanges)
 
         case .sentRecordZoneChanges(let sentChanges):
-            await handleSentRecordZoneChanges(sentChanges)
+            await handleSentRecordZoneChanges(sentChanges, isShared: isShared)
 
         case .willFetchChanges, .willFetchRecordZoneChanges, .didFetchRecordZoneChanges,
              .didFetchChanges, .willSendChanges, .didSendChanges:
@@ -448,13 +466,17 @@ actor SyncCoordinator {
     }
 
     /// Called by delegate to get the record for a pending save.
-    func record(for recordID: CKRecord.ID) -> CKRecord? {
-        pendingRecords[recordID]
+    func record(for recordID: CKRecord.ID, isShared: Bool) -> CKRecord? {
+        isShared ? sharedPendingRecords[recordID] : privatePendingRecords[recordID]
     }
 
     /// Called by delegate after a record was successfully saved.
-    func recordSaved(_ recordID: CKRecord.ID) {
-        pendingRecords.removeValue(forKey: recordID)
+    func recordSaved(_ record: CKRecord, isShared: Bool) {
+        if isShared {
+            sharedPendingRecords.removeValue(forKey: record.recordID)
+        } else {
+            privatePendingRecords.removeValue(forKey: record.recordID)
+        }
     }
 
     // MARK: - Private: Event Handlers
@@ -484,10 +506,10 @@ actor SyncCoordinator {
         }
     }
 
-    private func handleFetchedRecordZoneChanges(_ changes: CKSyncEngine.Event.FetchedRecordZoneChanges) async {
+    private func handleFetchedRecordZoneChanges(_ changes: CKSyncEngine.Event.FetchedRecordZoneChanges, isShared: Bool) async {
         // Process fetched records
         for modification in changes.modifications {
-            await onRecordFetched?(modification.record)
+            await onRecordFetched?(modification.record, isShared)
         }
 
         // Process deletions
@@ -506,16 +528,17 @@ actor SyncCoordinator {
         }
     }
 
-    private func handleSentRecordZoneChanges(_ sentChanges: CKSyncEngine.Event.SentRecordZoneChanges) async {
+    private func handleSentRecordZoneChanges(_ sentChanges: CKSyncEngine.Event.SentRecordZoneChanges, isShared: Bool) async {
         // Handle successful saves
         for savedRecord in sentChanges.savedRecords {
-            print("Saved record: \(savedRecord.recordID.recordName)")
-            recordSaved(savedRecord.recordID)
+            print("Saved record [\(isShared ? "shared" : "private")]: \(savedRecord.recordID.recordName)")
+            recordSaved(savedRecord, isShared: isShared)
+            await onRecordSaved?(savedRecord, isShared)
         }
 
         // Handle failed saves with conflict resolution
         for failedSave in sentChanges.failedRecordSaves {
-            await handleFailedSave(failedSave)
+            await handleFailedSave(failedSave, isShared: isShared)
         }
 
         // Handle deletions
@@ -524,7 +547,7 @@ actor SyncCoordinator {
         }
     }
 
-    private func handleFailedSave(_ failedSave: CKSyncEngine.Event.SentRecordZoneChanges.FailedRecordSave) async {
+    private func handleFailedSave(_ failedSave: CKSyncEngine.Event.SentRecordZoneChanges.FailedRecordSave, isShared: Bool) async {
         let recordID = failedSave.record.recordID
         let error = failedSave.error
 
@@ -534,21 +557,27 @@ actor SyncCoordinator {
                 // Conflict! Apply merge policy
                 if let serverRecord = ckError.serverRecord {
                     let merged = mergeRecords(local: failedSave.record, server: serverRecord)
-                    save(merged)
+                    if isShared {
+                        saveShared(merged)
+                    } else {
+                        save(merged)
+                    }
                 }
 
             case .zoneNotFound:
-                // Zone was deleted - recreate it
-                Task {
-                    try? await ensureZoneExists()
-                    save(failedSave.record)
+                // Zone was deleted - recreate it (only for private)
+                if !isShared {
+                    Task {
+                        try? await ensureZoneExists()
+                        save(failedSave.record)
+                    }
                 }
 
             case .networkUnavailable, .networkFailure:
                 await updateStatus(.offline)
 
             default:
-                print("Failed to save \(recordID.recordName): \(error)")
+                print("Failed to save \(recordID.recordName) [\(isShared ? "shared" : "private")]: \(error)")
             }
         }
     }
@@ -683,7 +712,7 @@ private final class SyncEngineDelegate: NSObject, CKSyncEngineDelegate, @uncheck
         for change in pendingChanges {
             switch change {
             case .saveRecord(let recordID):
-                if let record = await coordinator?.record(for: recordID) {
+                if let record = await coordinator?.record(for: recordID, isShared: isShared) {
                     recordsToSave.append(record)
                 }
             case .deleteRecord(let recordID):

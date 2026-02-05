@@ -102,10 +102,14 @@ final class PersistenceStore {
 
     // MARK: - Sync Operations
 
-    func upsertRoom(from lifecycle: RoomLifecycle, remoteMessagesJSON: String? = nil) {
+    func upsertRoom(from lifecycle: RoomLifecycle, remoteParticipantsJSON: String? = nil, remoteMessagesJSON: String? = nil) {
         if let existing = room(id: lifecycle.spec.id) {
             // Update existing - merge turn state (higher wins)
             existing.apply(lifecycle, mergeStrategy: .higherTurnWins)
+            // Preserve participantsJSON from CKRecord (has userRecordIDs that RoomLifecycle strips)
+            if let json = remoteParticipantsJSON {
+                existing.participantsJSON = json
+            }
             // Merge messages if provided
             if let json = remoteMessagesJSON {
                 existing.mergeMessages(from: json)
@@ -113,6 +117,10 @@ final class PersistenceStore {
         } else {
             // Insert new
             let newRoom = PersistedRoom.from(lifecycle)
+            // Preserve participantsJSON from CKRecord (has userRecordIDs)
+            if let json = remoteParticipantsJSON {
+                newRoom.participantsJSON = json
+            }
             // Apply remote messages if provided
             if let json = remoteMessagesJSON {
                 newRoom.messagesJSON = json

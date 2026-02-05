@@ -85,12 +85,18 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 
 ### What's Next
 
-1. **Two-device testing** — Test full share flow: Isaac creates room with Abe → Abe receives invitation → taps to accept → signals "here"
-2. **Payment capture wiring** — Only originator's device captures payment when all humans signal (not yet implemented)
-3. **Room activation transition** — When last human signals, transition from pendingHumans → pendingCapture → active
+1. **Owner not receiving shared changes** — Abe's "signal here" saves to CloudKit successfully (correct zone, etag advances), but Isaac's CKSyncEngine doesn't fetch the update. Likely cause: dev builds don't reliably receive push notifications, and CKSyncEngine's change token thinks it's current. May need to clear persisted state, use `CKFetchRecordZoneChangesOperation` as supplement, or investigate push notification registration.
+2. **"No Rooms" flash during share acceptance** — `acceptingShare` flag is set in `onChange` which fires one render frame late. Need to set it earlier (e.g., in SceneDelegate directly via AppDelegate).
+3. **Isaac's local room has nil userRecordIDs** — `resolvedParticipants` are used for the CKRecord but the local `PersistedRoom` is saved before the CKRecord round-trips back. Need to also update local `participantsJSON` with resolved userRecordIDs at creation time.
+4. **Payment capture wiring** — Only originator's device captures payment when all humans signal (not yet implemented)
+5. **Room activation transition** — When last human signals, transition from pendingHumans → pendingCapture → active
 
 ### Recently Completed
 
+- **Bidirectional CKShare editing** — Non-owner participants can now modify shared Room3 records. CKRecord system fields (`ckSystemFields`) persisted on PersistedRoom to preserve zone ID and change tag. `isSharedWithMe` flag routes saves to correct CKSyncEngine (private vs shared). All 7 duplicate save paths consolidated into `syncRoomToCloudKit()`. Verified: Abe's "signal here" saves with correct etag to Isaac's shared zone.
+- **CKSharingSupported fix** — Added explicit `INFOPLIST_FILE = Softer/Info.plist` to project build settings (both Debug and Release). The `INFOPLIST_KEY_CKSharingSupported` build setting alone wasn't generating the key in the built plist.
+- **Shared room deletion** — Deleting a shared-with-me room only removes it locally (participants can't delete the owner's record).
+- **Share acceptance UX** — "Joining room..." spinner shows while syncing shared room data.
 - **Share acceptance flow** — `ckshare://` URLs handled via `SofterApp.onOpenURL` → `SyncCoordinator.acceptShare()` → navigate to room. Uses `CKAcceptSharesOperation` and fetches from shared database.
 - **Signal "here" UI** — RoomView shows pending state banners with "I'm Here" button. `myParticipantID(in:)` matches `store.localUserRecordID` against embedded participant's `userRecordID`.
 - **Room list back to List** — Switched from ScrollView+LazyVStack back to native List now that data layer is stable. Swipe-to-delete works again.

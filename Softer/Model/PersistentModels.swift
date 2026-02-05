@@ -31,6 +31,10 @@ final class PersistedRoom {
     // Sharing
     var shareURL: String?
 
+    // CloudKit sync
+    var ckSystemFields: Data?  // Encoded CKRecord system fields (zone ID, change tag, share ref)
+    var isSharedWithMe: Bool = false  // True when fetched from shared database
+
     init(
         id: String = UUID().uuidString,
         originatorID: String,

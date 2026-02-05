@@ -103,8 +103,8 @@ final class SofterStore {
             self.syncCoordinator = coordinator
 
             await coordinator.start(
-                onRecordFetched: { [weak self] record in
-                    await self?.handleRecordFetched(record)
+                onRecordFetched: { [weak self] record, isShared in
+                    await self?.handleRecordFetched(record, isShared: isShared)
                 },
                 onRecordDeleted: { [weak self] recordID in
                     await self?.handleRecordDeleted(recordID)
@@ -114,6 +114,9 @@ final class SofterStore {
                 },
                 onBatchComplete: { [weak self] in
                     _ = self
+                },
+                onRecordSaved: { [weak self] record, isShared in
+                    await self?.handleRecordSaved(record, isShared: isShared)
                 }
             )
 
@@ -129,22 +132,45 @@ final class SofterStore {
 
     // MARK: - SyncCoordinator Handlers
 
-    private func handleRecordFetched(_ record: CKRecord) async {
+    private func handleRecordFetched(_ record: CKRecord, isShared: Bool) async {
         guard let dataStore = dataStore else { return }
 
-        print("SofterStore: Fetched record type=\(record.recordType) id=\(record.recordID.recordName)")
+        print("SofterStore: Fetched record type=\(record.recordType) id=\(record.recordID.recordName) shared=\(isShared)")
 
         switch record.recordType {
         case RoomLifecycleRecordConverter.roomRecordType:
             // Room3 with embedded participants and messages
             if let lifecycle = RoomLifecycleRecordConverter.lifecycle(from: record) {
+                let participantsJSON = record["participantsJSON"] as? String
                 let messagesJSON = record["messagesJSON"] as? String
-                dataStore.upsertRoom(from: lifecycle, remoteMessagesJSON: messagesJSON)
-                print("SofterStore: Room \(record.recordID.recordName) synced from CloudKit")
+                dataStore.upsertRoom(from: lifecycle, remoteParticipantsJSON: participantsJSON, remoteMessagesJSON: messagesJSON)
+
+                // Persist CKRecord system fields and shared flag
+                if let room = dataStore.room(id: record.recordID.recordName) {
+                    room.ckSystemFields = RoomLifecycleRecordConverter.encodeSystemFields(of: record)
+                    room.isSharedWithMe = isShared
+                    dataStore.updateRoom(room)
+                }
+
+                print("SofterStore: Room \(record.recordID.recordName) synced from CloudKit (shared=\(isShared))")
             }
 
         default:
             break
+        }
+    }
+
+    /// Called after a record is successfully saved to CloudKit.
+    /// Updates stored system fields with the server's latest change tag.
+    private func handleRecordSaved(_ record: CKRecord, isShared: Bool) async {
+        guard let dataStore = dataStore else { return }
+
+        if record.recordType == RoomLifecycleRecordConverter.roomRecordType {
+            if let room = dataStore.room(id: record.recordID.recordName) {
+                room.ckSystemFields = RoomLifecycleRecordConverter.encodeSystemFields(of: record)
+                dataStore.updateRoom(room)
+                print("SofterStore: Updated system fields for room \(record.recordID.recordName) after save")
+            }
         }
     }
 
@@ -159,6 +185,45 @@ final class SofterStore {
     @MainActor
     private func handleStatusChange(_ status: SyncStatus) async {
         self.syncStatus = status
+    }
+
+    // MARK: - CloudKit Sync (Unified)
+
+    /// Reconstruct a CKRecord from stored system fields and sync to CloudKit.
+    /// Routes to the correct engine (private or shared) based on room.isSharedWithMe.
+    private func syncRoomToCloudKit(_ room: PersistedRoom, resolvedParticipants: [ResolvedParticipant] = []) async {
+        guard let syncCoordinator = syncCoordinator,
+              let zoneID = zoneID else { return }
+
+        guard let lifecycle = room.toRoomLifecycle() else { return }
+
+        let messages = room.messages()
+
+        // Reconstruct CKRecord from stored system fields (preserves zone ID + change tag)
+        let record = RoomLifecycleRecordConverter.record(
+            fromSystemFields: room.ckSystemFields,
+            recordName: room.id,
+            fallbackZoneID: zoneID
+        )
+
+        // Apply room data to record
+        RoomLifecycleRecordConverter.apply(
+            lifecycle,
+            to: record,
+            messages: messages,
+            resolvedParticipants: resolvedParticipants
+        )
+
+        // Route to correct engine
+        if room.isSharedWithMe {
+            print("SofterStore: Saving room \(room.id) to shared database")
+            await syncCoordinator.saveShared(record)
+        } else {
+            print("SofterStore: Saving room \(room.id) to private database")
+            await syncCoordinator.save(record)
+        }
+
+        await syncCoordinator.sendChanges()
     }
 
     // MARK: - Public API: Rooms
@@ -183,9 +248,7 @@ final class SofterStore {
     /// Signal "here" for a participant in a room.
     /// Used when accepting a shared room invitation.
     func signalHere(roomID: String, participantID: String) async throws {
-        guard let syncCoordinator = syncCoordinator,
-              let zoneID = zoneID,
-              let dataStore = dataStore else {
+        guard let dataStore = dataStore else {
             throw StoreError.notConfigured
         }
 
@@ -193,99 +256,8 @@ final class SofterStore {
         dataStore.signalHere(roomID: roomID, participantID: participantID)
 
         // Sync to CloudKit
-        if let room = dataStore.room(id: roomID),
-           let lifecycle = room.toRoomLifecycle() {
-            let messages = room.messages()
-
-            // Check if this is a shared room (we're not the originator)
-            let isSharedWithUs = !isRoomOwner(room)
-
-            if isSharedWithUs {
-                // For shared rooms, we need to fetch the existing record and modify it
-                // Use the owner's zone (from the room's originatorID or stored zone info)
-                // For now, try to save directly to shared database
-                print("SofterStore: Saving signal to shared database")
-                do {
-                    // Fetch the existing record from shared database
-                    let recordID = CKRecord.ID(recordName: roomID)
-                    let existingRecord = try await syncCoordinator.fetchRecordFromSharedDatabase(recordID: recordID)
-                    RoomLifecycleRecordConverter.apply(lifecycle, to: existingRecord, messages: messages)
-                    try await syncCoordinator.saveToSharedDatabase(existingRecord)
-                } catch {
-                    print("SofterStore: Failed to save signal to shared database: \(error)")
-                    throw error
-                }
-            } else {
-                // For our own rooms, use the normal sync flow
-                let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
-                RoomLifecycleRecordConverter.apply(lifecycle, to: roomRecord, messages: messages)
-                await syncCoordinator.save(roomRecord)
-                await syncCoordinator.sendChanges()
-            }
-        }
-    }
-
-    /// Check if we own a room (we're the originator).
-    private func isRoomOwner(_ room: PersistedRoom) -> Bool {
-        guard let localUserRecordID = localUserRecordID else { return false }
-        let embedded = room.embeddedParticipants()
-        // Check if we're the currentUser participant (originator)
-        if embedded.first(where: { $0.identifierType == "currentUser" && $0.userRecordID == localUserRecordID }) != nil {
-            return true
-        }
-        // Also check if first human participant is us
-        if let first = embedded.first(where: { $0.identifierType == "currentUser" }) {
-            return first.userRecordID == localUserRecordID || first.userRecordID == nil
-        }
-        return false
-    }
-
-    /// Claim participant identity in a shared room.
-    /// Matches by email and sets the participant's userRecordID to our local ID.
-    /// This is called after accepting a share to establish identity.
-    func claimParticipantIdentity(roomID: String) async {
-        guard let localUserRecordID = localUserRecordID,
-              let dataStore = dataStore,
-              let room = dataStore.room(id: roomID) else {
-            print("SofterStore: Cannot claim identity - missing prerequisites")
-            return
-        }
-
-        // Get stored email (from CloudKit discoverability or workaround)
-        guard let myEmail = UserDefaults.standard.string(forKey: "SofterUserEmail")?.lowercased() else {
-            print("SofterStore: Cannot claim identity - no stored email")
-            return
-        }
-
-        // Find and update matching participant
-        var embedded = room.embeddedParticipants()
-        var updated = false
-
-        for i in embedded.indices {
-            if embedded[i].identifierType == "email",
-               embedded[i].identifierValue?.lowercased() == myEmail,
-               embedded[i].userRecordID == nil {
-                embedded[i] = embedded[i].withUserRecordID(localUserRecordID)
-                updated = true
-                print("SofterStore: Claimed identity for participant \(embedded[i].id) with userRecordID \(localUserRecordID)")
-                break
-            }
-        }
-
-        if updated {
-            room.setParticipants(embedded)
-            dataStore.updateRoom(room)
-
-            // Sync to CloudKit
-            if let syncCoordinator = syncCoordinator, let zoneID = zoneID {
-                if let lifecycle = room.toRoomLifecycle() {
-                    let messages = room.messages()
-                    let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
-                    RoomLifecycleRecordConverter.apply(lifecycle, to: roomRecord, messages: messages)
-                    await syncCoordinator.save(roomRecord)
-                    await syncCoordinator.sendChanges()
-                }
-            }
+        if let room = dataStore.room(id: roomID) {
+            await syncRoomToCloudKit(room)
         }
     }
 
@@ -364,19 +336,23 @@ final class SofterStore {
 
         // Sync to CloudKit in background
         Task {
-            // Save single Room3 record (participants and messages embedded)
+            await syncRoomToCloudKit(persistedRoom, resolvedParticipants: resolvedParticipants)
+
+            // Share with other human participants (by email/phone, not userRecordID)
+            // Need the CKRecord for sharing — reconstruct it
+            let roomRecord = RoomLifecycleRecordConverter.record(
+                fromSystemFields: persistedRoom.ckSystemFields,
+                recordName: persistedRoom.id,
+                fallbackZoneID: zoneID
+            )
             let messages = persistedRoom.messages()
-            let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
             RoomLifecycleRecordConverter.apply(
                 lifecycle,
                 to: roomRecord,
                 messages: messages,
                 resolvedParticipants: resolvedParticipants
             )
-            await syncCoordinator.save(roomRecord)
-            await syncCoordinator.sendChanges()
 
-            // Share with other human participants (by email/phone, not userRecordID)
             let lookupInfos = RoomLifecycleRecordConverter.otherParticipantLookupInfos(from: roomRecord)
             if !lookupInfos.isEmpty {
                 do {
@@ -413,23 +389,15 @@ final class SofterStore {
 
         // Sync to CloudKit in background
         Task {
-            guard let syncCoordinator = syncCoordinator, let zoneID = zoneID else { return }
-            if let room = dataStore.room(id: roomID),
-               let lifecycle = room.toRoomLifecycle() {
-                let messages = room.messages()
-                let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
-                RoomLifecycleRecordConverter.apply(lifecycle, to: roomRecord, messages: messages)
-                await syncCoordinator.save(roomRecord)
-                await syncCoordinator.sendChanges()
+            if let room = dataStore.room(id: roomID) {
+                await syncRoomToCloudKit(room)
             }
         }
     }
 
     /// Updates a room's state.
     func updateRoom(_ lifecycle: RoomLifecycle) async throws {
-        guard let syncCoordinator = syncCoordinator,
-              let zoneID = zoneID,
-              let dataStore = dataStore else {
+        guard let dataStore = dataStore else {
             throw StoreError.notConfigured
         }
 
@@ -437,13 +405,8 @@ final class SofterStore {
         if let room = room {
             room.apply(lifecycle, mergeStrategy: .remoteWins)
             dataStore.updateRoom(room)
+            await syncRoomToCloudKit(room)
         }
-
-        let messages = room?.messages() ?? []
-        let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
-        RoomLifecycleRecordConverter.apply(lifecycle, to: roomRecord, messages: messages)
-        await syncCoordinator.save(roomRecord)
-        await syncCoordinator.sendChanges()
     }
 
     /// Deletes a room and all its associated data.
@@ -454,12 +417,32 @@ final class SofterStore {
             throw StoreError.notConfigured
         }
 
+        let room = dataStore.room(id: id)
+        let isShared = room?.isSharedWithMe ?? false
+
         // Delete from local DB
         dataStore.deleteRoom(id: id)
 
-        // Delete from CloudKit (single Room3 record - messages are embedded)
-        let roomRecordID = CKRecord.ID(recordName: id, zoneID: zoneID)
-        await syncCoordinator.delete(recordID: roomRecordID)
+        // For shared-with-me rooms, only delete locally — we can't delete the owner's record
+        if isShared {
+            print("SofterStore: Deleted shared room \(id) locally (owner retains the record)")
+            return
+        }
+
+        // For our own rooms, delete from CloudKit too
+        let recordID: CKRecord.ID
+        if let systemFields = room?.ckSystemFields {
+            let record = RoomLifecycleRecordConverter.record(
+                fromSystemFields: systemFields,
+                recordName: id,
+                fallbackZoneID: zoneID
+            )
+            recordID = record.recordID
+        } else {
+            recordID = CKRecord.ID(recordName: id, zoneID: zoneID)
+        }
+
+        await syncCoordinator.delete(recordID: recordID)
         await syncCoordinator.sendChanges()
     }
 
@@ -470,9 +453,7 @@ final class SofterStore {
     }
 
     func saveMessage(_ message: Message) async throws {
-        guard let syncCoordinator = syncCoordinator,
-              let zoneID = zoneID,
-              let dataStore = dataStore else {
+        guard let dataStore = dataStore else {
             throw StoreError.notConfigured
         }
 
@@ -483,14 +464,8 @@ final class SofterStore {
         // Add message to room's embedded messages
         dataStore.addMessage(message, to: room)
 
-        // Sync room record to CloudKit (messages are embedded)
-        if let lifecycle = room.toRoomLifecycle() {
-            let messages = room.messages()
-            let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
-            RoomLifecycleRecordConverter.apply(lifecycle, to: roomRecord, messages: messages)
-            await syncCoordinator.save(roomRecord)
-            await syncCoordinator.sendChanges()
-        }
+        // Sync room record to CloudKit
+        await syncRoomToCloudKit(room)
     }
 
     // MARK: - Public API: Conversation Coordinator
@@ -514,8 +489,9 @@ final class SofterStore {
 
         let messageStorage = PersistenceStoreMessageStorage(
             dataStore: dataStore,
-            syncCoordinator: syncCoordinator,
-            zoneID: zoneID
+            syncRoom: { [weak self] room in
+                await self?.syncRoomToCloudKit(room)
+            }
         )
 
         return ConversationCoordinator(
@@ -534,13 +510,11 @@ final class SofterStore {
 
 private final class PersistenceStoreMessageStorage: MessageStorage, @unchecked Sendable {
     private let dataStore: PersistenceStore
-    private let syncCoordinator: SyncCoordinator?
-    private let zoneID: CKRecordZone.ID?
+    private let syncRoom: @Sendable (PersistedRoom) async -> Void
 
-    init(dataStore: PersistenceStore, syncCoordinator: SyncCoordinator?, zoneID: CKRecordZone.ID?) {
+    init(dataStore: PersistenceStore, syncRoom: @escaping @Sendable (PersistedRoom) async -> Void) {
         self.dataStore = dataStore
-        self.syncCoordinator = syncCoordinator
-        self.zoneID = zoneID
+        self.syncRoom = syncRoom
     }
 
     @MainActor
@@ -550,16 +524,8 @@ private final class PersistenceStoreMessageStorage: MessageStorage, @unchecked S
         // Add message to room's embedded messages
         dataStore.addMessage(message, to: room)
 
-        // Sync room record to CloudKit (messages are embedded)
-        if let syncCoordinator = syncCoordinator, let zoneID = zoneID {
-            if let lifecycle = room.toRoomLifecycle() {
-                let messages = room.messages()
-                let roomRecord = RoomLifecycleRecordConverter.record(from: lifecycle, zoneID: zoneID)
-                RoomLifecycleRecordConverter.apply(lifecycle, to: roomRecord, messages: messages)
-                await syncCoordinator.save(roomRecord)
-                await syncCoordinator.sendChanges()
-            }
-        }
+        // Sync room record to CloudKit
+        await syncRoom(room)
     }
 
     @MainActor

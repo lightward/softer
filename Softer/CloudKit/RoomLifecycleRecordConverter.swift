@@ -35,21 +35,6 @@ struct EmbeddedParticipant: Codable, Equatable {
         }
     }
 
-    /// Create a copy with the userRecordID set.
-    func withUserRecordID(_ userRecordID: String) -> EmbeddedParticipant {
-        var copy = self
-        // Need to reconstruct since userRecordID is let
-        return EmbeddedParticipant(
-            id: id,
-            nickname: nickname,
-            identifierType: identifierType,
-            identifierValue: identifierValue,
-            orderIndex: orderIndex,
-            hasSignaledHere: hasSignaledHere,
-            userRecordID: userRecordID
-        )
-    }
-
     /// Memberwise initializer for all fields.
     init(id: String, nickname: String, identifierType: String, identifierValue: String?, orderIndex: Int, hasSignaledHere: Bool, userRecordID: String?) {
         self.id = id
@@ -121,6 +106,37 @@ enum RoomLifecycleRecordConverter {
     // MARK: - Record Type Name
 
     static let roomRecordType = "Room3"
+
+    // MARK: - CKRecord System Fields
+
+    /// Encode a CKRecord's system fields (zone ID, change tag, share reference) to Data.
+    static func encodeSystemFields(of record: CKRecord) -> Data {
+        let coder = NSKeyedArchiver(requiringSecureCoding: true)
+        record.encodeSystemFields(with: coder)
+        coder.finishEncoding()
+        return coder.encodedData
+    }
+
+    /// Reconstruct a CKRecord from stored system fields, preserving zone ID and change tag.
+    /// Falls back to a fresh record if systemFields is nil.
+    static func record(fromSystemFields systemFields: Data?, recordName: String, fallbackZoneID: CKRecordZone.ID) -> CKRecord {
+        if let systemFields = systemFields {
+            do {
+                let coder = try NSKeyedUnarchiver(forReadingFrom: systemFields)
+                coder.requiresSecureCoding = true
+                if let record = CKRecord(coder: coder) {
+                    coder.finishDecoding()
+                    return record
+                }
+                coder.finishDecoding()
+            } catch {
+                print("RoomLifecycleRecordConverter: Failed to decode system fields: \(error)")
+            }
+        }
+        // Fallback: fresh record
+        let recordID = CKRecord.ID(recordName: recordName, zoneID: fallbackZoneID)
+        return CKRecord(recordType: roomRecordType, recordID: recordID)
+    }
 
     // MARK: - Room3 Record (RoomSpec + RoomState + Participants)
 

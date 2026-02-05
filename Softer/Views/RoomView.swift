@@ -531,14 +531,23 @@ struct RoomView: View {
     /// Find the current user's participant ID by matching store.localUserRecordID
     /// against the embedded participants' userRecordID.
     private func myParticipantID(in lifecycle: RoomLifecycle) -> String? {
-        guard let localUserRecordID = store.localUserRecordID else { return nil }
+        guard let localUserRecordID = store.localUserRecordID else {
+            print("RoomView.myParticipantID: no localUserRecordID")
+            return nil
+        }
 
         // Get embedded participants from persisted room
         guard let room = persistedRoom else { return nil }
         let embedded = room.embeddedParticipants()
 
+        print("RoomView.myParticipantID: localUserRecordID=\(localUserRecordID)")
+        for p in embedded {
+            print("  participant \(p.nickname): type=\(p.identifierType) userRecordID=\(p.userRecordID ?? "nil")")
+        }
+
         // Find participant matching local user's CloudKit record ID
         if let match = embedded.first(where: { $0.userRecordID == localUserRecordID }) {
+            print("RoomView.myParticipantID: matched by userRecordID -> \(match.id)")
             return match.id
         }
 
@@ -546,19 +555,12 @@ struct RoomView: View {
         // (userRecordID might not be set for currentUser identifier type)
         if lifecycle.spec.originatorID == lifecycle.spec.humanParticipants.first?.id {
             if let first = embedded.first(where: { $0.identifierType == "currentUser" }) {
+                print("RoomView.myParticipantID: matched by currentUser type -> \(first.id)")
                 return first.id
             }
         }
 
-        // Fallback: match by stored email (for share recipients whose userRecordID wasn't populated)
-        if let storedEmail = UserDefaults.standard.string(forKey: "SofterUserEmail")?.lowercased() {
-            if let match = embedded.first(where: {
-                $0.identifierType == "email" && $0.identifierValue?.lowercased() == storedEmail
-            }) {
-                return match.id
-            }
-        }
-
+        print("RoomView.myParticipantID: no match found")
         return nil
     }
 

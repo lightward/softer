@@ -4,6 +4,7 @@ import SwiftData
 struct RoomListView: View {
     let store: SofterStore
     @Binding var pendingRoomID: String?
+    var acceptingShare: Bool = false
     @State private var showCreateRoom = false
     @State private var navigationPath = NavigationPath()
     @State private var roomToDelete: RoomLifecycle?
@@ -20,8 +21,8 @@ struct RoomListView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             Group {
-                if !store.initialLoadCompleted {
-                    ProgressView()
+                if !store.initialLoadCompleted || acceptingShare {
+                    ProgressView(acceptingShare ? "Joining room..." : "")
                 } else if rooms.isEmpty {
                     ContentUnavailableView {
                         Label("No Rooms", systemImage: "bubble.left.and.bubble.right")
