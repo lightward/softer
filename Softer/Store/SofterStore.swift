@@ -247,6 +247,12 @@ final class SofterStore {
             resolvedParticipants: resolvedParticipants
         )
 
+        // Preserve participantsJSON from persisted room (has userRecordIDs that
+        // the converter would lose when resolvedParticipants is empty)
+        if resolvedParticipants.isEmpty {
+            record["participantsJSON"] = room.participantsJSON as NSString
+        }
+
         // Route to correct engine
         if room.isSharedWithMe {
             print("SofterStore: Saving room \(room.id) to shared database")
