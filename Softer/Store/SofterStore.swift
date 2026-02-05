@@ -294,8 +294,18 @@ final class SofterStore {
             let lookupInfos = RoomLifecycleRecordConverter.otherParticipantLookupInfos(from: roomRecord)
             if !lookupInfos.isEmpty {
                 do {
-                    try await syncCoordinator.shareRoom(roomRecord, withLookupInfos: lookupInfos)
+                    let shareURL = try await syncCoordinator.shareRoom(roomRecord, withLookupInfos: lookupInfos)
                     print("SofterStore: Shared room with \(lookupInfos.count) other participants")
+
+                    // Store the share URL locally
+                    if let shareURL = shareURL {
+                        await MainActor.run {
+                            if let room = dataStore.room(id: lifecycle.spec.id) {
+                                room.shareURL = shareURL.absoluteString
+                                dataStore.updateRoom(room)
+                            }
+                        }
+                    }
                 } catch {
                     print("SofterStore: Failed to share room: \(error)")
                 }

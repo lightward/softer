@@ -169,8 +169,10 @@ actor SyncCoordinator {
 
     /// Share a room record with participants identified by email/phone.
     /// Creates a CKShare if one doesn't exist, adds participants.
-    func shareRoom(_ roomRecord: CKRecord, withLookupInfos lookupInfos: [CKUserIdentity.LookupInfo]) async throws {
-        guard !lookupInfos.isEmpty else { return }
+    /// Returns the share URL if successful.
+    @discardableResult
+    func shareRoom(_ roomRecord: CKRecord, withLookupInfos lookupInfos: [CKUserIdentity.LookupInfo]) async throws -> URL? {
+        guard !lookupInfos.isEmpty else { return nil }
 
         print("SyncCoordinator: Sharing room \(roomRecord.recordID.recordName) with \(lookupInfos.count) participants")
 
@@ -211,10 +213,11 @@ actor SyncCoordinator {
                 switch result {
                 case .success:
                     print("SyncCoordinator: Share created/updated successfully")
-                    if let shareURL = share.url {
+                    let shareURL = share.url
+                    if let shareURL = shareURL {
                         print("SyncCoordinator: Share URL: \(shareURL)")
                     }
-                    continuation.resume()
+                    continuation.resume(returning: shareURL)
                 case .failure(let error):
                     print("SyncCoordinator: Failed to save share: \(error)")
                     continuation.resume(throwing: error)

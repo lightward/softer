@@ -7,6 +7,7 @@ struct RoomListView: View {
     @State private var showCreateRoom = false
     @State private var navigationPath = NavigationPath()
     @State private var roomToDelete: RoomLifecycle?
+    @State private var shareURL: URL?
 
     // SwiftUI's @Query observes SwiftData directly — no manual reactivity needed
     @Query(sort: \PersistedRoom.createdAt, order: .reverse)
@@ -44,6 +45,15 @@ struct RoomListView: View {
                                     roomToDelete = lifecycle
                                 } label: {
                                     Label("Delete", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                if let urlString = persistedRooms.first(where: { $0.id == lifecycle.spec.id })?.shareURL,
+                                   let url = URL(string: urlString) {
+                                    ShareLink(item: url) {
+                                        Label("Share", systemImage: "square.and.arrow.up")
+                                    }
+                                    .tint(.blue)
                                 }
                             }
                         }

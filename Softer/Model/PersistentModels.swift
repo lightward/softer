@@ -28,6 +28,9 @@ final class PersistedRoom {
     var createdAt: Date
     var modifiedAt: Date
 
+    // Sharing
+    var shareURL: String?
+
     init(
         id: String = UUID().uuidString,
         originatorID: String,
