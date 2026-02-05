@@ -268,7 +268,15 @@ final class SofterStore {
     // MARK: - Public API: Rooms
 
     /// Refreshes rooms from CloudKit via SyncCoordinator.
+    /// Uses hard refresh (clears change tokens) for reliable results.
     func refreshRooms() async {
+        guard let syncCoordinator = syncCoordinator else { return }
+        await syncCoordinator.hardRefresh()
+    }
+
+    /// Lightweight fetch — asks engines for changes since last token.
+    /// Used for foreground triggers where the engine's internal state is likely fresh.
+    func fetchChanges() async {
         guard let syncCoordinator = syncCoordinator else { return }
         await syncCoordinator.fetchChanges()
     }

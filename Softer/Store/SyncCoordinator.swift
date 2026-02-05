@@ -135,6 +135,39 @@ actor SyncCoordinator {
         sharedDelegate.coordinator = nil
     }
 
+    /// Hard refresh: stop engines, clear change tokens, restart, and fetch everything.
+    /// Use for pull-to-refresh when the normal change token-based fetch returns stale data.
+    func hardRefresh() async {
+        guard onRecordFetched != nil else { return }
+
+        stop()
+        clearPersistedState()
+
+        // Recreate engines with no persisted state (nil = full fetch)
+        let configuration = CKSyncEngine.Configuration(
+            database: database,
+            stateSerialization: nil,
+            delegate: delegate
+        )
+        let engine = CKSyncEngine(configuration)
+        self.syncEngine = engine
+        delegate.coordinator = self
+
+        engine.state.add(pendingDatabaseChanges: [.saveZone(CKRecordZone(zoneID: zoneID))])
+
+        let sharedConfiguration = CKSyncEngine.Configuration(
+            database: sharedDatabase,
+            stateSerialization: nil,
+            delegate: sharedDelegate
+        )
+        let sharedEngine = CKSyncEngine(sharedConfiguration)
+        self.sharedSyncEngine = sharedEngine
+        sharedDelegate.coordinator = self
+        sharedDelegate.isShared = true
+
+        await fetchChanges()
+    }
+
     // MARK: - Record Operations
 
     /// Queue a record to be saved to CloudKit (private database).
