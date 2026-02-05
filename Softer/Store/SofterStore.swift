@@ -118,10 +118,6 @@ final class SofterStore {
             )
 
             await coordinator.fetchChanges()
-
-            // Fetch pending invitations from public database
-            await fetchInvitations()
-
             initialLoadCompleted = true
 
         } catch {
@@ -182,43 +178,6 @@ final class SofterStore {
             throw StoreError.notConfigured
         }
         return try await syncCoordinator.acceptShare(from: url)
-    }
-
-    // MARK: - Invitations
-
-    /// Pending invitations from other users (fetched from public database).
-    private(set) var pendingInvitations: [Invitation] = []
-
-    /// Fetch pending invitations for the current user.
-    func fetchInvitations() async {
-        guard let syncCoordinator = syncCoordinator else { return }
-        do {
-            let invitations = try await syncCoordinator.fetchInvitations()
-            await MainActor.run {
-                self.pendingInvitations = invitations
-            }
-        } catch {
-            print("SofterStore: Failed to fetch invitations: \(error)")
-        }
-    }
-
-    /// Accept an invitation and navigate to the room.
-    func acceptInvitation(_ invitation: Invitation) async throws -> String? {
-        guard let syncCoordinator = syncCoordinator else {
-            throw StoreError.notConfigured
-        }
-
-        let roomID = try await syncCoordinator.acceptShareFromInvitation(invitation)
-
-        // Remove from local list
-        await MainActor.run {
-            pendingInvitations.removeAll { $0.id == invitation.id }
-        }
-
-        // Refresh to get the shared room
-        await refreshRooms()
-
-        return roomID
     }
 
     /// Signal "here" for a participant in a room.
@@ -430,33 +389,6 @@ final class SofterStore {
                             if let room = dataStore.room(id: lifecycle.spec.id) {
                                 room.shareURL = shareURL.absoluteString
                                 dataStore.updateRoom(room)
-                            }
-                        }
-
-                        // Create invitations in public database for in-app discovery
-                        // Use the email addresses from participant specs (what was used to invite them)
-                        let otherParticipantEmails = spec.participants
-                            .filter { $0.id != spec.originatorID && !$0.isLightward }
-                            .compactMap { participant -> String? in
-                                if case .email(let email) = participant.identifier {
-                                    return email
-                                }
-                                return nil
-                            }
-
-                        if !otherParticipantEmails.isEmpty, let fromUserRecordID = localUserRecordID {
-                            let senderName = spec.participants.first { $0.id == spec.originatorID }?.nickname ?? "Someone"
-                            do {
-                                try await syncCoordinator.createInvitations(
-                                    for: otherParticipantEmails,
-                                    shareURL: shareURL,
-                                    roomID: lifecycle.spec.id,
-                                    senderName: senderName,
-                                    fromUserRecordID: fromUserRecordID
-                                )
-                                print("SofterStore: Created invitations for \(otherParticipantEmails.count) participant(s)")
-                            } catch {
-                                print("SofterStore: Failed to create invitations: \(error)")
                             }
                         }
                     }

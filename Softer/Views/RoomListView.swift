@@ -7,7 +7,6 @@ struct RoomListView: View {
     @State private var showCreateRoom = false
     @State private var navigationPath = NavigationPath()
     @State private var roomToDelete: RoomLifecycle?
-    @State private var acceptingInvitation: Invitation?
 
     // SwiftUI's @Query observes SwiftData directly — no manual reactivity needed
     @Query(sort: \PersistedRoom.createdAt, order: .reverse)
@@ -18,72 +17,42 @@ struct RoomListView: View {
         persistedRooms.compactMap { $0.toRoomLifecycle() }.filter { !$0.isDefunct }
     }
 
-    /// Check if there's any content to show (rooms or invitations)
-    private var hasContent: Bool {
-        !rooms.isEmpty || !store.pendingInvitations.isEmpty
-    }
-
     var body: some View {
         NavigationStack(path: $navigationPath) {
             Group {
                 if !store.initialLoadCompleted {
                     ProgressView()
-                } else if !hasContent {
-                    ScrollView {
-                        ContentUnavailableView {
-                            Label("No Rooms", systemImage: "bubble.left.and.bubble.right")
-                        } description: {
-                            Text("Create a room to start a conversation with Lightward.")
-                        } actions: {
-                            Button("Create Room") {
-                                showCreateRoom = true
-                            }
-                            .buttonStyle(.borderedProminent)
+                } else if rooms.isEmpty {
+                    ContentUnavailableView {
+                        Label("No Rooms", systemImage: "bubble.left.and.bubble.right")
+                    } description: {
+                        Text("Create a room to start a conversation with Lightward.")
+                    } actions: {
+                        Button("Create Room") {
+                            showCreateRoom = true
                         }
-                    }
-                    .refreshable {
-                        await store.refreshRooms()
-                        await store.fetchInvitations()
+                        .buttonStyle(.borderedProminent)
                     }
                 } else {
                     List {
-                        // Invitations section
-                        if !store.pendingInvitations.isEmpty {
-                            Section("Invitations") {
-                                ForEach(store.pendingInvitations) { invitation in
-                                    InvitationRow(
-                                        invitation: invitation,
-                                        isAccepting: acceptingInvitation?.id == invitation.id
-                                    ) {
-                                        acceptInvitation(invitation)
-                                    }
+                        ForEach(rooms, id: \.spec.id) { lifecycle in
+                            NavigationLink(value: lifecycle.spec.id) {
+                                RoomRow(lifecycle: lifecycle)
+                            }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    roomToDelete = lifecycle
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
                                 }
                             }
-                        }
-
-                        // Rooms section
-                        if !rooms.isEmpty {
-                            Section(store.pendingInvitations.isEmpty ? "" : "Rooms") {
-                                ForEach(rooms, id: \.spec.id) { lifecycle in
-                                    NavigationLink(value: lifecycle.spec.id) {
-                                        RoomRow(lifecycle: lifecycle)
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                if let urlString = persistedRooms.first(where: { $0.id == lifecycle.spec.id })?.shareURL,
+                                   let url = URL(string: urlString) {
+                                    ShareLink(item: url) {
+                                        Label("Share", systemImage: "square.and.arrow.up")
                                     }
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                        Button(role: .destructive) {
-                                            roomToDelete = lifecycle
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
-                                        }
-                                    }
-                                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                        if let urlString = persistedRooms.first(where: { $0.id == lifecycle.spec.id })?.shareURL,
-                                           let url = URL(string: urlString) {
-                                            ShareLink(item: url) {
-                                                Label("Share", systemImage: "square.and.arrow.up")
-                                            }
-                                            .tint(.blue)
-                                        }
-                                    }
+                                    .tint(.blue)
                                 }
                             }
                         }
@@ -112,12 +81,10 @@ struct RoomListView: View {
             }
             .refreshable {
                 await store.refreshRooms()
-                await store.fetchInvitations()
             }
             .onAppear {
                 Task {
                     await store.refreshRooms()
-                    await store.fetchInvitations()
                 }
             }
             .onChange(of: pendingRoomID) { _, roomID in
@@ -153,19 +120,6 @@ struct RoomListView: View {
         }
     }
 
-    private func acceptInvitation(_ invitation: Invitation) {
-        acceptingInvitation = invitation
-        Task {
-            do {
-                if let roomID = try await store.acceptInvitation(invitation) {
-                    navigationPath.append(roomID)
-                }
-            } catch {
-                print("RoomListView: Failed to accept invitation: \(error)")
-            }
-            acceptingInvitation = nil
-        }
-    }
 }
 
 struct RoomRow: View {
@@ -253,33 +207,3 @@ struct RoomRow: View {
     }
 }
 
-struct InvitationRow: View {
-    let invitation: Invitation
-    let isAccepting: Bool
-    let onAccept: () -> Void
-
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("From \(invitation.senderName)")
-                    .font(.headline)
-                Text("Tap to join the conversation")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            if isAccepting {
-                ProgressView()
-            } else {
-                Button("Accept") {
-                    onAccept()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
