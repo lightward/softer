@@ -198,20 +198,25 @@ final class SofterStore {
     private func checkAndTransitionRoom(_ room: PersistedRoom) {
         guard var lifecycle = room.toRoomLifecycle() else { return }
 
-        if case .pendingHumans = lifecycle.state {
-            // Check each signaled participant through the state machine
+        if case .pendingHumans(let alreadySignaled) = lifecycle.state {
+            let allHumans = Set(lifecycle.spec.humanParticipants.map { $0.id })
             let signaled = room.embeddedParticipants().filter { $0.hasSignaledHere }
+            print("checkAndTransitionRoom: state=pendingHumans alreadySignaled=\(alreadySignaled) embeddedSignaled=\(signaled.map { $0.id }) allHumans=\(allHumans)")
+
             for participant in signaled {
                 let effects = lifecycle.apply(event: .humanSignaledHere(participantID: participant.id))
+                print("checkAndTransitionRoom: applied humanSignaledHere(\(participant.id)) effects=\(effects) newState=\(lifecycle.state)")
                 if effects.contains(.capturePayment) {
-                    // Skip payment for now — go straight to active
                     _ = lifecycle.apply(event: .paymentCaptured)
+                    print("checkAndTransitionRoom: transitioned to active!")
                     break
                 }
             }
 
-            // Apply the potentially-transitioned state back
             room.apply(lifecycle, mergeStrategy: .remoteWins)
+            print("checkAndTransitionRoom: final stateType=\(room.stateType)")
+        } else {
+            print("checkAndTransitionRoom: room \(room.id) state=\(room.stateType), not pendingHumans — skipping")
         }
     }
 
@@ -372,6 +377,36 @@ final class SofterStore {
 
         // Save to local DB (participants and messages embedded in room)
         let persistedRoom = PersistedRoom.from(lifecycle)
+
+        // Populate userRecordIDs from resolved participants
+        var embedded = persistedRoom.embeddedParticipants()
+        for (index, participant) in embedded.enumerated() {
+            if let resolved = resolvedParticipants.first(where: { $0.spec.id == participant.id }) {
+                embedded[index] = EmbeddedParticipant(
+                    id: participant.id,
+                    nickname: participant.nickname,
+                    identifierType: participant.identifierType,
+                    identifierValue: participant.identifierValue,
+                    orderIndex: participant.orderIndex,
+                    hasSignaledHere: participant.hasSignaledHere,
+                    userRecordID: resolved.userRecordID
+                )
+            }
+            // Set originator's userRecordID from local user
+            if participant.identifierType == "currentUser", let localID = localUserRecordID {
+                embedded[index] = EmbeddedParticipant(
+                    id: participant.id,
+                    nickname: participant.nickname,
+                    identifierType: participant.identifierType,
+                    identifierValue: participant.identifierValue,
+                    orderIndex: participant.orderIndex,
+                    hasSignaledHere: participant.hasSignaledHere,
+                    userRecordID: localID
+                )
+            }
+        }
+        persistedRoom.setParticipants(embedded)
+
         persistedRoom.addMessage(openingMessage)
         dataStore.saveRoom(persistedRoom)
 

@@ -357,14 +357,14 @@ struct RoomView: View {
     }
 
     private func isMyTurn(lifecycle: RoomLifecycle) -> Bool {
-        guard let turnIdx = turnState?.currentTurnIndex,
-              turnIdx < lifecycle.spec.participants.count else { return false }
+        guard let turnIdx = turnState?.currentTurnIndex else { return false }
 
-        let current = lifecycle.spec.participants[turnIdx]
-        // For now, assume local user is the first human participant
-        // In production, would match against actual CloudKit user
-        let localParticipant = lifecycle.spec.humanParticipants.first
-        return current.id == localParticipant?.id
+        let participants = lifecycle.spec.participants
+        guard !participants.isEmpty else { return false }
+        let current = participants[turnIdx % participants.count]
+
+        guard let myID = myParticipantID(in: lifecycle) else { return false }
+        return current.id == myID
     }
 
     private func loadRoom() async {
@@ -472,8 +472,7 @@ struct RoomView: View {
         let text = composeText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
-        let authorName = lifecycle.spec.humanParticipants.first?.nickname ?? "Me"
-        let authorID = lifecycle.spec.humanParticipants.first?.id ?? "unknown"
+        let (authorID, authorName) = myAuthor(in: lifecycle)
 
         composeText = ""
         clearDraft()
@@ -495,8 +494,7 @@ struct RoomView: View {
     private func yieldTurn(lifecycle: RoomLifecycle) async {
         guard let convCoord = conversationCoordinator else { return }
 
-        let authorName = lifecycle.spec.humanParticipants.first?.nickname ?? "Me"
-        let authorID = lifecycle.spec.humanParticipants.first?.id ?? "unknown"
+        let (authorID, authorName) = myAuthor(in: lifecycle)
 
         isSending = true
 
@@ -513,15 +511,14 @@ struct RoomView: View {
     }
 
     private func isMyHandRaised(lifecycle: RoomLifecycle) -> Bool {
-        guard let myID = lifecycle.spec.humanParticipants.first?.id else { return false }
+        guard let myID = myParticipantID(in: lifecycle) else { return false }
         return turnState?.raisedHands.contains(myID) ?? false
     }
 
     private func toggleHandRaise(lifecycle: RoomLifecycle, currentlyRaised: Bool) async {
         guard let convCoord = conversationCoordinator else { return }
 
-        let authorName = lifecycle.spec.humanParticipants.first?.nickname ?? "Me"
-        let authorID = lifecycle.spec.humanParticipants.first?.id ?? "unknown"
+        let (authorID, authorName) = myAuthor(in: lifecycle)
 
         if currentlyRaised {
             await convCoord.lowerHand(participantID: authorID)
@@ -574,6 +571,17 @@ struct RoomView: View {
 
     /// Find the current user's participant ID by matching store.localUserRecordID
     /// against the embedded participants' userRecordID.
+    /// Returns (authorID, authorName) for the local user in this room.
+    private func myAuthor(in lifecycle: RoomLifecycle) -> (String, String) {
+        if let myID = myParticipantID(in: lifecycle),
+           let participant = lifecycle.spec.participants.first(where: { $0.id == myID }) {
+            return (participant.id, participant.nickname)
+        }
+        // Fallback: first human participant
+        let fallback = lifecycle.spec.humanParticipants.first
+        return (fallback?.id ?? "unknown", fallback?.nickname ?? "Me")
+    }
+
     private func myParticipantID(in lifecycle: RoomLifecycle) -> String? {
         guard let localUserRecordID = store.localUserRecordID else {
             print("RoomView.myParticipantID: no localUserRecordID")
