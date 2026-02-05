@@ -211,6 +211,9 @@ actor SyncCoordinator {
                 switch result {
                 case .success:
                     print("SyncCoordinator: Share created/updated successfully")
+                    if let shareURL = share.url {
+                        print("SyncCoordinator: Share URL: \(shareURL)")
+                    }
                     continuation.resume()
                 case .failure(let error):
                     print("SyncCoordinator: Failed to save share: \(error)")
