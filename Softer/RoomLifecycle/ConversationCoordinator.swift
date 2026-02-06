@@ -33,8 +33,8 @@ actor ConversationCoordinator {
 
     /// Current participant whose turn it is.
     var currentTurnParticipant: ParticipantSpec? {
-        guard turnState.currentTurnIndex < spec.participants.count else { return nil }
-        return spec.participants[turnState.currentTurnIndex]
+        guard !spec.participants.isEmpty else { return nil }
+        return spec.participants[turnState.currentTurnIndex % spec.participants.count]
     }
 
     /// Whether it's currently Lightward's turn.

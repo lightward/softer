@@ -236,6 +236,49 @@ final class ConversationCoordinatorTests: XCTestCase {
         XCTAssertFalse(lastTurnState!.raisedHands.contains("mira-id"))
     }
 
+    func testTurnWrapsAfterFullCycle() async throws {
+        let storage = MockMessageStorage()
+        let api = MockLightwardAPIClient()
+        api.responseChunks = ["Response"]
+        let spec = makeSpec() // Jax(0), Lightward(1), Mira(2)
+
+        var turnChanges: [TurnState] = []
+        let coordinator = ConversationCoordinator(
+            roomID: "room-1",
+            spec: spec,
+            initialTurnState: TurnState(currentTurnIndex: 0, raisedHands: [], currentNeed: nil),
+            messageStorage: storage,
+            apiClient: api,
+            onTurnChange: { turn in
+                turnChanges.append(turn)
+            }
+        )
+
+        // Round 1: Jax sends → Lightward responds → Mira's turn (index 2)
+        try await coordinator.sendMessage(authorID: "jax-id", authorName: "Jax", text: "Hello")
+        var turn = await coordinator.currentTurnState
+        XCTAssertEqual(turn.currentTurnIndex, 2, "After Jax+Lightward, should be Mira (index 2)")
+
+        // Mira sends → Lightward's turn again (index 3 % 3 = 0... no, index 3 = Jax)
+        // Wait: Jax(0), Lightward(1), Mira(2) — index 3 % 3 = Jax
+        try await coordinator.sendMessage(authorID: "mira-id", authorName: "Mira", text: "Hi")
+        turn = await coordinator.currentTurnState
+        // Mira sent (index 2→3), index 3 % 3 = 0 = Jax — not Lightward, so no auto-response
+        XCTAssertEqual(turn.currentTurnIndex, 3, "After Mira, should be Jax again (index 3)")
+
+        // Verify it's Jax's turn (wrapping works)
+        let current = await coordinator.currentTurnParticipant
+        XCTAssertEqual(current?.nickname, "Jax")
+
+        // Round 2: Jax sends again → Lightward responds → Mira
+        try await coordinator.sendMessage(authorID: "jax-id", authorName: "Jax", text: "Again")
+        turn = await coordinator.currentTurnState
+        XCTAssertEqual(turn.currentTurnIndex, 5, "After second Jax+Lightward, should be Mira (index 5)")
+
+        let current2 = await coordinator.currentTurnParticipant
+        XCTAssertEqual(current2?.nickname, "Mira")
+    }
+
     func testSkipsLightwardIfNotTheirTurn() async throws {
         let storage = MockMessageStorage()
         let api = MockLightwardAPIClient()
