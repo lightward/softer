@@ -16,6 +16,7 @@
 		2136E9EBE1CC51222EE3C5D3 /* SofterStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EBF7A5B844B07826B5E5565 /* SofterStoreTests.swift */; };
 		224D566BFCDD4F57AC7054D8 /* ApplePayCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CCBBDF48A5A43C9A3E6028D /* ApplePayCoordinator.swift */; };
 		27CA62019F0540BBABFCC032 /* ParticipantSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = E67CC0BB96684CE58F2B1990 /* ParticipantSpec.swift */; };
+		2CBE05DF0E9789546ACB99BB /* ParticipantIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 409ACFE8C41F574E9E62109A /* ParticipantIdentity.swift */; };
 		3039B9E64A2946D3906B3D6B /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 240B4B7CE85349DCA8FFBA0C /* RootView.swift */; };
 		313A2ACEDB8947F1A0B7A4FB /* RoomSpecTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16DE1199EEC14EC3874EB0D8 /* RoomSpecTests.swift */; };
 		3516084AC4304DF18CC1C100 /* RoomLifecycleCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2E332572B0B4F77A0F526FA /* RoomLifecycleCoordinatorTests.swift */; };
@@ -34,6 +35,7 @@
 		869B95E779AC4AF9A167C4BE /* ParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD42E62B74C4A27966E2A5F /* ParticipantResolver.swift */; };
 		87ABFD3E123E407590749227 /* LightwardEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04CAFE64AAC44DB398020362 /* LightwardEvaluator.swift */; };
 		8A1C3D5E7F2B4A6C9E0D1B3F /* CloudKitMessageStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E9F7A2B6C8D4E1F5A0B2C4D /* CloudKitMessageStorage.swift */; };
+		98B45ECA978100D2E179DAF9 /* ParticipantIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FBF5BB47BBE8B5BEBEDDD1A /* ParticipantIdentityTests.swift */; };
 		A0FBE3C6173532AE05A5BFBA /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC38359FE0404435F413B4A0 /* SyncCoordinator.swift */; };
 		A1B2C3D4E5F60001000A0001 /* SofterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0001 /* SofterApp.swift */; };
 		A1B2C3D4E5F60001000A0003 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0003 /* Message.swift */; };
@@ -87,10 +89,12 @@
 		3B0FD0A47B8A4CE093A55C51 /* MockLightwardEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockLightwardEvaluator.swift; sourceTree = "<group>"; };
 		3E9F7A2B6C8D4E1F5A0B2C4D /* CloudKitMessageStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitMessageStorage.swift; sourceTree = "<group>"; };
 		3EBF7A5B844B07826B5E5565 /* SofterStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SofterStoreTests.swift; sourceTree = "<group>"; };
+		409ACFE8C41F574E9E62109A /* ParticipantIdentity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ParticipantIdentity.swift; sourceTree = "<group>"; };
 		4232AB080E07A915C959927F /* PersistenceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PersistenceStore.swift; sourceTree = "<group>"; };
 		4298F64186A04345A0042E1C /* RoomLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleTests.swift; sourceTree = "<group>"; };
 		479C528F372C163688F94F75 /* PersistentModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PersistentModels.swift; sourceTree = "<group>"; };
 		4C689E9D510743E99AABCCDA /* RoomSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomSpec.swift; sourceTree = "<group>"; };
+		5FBF5BB47BBE8B5BEBEDDD1A /* ParticipantIdentityTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ParticipantIdentityTests.swift; sourceTree = "<group>"; };
 		747396D5996F4EC99BA754F8 /* PaymentTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentTier.swift; sourceTree = "<group>"; };
 		7849235FF4804E9197625236 /* LightwardRoomEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightwardRoomEvaluator.swift; sourceTree = "<group>"; };
 		7CCD68076381EEFBD294C261 /* SyncStatus.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SyncStatus.swift; sourceTree = "<group>"; };
@@ -279,6 +283,7 @@
 				F987120DCC0AF8607E32CBC0 /* MessageStorageTests.swift */,
 				FA7279B13D892A2E56D34AF8 /* ConversationCoordinatorTests.swift */,
 				3EBF7A5B844B07826B5E5565 /* SofterStoreTests.swift */,
+				5FBF5BB47BBE8B5BEBEDDD1A /* ParticipantIdentityTests.swift */,
 			);
 			path = SofterTests;
 			sourceTree = "<group>";
@@ -305,6 +310,7 @@
 			children = (
 				A1B2C3D4E5F60002000A0021 /* Constants.swift */,
 				A1B2C3D4E5F60002000A0022 /* NotificationHandler.swift */,
+				409ACFE8C41F574E9E62109A /* ParticipantIdentity.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -459,6 +465,7 @@
 				A0FBE3C6173532AE05A5BFBA /* SyncCoordinator.swift in Sources */,
 				47140CAA73055D06F7B19EC8 /* PersistenceStore.swift in Sources */,
 				0933C2F4E143E6FD79F9B11C /* PersistentModels.swift in Sources */,
+				2CBE05DF0E9789546ACB99BB /* ParticipantIdentity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -481,6 +488,7 @@
 				FBE471D8915CD8321CD8A682 /* MessageStorageTests.swift in Sources */,
 				0026756D8A23D54D210F10F4 /* ConversationCoordinatorTests.swift in Sources */,
 				2136E9EBE1CC51222EE3C5D3 /* SofterStoreTests.swift in Sources */,
+				98B45ECA978100D2E179DAF9 /* ParticipantIdentityTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -630,8 +638,8 @@
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Softer/Info.plist;
-				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_CKSharingSupported = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -665,8 +673,8 @@
 				ENABLE_MODULE_VERIFIER = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Softer/Info.plist;
-				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_CKSharingSupported = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

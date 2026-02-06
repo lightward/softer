@@ -156,6 +156,11 @@ final class SofterStore {
                     room.ckSystemFields = RoomLifecycleRecordConverter.encodeSystemFields(of: record)
                     room.isSharedWithMe = isShared
 
+                    // For shared rooms, populate local user's identity from the CKShare
+                    if isShared, let syncCoordinator = syncCoordinator {
+                        await populateLocalUserIdentity(in: room, from: record, using: syncCoordinator)
+                    }
+
                     // Check if room needs state transition (e.g., all humans signaled → active)
                     checkAndTransitionRoom(room)
 
@@ -195,6 +200,38 @@ final class SofterStore {
     @MainActor
     private func handleStatusChange(_ status: SyncStatus) async {
         self.syncStatus = status
+    }
+
+    // MARK: - Shared Room Identity
+
+    /// For shared rooms, use the CKShare to identify which embedded participant
+    /// is the local user, and populate their userRecordID if missing.
+    private func populateLocalUserIdentity(in room: PersistedRoom, from record: CKRecord, using syncCoordinator: SyncCoordinator) async {
+        guard let localUserRecordID = localUserRecordID else { return }
+
+        let embedded = room.embeddedParticipants()
+
+        // Already matched? Skip the share fetch.
+        if embedded.contains(where: { $0.userRecordID == localUserRecordID }) { return }
+
+        // Ask the CKShare who we are
+        guard let shareUserRecordID = await syncCoordinator.currentUserRecordID(forShareOf: record) else { return }
+
+        let updated = ParticipantIdentity.populateUserRecordID(
+            in: embedded,
+            shareUserRecordID: shareUserRecordID,
+            localUserRecordID: localUserRecordID
+        )
+
+        if updated != embedded {
+            for p in updated where p.userRecordID == shareUserRecordID {
+                let wasAlreadySet = embedded.first(where: { $0.id == p.id })?.userRecordID == shareUserRecordID
+                if !wasAlreadySet {
+                    print("SofterStore: Populated userRecordID for \(p.nickname) from CKShare")
+                }
+            }
+            room.setParticipants(updated)
+        }
     }
 
     // MARK: - State Transition Helpers

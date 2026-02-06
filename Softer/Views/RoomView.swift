@@ -592,7 +592,6 @@ struct RoomView: View {
             return nil
         }
 
-        // Get embedded participants from persisted room
         guard let room = persistedRoom else { return nil }
         let embedded = room.embeddedParticipants()
 
@@ -601,23 +600,14 @@ struct RoomView: View {
             print("  participant \(p.nickname): type=\(p.identifierType) userRecordID=\(p.userRecordID ?? "nil")")
         }
 
-        // Find participant matching local user's CloudKit record ID
-        if let match = embedded.first(where: { $0.userRecordID == localUserRecordID }) {
-            print("RoomView.myParticipantID: matched by userRecordID -> \(match.id)")
-            return match.id
-        }
+        let result = ParticipantIdentity.findLocalParticipant(
+            in: embedded,
+            localUserRecordID: localUserRecordID,
+            isSharedWithMe: room.isSharedWithMe
+        )
 
-        // Fallback: if this is a room we created, we're the first human participant
-        // (userRecordID might not be set for currentUser identifier type)
-        if lifecycle.spec.originatorID == lifecycle.spec.humanParticipants.first?.id {
-            if let first = embedded.first(where: { $0.identifierType == "currentUser" }) {
-                print("RoomView.myParticipantID: matched by currentUser type -> \(first.id)")
-                return first.id
-            }
-        }
-
-        print("RoomView.myParticipantID: no match found")
-        return nil
+        print("RoomView.myParticipantID: result=\(result ?? "nil")")
+        return result
     }
 
     private func signalHere(lifecycle: RoomLifecycle) async {

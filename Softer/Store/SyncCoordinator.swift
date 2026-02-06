@@ -203,6 +203,22 @@ actor SyncCoordinator {
         }
     }
 
+    /// Fetch the current user's record ID from a CKShare associated with a record.
+    /// Returns the userRecordID string, or nil if unavailable.
+    func currentUserRecordID(forShareOf record: CKRecord) async -> String? {
+        guard let shareRef = record.share else { return nil }
+
+        do {
+            let share = try await sharedDatabase.record(for: shareRef.recordID) as? CKShare
+            let userRecordID = share?.currentUserParticipant?.userIdentity.userRecordID?.recordName
+            print("SyncCoordinator: Share currentUser recordID = \(userRecordID ?? "nil")")
+            return userRecordID
+        } catch {
+            print("SyncCoordinator: Failed to fetch share: \(error)")
+            return nil
+        }
+    }
+
     // MARK: - Record Operations
 
     /// Queue a record to be saved to CloudKit (private database).
