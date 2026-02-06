@@ -137,6 +137,20 @@ final class ParticipantIdentityTests: XCTestCase {
         XCTAssertNil(result[1].userRecordID)
     }
 
+    func testStampsLocalUserRecordIDNotShareID() {
+        // CKShare can return __defaultOwner__ instead of the real record name.
+        // populateUserRecordID should stamp the canonical localUserRecordID.
+        let p = participant(id: "p1", nickname: "Abe", type: "email", value: "abe@example.com", userRecordID: nil)
+
+        let result = ParticipantIdentity.populateUserRecordID(
+            in: [p],
+            shareUserRecordID: "__defaultOwner__",
+            localUserRecordID: "rec-abe-real"
+        )
+
+        XCTAssertEqual(result[0].userRecordID, "rec-abe-real")
+    }
+
     func testMultipleNilUserRecordIDs() {
         // Only the first eligible participant gets populated
         let p1 = participant(id: "p1", nickname: "Abe", type: "email", value: "abe@example.com", orderIndex: 0, userRecordID: nil)
@@ -150,5 +164,33 @@ final class ParticipantIdentityTests: XCTestCase {
 
         XCTAssertEqual(result[0].userRecordID, "rec-abe")
         XCTAssertNil(result[1].userRecordID)
+    }
+
+    // MARK: - preserveLocalUserRecordIDs
+
+    func testPreservesLocalUserRecordIDWhenRemoteIsNil() {
+        let local = [
+            participant(id: "p1", nickname: "Abe", type: "email", userRecordID: "rec-abe"),
+            participant(id: "p2", nickname: "Isaac", type: "currentUser", orderIndex: 1, userRecordID: "rec-isaac"),
+        ]
+        let remote = [
+            participant(id: "p1", nickname: "Abe", type: "email", userRecordID: nil),
+            participant(id: "p2", nickname: "Isaac", type: "currentUser", orderIndex: 1, userRecordID: "rec-isaac"),
+        ]
+
+        let result = ParticipantIdentity.preserveLocalUserRecordIDs(remote: remote, local: local)
+
+        XCTAssertEqual(result[0].userRecordID, "rec-abe")
+        XCTAssertEqual(result[1].userRecordID, "rec-isaac")
+    }
+
+    func testRemoteUserRecordIDWinsOverLocal() {
+        // If remote has a non-nil value, it should NOT be overwritten
+        let local = [participant(id: "p1", nickname: "Abe", type: "email", userRecordID: "old-id")]
+        let remote = [participant(id: "p1", nickname: "Abe", type: "email", userRecordID: "new-id")]
+
+        let result = ParticipantIdentity.preserveLocalUserRecordIDs(remote: remote, local: local)
+
+        XCTAssertEqual(result[0].userRecordID, "new-id")
     }
 }

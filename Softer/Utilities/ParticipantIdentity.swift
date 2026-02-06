@@ -33,8 +33,10 @@ enum ParticipantIdentity {
 
     /// Populate the local user's userRecordID in embedded participants.
     ///
-    /// Called when a shared room is fetched — the CKShare tells us our recordID,
-    /// and we need to stamp it onto the right embedded participant.
+    /// Called when a shared room is fetched — the CKShare tells us which
+    /// participant we are (`shareUserRecordID`), but we stamp the canonical
+    /// `localUserRecordID` because the share can return constants like
+    /// `__defaultOwner__` instead of real record names.
     ///
     /// Returns the updated array, or the original if no change was needed.
     static func populateUserRecordID(
@@ -62,12 +64,40 @@ enum ParticipantIdentity {
                     identifierValue: participant.identifierValue,
                     orderIndex: participant.orderIndex,
                     hasSignaledHere: participant.hasSignaledHere,
-                    userRecordID: shareUserRecordID
+                    userRecordID: localUserRecordID
                 )
                 break
             }
         }
 
+        return result
+    }
+
+    /// Merge remote participants with local, preserving locally-populated userRecordIDs.
+    ///
+    /// Remote data from CloudKit won't have userRecordIDs that were populated locally
+    /// (e.g., via CKShare lookup). When remote has nil and local has a value for the
+    /// same participant, keep local's value.
+    static func preserveLocalUserRecordIDs(
+        remote: [EmbeddedParticipant],
+        local: [EmbeddedParticipant]
+    ) -> [EmbeddedParticipant] {
+        var result = remote
+        for (index, remoteP) in result.enumerated() {
+            guard remoteP.userRecordID == nil else { continue }
+            if let localP = local.first(where: { $0.id == remoteP.id }),
+               localP.userRecordID != nil {
+                result[index] = EmbeddedParticipant(
+                    id: remoteP.id,
+                    nickname: remoteP.nickname,
+                    identifierType: remoteP.identifierType,
+                    identifierValue: remoteP.identifierValue,
+                    orderIndex: remoteP.orderIndex,
+                    hasSignaledHere: remoteP.hasSignaledHere,
+                    userRecordID: localP.userRecordID
+                )
+            }
+        }
         return result
     }
 }

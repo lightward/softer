@@ -106,9 +106,19 @@ final class PersistenceStore {
         if let existing = room(id: lifecycle.spec.id) {
             // Update existing - merge turn state (higher wins)
             existing.apply(lifecycle, mergeStrategy: .higherTurnWins)
-            // Preserve participantsJSON from CKRecord (has userRecordIDs that RoomLifecycle strips)
+            // Merge remote participants, preserving locally-populated userRecordIDs
             if let json = remoteParticipantsJSON {
-                existing.participantsJSON = json
+                if let data = json.data(using: .utf8),
+                   let remoteParticipants = try? JSONDecoder().decode([EmbeddedParticipant].self, from: data) {
+                    let localParticipants = existing.embeddedParticipants()
+                    let merged = ParticipantIdentity.preserveLocalUserRecordIDs(
+                        remote: remoteParticipants,
+                        local: localParticipants
+                    )
+                    existing.setParticipants(merged)
+                } else {
+                    existing.participantsJSON = json
+                }
             }
             // Merge messages if provided
             if let json = remoteMessagesJSON {
