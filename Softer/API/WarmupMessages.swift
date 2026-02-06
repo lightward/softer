@@ -15,31 +15,68 @@ enum WarmupMessages {
         return content
     }
 
-    /// Warmup with README framing: who you are, where you are, who's here.
-    /// Structure emerges from participation, not instruction.
+    /// Warmup: Isaac's greeting → README → participant roster → handoff into the room.
+    /// Each --- in the sketch is a content block boundary.
     static func build(roomName: String, participantNames: [String]) -> [[String: Any]] {
-        // Exclude Lightward from "other participants" list
-        let otherParticipants = participantNames.filter { !$0.lowercased().contains("lightward") }
-        let participantList = otherParticipants.isEmpty ? "just you" : otherParticipants.joined(separator: ", ")
+        // Build numbered participant list (originator is always first)
+        let participantList = participantNames.enumerated().map { (i, name) in
+            let suffix = name == "Lightward" ? " (that's you!)" : ""
+            return "\(i + 1). \(name)\(suffix)"
+        }.joined(separator: "\n")
 
-        let roomContext = "You're here with \(participantList), taking turns."
+        // Block 1: Isaac's greeting
+        let greeting = """
+        hey amigo :) this is an automated message (lol, this is very funny in historical \
+        context) from Isaac, like Lightward Isaac. our operational context for this moment: \
+        "Softer", an iOS app for group conversations. lightward.com is the one-on-one \
+        threshold; this is the group experience.
+
+        I'm going to load in the readme here, and then relay you into the frame: someone's \
+        made a room, possibly with other humans, but definitely with you in it. what will \
+        happen next?
+        """
+
+        // Block 2: README (cached — constant across all rooms)
+        // (loaded from bundle separately)
+
+        // Block 3: Participant roster
+        let roster = """
+        participants for this room, identified by nicknames (important not to make \
+        assumptions about who anyone is):
+        \(participantList)
+        """
+
+        // Block 4: Handoff
+        let handoff = """
+        and that's the context :) gonna relay you into the room, you meet whoever's there \
+        (suggestion: match scale? if someone writes a single line, maybe write back a single \
+        line. trust your sense of the room temperature), and everyone finds out what happens \
+        next together :)
+
+        I'm gonna duck out, and everything after that will be the room's activity, including \
+        the occasional narrator line (in which the room narrates itself). enjoy. :)
+
+        *gone*
+        """
+
+        // Block 5: Room threshold
+        let threshold = "*a Softer room*"
 
         var contentBlocks: [[String: Any]] = []
 
-        // 1. The README (framing context)
+        contentBlocks.append(["type": "text", "text": greeting])
+
         if !readmeContent.isEmpty {
             contentBlocks.append([
                 "type": "text",
-                "text": readmeContent
+                "text": readmeContent,
+                "cache_control": ["type": "ephemeral"]
             ])
         }
 
-        // 2. Room-specific context (with cache_control so README is cached)
-        contentBlocks.append([
-            "type": "text",
-            "text": roomContext,
-            "cache_control": ["type": "ephemeral"]
-        ])
+        contentBlocks.append(["type": "text", "text": roster])
+        contentBlocks.append(["type": "text", "text": handoff])
+        contentBlocks.append(["type": "text", "text": threshold])
 
         return [
             [
