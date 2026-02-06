@@ -168,6 +168,41 @@ actor SyncCoordinator {
         await fetchChanges()
     }
 
+    // MARK: - Direct Record Fetch
+
+    /// Fetch a Room3 record directly by ID, bypassing CKSyncEngine's change tokens.
+    /// Uses stored system fields to reconstruct the correct record ID (preserves zone for shared rooms).
+    func fetchRoomRecord(recordName: String, systemFields: Data?, isShared: Bool) async -> CKRecord? {
+        let db = isShared ? sharedDatabase : database
+
+        // Reconstruct record ID from system fields (preserves zone ID for shared rooms)
+        let recordID: CKRecord.ID
+        if let systemFields = systemFields {
+            do {
+                let coder = try NSKeyedUnarchiver(forReadingFrom: systemFields)
+                coder.requiresSecureCoding = true
+                if let record = CKRecord(coder: coder) {
+                    coder.finishDecoding()
+                    recordID = record.recordID
+                } else {
+                    coder.finishDecoding()
+                    recordID = CKRecord.ID(recordName: recordName, zoneID: zoneID)
+                }
+            } catch {
+                recordID = CKRecord.ID(recordName: recordName, zoneID: zoneID)
+            }
+        } else {
+            recordID = CKRecord.ID(recordName: recordName, zoneID: zoneID)
+        }
+
+        do {
+            return try await db.record(for: recordID)
+        } catch {
+            print("SyncCoordinator.fetchRoomRecord: Failed to fetch \(recordName) - \(error)")
+            return nil
+        }
+    }
+
     // MARK: - Record Operations
 
     /// Queue a record to be saved to CloudKit (private database).

@@ -47,7 +47,11 @@ struct RoomView: View {
             }
         }
         .task {
+            store.startPolling(roomID: roomID)
             await loadRoom()
+        }
+        .onDisappear {
+            store.stopPolling()
         }
         .onChange(of: persistedRoom?.stateType) {
             refreshLifecycle()

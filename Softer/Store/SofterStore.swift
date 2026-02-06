@@ -29,6 +29,12 @@ final class SofterStore {
     private var zoneID: CKRecordZone.ID?
     private let apiClient: any LightwardAPI
 
+    // MARK: - Polling State
+
+    private var pollingTask: Task<Void, Never>?
+    private var lastSyncTime: Date = .distantPast
+    private var lastSeenChangeTag: String?
+
     /// Exposes the SwiftData ModelContainer for @Query in views.
     var modelContainer: ModelContainer? {
         dataStore?.modelContainer
@@ -212,6 +218,75 @@ final class SofterStore {
         }
     }
 
+    // MARK: - Room Polling
+
+    /// Start adaptive polling for a specific room.
+    /// Cancels any existing poll loop before starting.
+    func startPolling(roomID: String) {
+        pollingTask?.cancel()
+        lastSeenChangeTag = nil
+        pollingTask = Task { [weak self] in
+            await self?.pollLoop(roomID: roomID)
+        }
+    }
+
+    /// Stop the current polling loop.
+    func stopPolling() {
+        pollingTask?.cancel()
+        pollingTask = nil
+    }
+
+    private func pollLoop(roomID: String) async {
+        var interval: TimeInterval = 1.5
+        let minInterval: TimeInterval = 1.5
+        let maxInterval: TimeInterval = 5.0
+        let backoffStep: TimeInterval = 0.5
+
+        while !Task.isCancelled {
+            do {
+                try await Task.sleep(for: .seconds(interval))
+            } catch {
+                break // cancelled
+            }
+
+            guard !Task.isCancelled else { break }
+
+            // Skip if we just saved (avoid re-fetching our own write)
+            if Date().timeIntervalSince(lastSyncTime) < 1.0 {
+                continue
+            }
+
+            guard let syncCoordinator = syncCoordinator,
+                  let dataStore = dataStore,
+                  let room = dataStore.room(id: roomID) else { continue }
+
+            let record = await syncCoordinator.fetchRoomRecord(
+                recordName: roomID,
+                systemFields: room.ckSystemFields,
+                isShared: room.isSharedWithMe
+            )
+
+            guard !Task.isCancelled else { break }
+
+            if let record = record {
+                let changeTag = record.recordChangeTag ?? ""
+                if changeTag != lastSeenChangeTag {
+                    // New data — process it and reset to fast interval
+                    lastSeenChangeTag = changeTag
+                    await handleRecordFetched(record, isShared: room.isSharedWithMe)
+                    interval = minInterval
+                    print("RoomPulse: change detected for \(roomID), interval=\(interval)s")
+                } else {
+                    // No change — back off
+                    interval = min(interval + backoffStep, maxInterval)
+                }
+            } else {
+                // Fetch failed — back off
+                interval = min(interval + backoffStep, maxInterval)
+            }
+        }
+    }
+
     // MARK: - CloudKit Sync (Unified)
 
     /// Reconstruct a CKRecord from stored system fields and sync to CloudKit.
@@ -254,6 +329,7 @@ final class SofterStore {
             await syncCoordinator.save(record)
         }
 
+        lastSyncTime = Date()
         await syncCoordinator.sendChanges()
     }
 
