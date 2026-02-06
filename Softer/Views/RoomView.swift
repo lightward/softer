@@ -441,6 +441,13 @@ struct RoomView: View {
         lifecycle = newLifecycle
         turnState = newLifecycle.turnState
 
+        // Sync ConversationCoordinator's internal turn state with remote changes
+        if let convCoord = conversationCoordinator, let newTurnState = newLifecycle.turnState {
+            Task {
+                await convCoord.syncTurnState(newTurnState)
+            }
+        }
+
         // If room just became active, set up ConversationCoordinator
         if newLifecycle.isActive && (!wasActive || conversationCoordinator == nil) {
             let convCoord = store.conversationCoordinator(

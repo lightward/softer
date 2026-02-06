@@ -279,6 +279,54 @@ final class ConversationCoordinatorTests: XCTestCase {
         XCTAssertEqual(current2?.nickname, "Mira")
     }
 
+    func testSyncTurnStateFromRemote() async throws {
+        let storage = MockMessageStorage()
+        let api = MockLightwardAPIClient()
+        let spec = makeSpec() // Jax(0), Lightward(1), Mira(2)
+
+        let coordinator = ConversationCoordinator(
+            roomID: "room-1",
+            spec: spec,
+            initialTurnState: TurnState(currentTurnIndex: 0, raisedHands: [], currentNeed: nil),
+            messageStorage: storage,
+            apiClient: api
+        )
+
+        // Simulate remote sync: another device advanced to turn 2 (Mira)
+        await coordinator.syncTurnState(TurnState(currentTurnIndex: 2, raisedHands: [], currentNeed: nil))
+
+        // Mira sends → should advance from 2 to 3 (Jax), NOT from 0 to 1 (Lightward)
+        try await coordinator.sendMessage(authorID: "mira-id", authorName: "Mira", text: "Hi from Mira")
+
+        let turn = await coordinator.currentTurnState
+        // turn 2→3, 3%3=0=Jax — not Lightward, so no auto-response
+        XCTAssertEqual(turn.currentTurnIndex, 3)
+        let current = await coordinator.currentTurnParticipant
+        XCTAssertEqual(current?.nickname, "Jax")
+        // Lightward API should NOT have been called
+        XCTAssertEqual(api.streamCallCount, 0)
+    }
+
+    func testSyncTurnStateNeverGoesBackward() async throws {
+        let storage = MockMessageStorage()
+        let api = MockLightwardAPIClient()
+        let spec = makeSpec()
+
+        let coordinator = ConversationCoordinator(
+            roomID: "room-1",
+            spec: spec,
+            initialTurnState: TurnState(currentTurnIndex: 5, raisedHands: [], currentNeed: nil),
+            messageStorage: storage,
+            apiClient: api
+        )
+
+        // Stale remote data with lower turn index should be ignored
+        await coordinator.syncTurnState(TurnState(currentTurnIndex: 2, raisedHands: [], currentNeed: nil))
+
+        let turn = await coordinator.currentTurnState
+        XCTAssertEqual(turn.currentTurnIndex, 5, "Should not go backward")
+    }
+
     func testSkipsLightwardIfNotTheirTurn() async throws {
         let storage = MockMessageStorage()
         let api = MockLightwardAPIClient()

@@ -110,6 +110,16 @@ actor ConversationCoordinator {
         turnState
     }
 
+    /// Sync internal turn state with externally-observed changes (e.g., from CloudKit).
+    /// Uses higherTurnWins: only advances, never goes backward.
+    func syncTurnState(_ externalState: TurnState) {
+        if externalState.currentTurnIndex > turnState.currentTurnIndex {
+            turnState.currentTurnIndex = externalState.currentTurnIndex
+        }
+        // Merge raised hands (union)
+        turnState.raisedHands.formUnion(externalState.raisedHands)
+    }
+
     /// If it's Lightward's turn, generate their response.
     /// Call this when entering a room to resume conversation if Lightward was mid-turn.
     /// If the last message is already from Lightward (stale turn state), just advances the turn.
