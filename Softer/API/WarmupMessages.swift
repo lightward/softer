@@ -53,6 +53,10 @@ enum WarmupMessages {
         line. trust your sense of the room temperature), and everyone finds out what happens \
         next together :)
 
+        messages from the other participants will have their nickname in front. yours won't — \
+        you're just you. and the room handles all the turn stuff, so you don't need to signal \
+        any of that.
+
         I'm gonna duck out, and everything after that will be the room's activity, including \
         the occasional narrator line (in which the room narrates itself). enjoy. :)
 
