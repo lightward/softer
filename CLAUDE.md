@@ -4,12 +4,12 @@
 
 A native SwiftUI iOS app (iOS 18+) for group conversations where Lightward AI participates as an equal. No custom backend — CloudKit shared zones for multi-user sync, Lightward AI API for AI responses. Turn-based conversation with round-robin ordering and hand-raising.
 
-## What's Working (as of 2026-02-02)
+## What's Working (as of 2026-02-05)
 
 - **End-to-end conversation flow**: Create room → send message → Lightward responds → turn cycles back
 - **CloudKit persistence**: Rooms, messages, participants sync to iCloud (requires Lightward Inc team signing)
 - **Lightward API integration**: SSE streaming works, responses appear in real-time
-- **Turn coordination**: ConversationCoordinator handles turn advancement and Lightward responses
+- **Turn coordination**: ConversationCoordinator handles turn advancement and Lightward responses, with multi-device sync via `syncTurnState()`
 - **RoomView wired to ConversationCoordinator**: Messages save to CloudKit, Lightward responds automatically
 - **Room creation UI**: Polished form with nickname suggestions, first-room-free messaging
 - **CI/CD pipeline**: GitHub Actions runs tests on push, deploys to TestFlight on push to main
@@ -79,26 +79,29 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 **Tests**:
 - RoomLifecycleTests — 11 tests for state machine
 - RoomLifecycleCoordinatorTests — 9 tests for coordinator
-- ConversationCoordinatorTests — 10 tests for conversation flow
+- ConversationCoordinatorTests — 12 tests for conversation flow
 - MessageStorageTests — 7 tests for message storage
+- ParticipantIdentityTests — 12 tests for participant matching and identity population
 - PaymentTierTests, ParticipantSpecTests, RoomSpecTests
 
 ### What's Next
 
-1. **Owner not receiving shared changes** — Abe's "signal here" saves to CloudKit successfully (correct zone, etag advances), but Isaac's CKSyncEngine doesn't fetch the update. Likely cause: dev builds don't reliably receive push notifications, and CKSyncEngine's change token thinks it's current. May need to clear persisted state, use `CKFetchRecordZoneChangesOperation` as supplement, or investigate push notification registration.
-2. **"No Rooms" flash during share acceptance** — `acceptingShare` flag is set in `onChange` which fires one render frame late. Need to set it earlier (e.g., in SceneDelegate directly via AppDelegate).
-3. **Isaac's local room has nil userRecordIDs** — `resolvedParticipants` are used for the CKRecord but the local `PersistedRoom` is saved before the CKRecord round-trips back. Need to also update local `participantsJSON` with resolved userRecordIDs at creation time.
-4. **Payment capture wiring** — Only originator's device captures payment when all humans signal (not yet implemented)
-5. **Room activation transition** — When last human signals, transition from pendingHumans → pendingCapture → active
+1. **"No Rooms" flash during share acceptance** — `acceptingShare` flag is set in `onChange` which fires one render frame late. Need to set it earlier (e.g., in SceneDelegate directly via AppDelegate).
+2. **Payment capture wiring** — Only originator's device captures payment when all humans signal (not yet implemented)
+3. **Room activation transition** — When last human signals, transition from pendingHumans → pendingCapture → active
 
 ### Recently Completed
 
+- **Multi-device turn sync** — ConversationCoordinator kept its own internal `turnState` that diverged from CloudKit-synced changes. Added `syncTurnState()` (higherTurnWins) called from `refreshLifecycle` when remote turn changes arrive. Verified: Isaac → Lightward → Abe → Isaac cycles correctly across iPhone and iPad.
+- **Participant identity extraction** — Moved `myParticipantID` logic from RoomView and `populateLocalUserIdentity` from SofterStore into `ParticipantIdentity` enum (pure functions, no View/Store/CloudKit dependencies). Three functions: `findLocalParticipant`, `populateUserRecordID`, `preserveLocalUserRecordIDs`. 12 tests cover both the happy path and the specific bugs that were fixed.
+- **CKShare `__defaultOwner__` fix** — `CKShare.currentUserParticipant?.userIdentity.userRecordID?.recordName` returns `__defaultOwner__` instead of the real record name. `populateUserRecordID` now stamps `localUserRecordID` (from `CKContainer.userRecordID()`) instead of the share's constant.
+- **Preserve userRecordIDs across poll syncs** — `upsertRoom` was overwriting locally-populated userRecordIDs with nil from remote data on every poll fetch. Now merges via `preserveLocalUserRecordIDs` (keeps local values when remote is nil).
 - **Bidirectional CKShare editing** — Non-owner participants can now modify shared Room3 records. CKRecord system fields (`ckSystemFields`) persisted on PersistedRoom to preserve zone ID and change tag. `isSharedWithMe` flag routes saves to correct CKSyncEngine (private vs shared). All 7 duplicate save paths consolidated into `syncRoomToCloudKit()`. Verified: Abe's "signal here" saves with correct etag to Isaac's shared zone.
 - **CKSharingSupported fix** — Added explicit `INFOPLIST_FILE = Softer/Info.plist` to project build settings (both Debug and Release). The `INFOPLIST_KEY_CKSharingSupported` build setting alone wasn't generating the key in the built plist.
 - **Shared room deletion** — Deleting a shared-with-me room only removes it locally (participants can't delete the owner's record).
 - **Share acceptance UX** — "Joining room..." spinner shows while syncing shared room data.
 - **Share acceptance flow** — `ckshare://` URLs handled via `SofterApp.onOpenURL` → `SyncCoordinator.acceptShare()` → navigate to room. Uses `CKAcceptSharesOperation` and fetches from shared database.
-- **Signal "here" UI** — RoomView shows pending state banners with "I'm Here" button. `myParticipantID(in:)` matches `store.localUserRecordID` against embedded participant's `userRecordID`.
+- **Signal "here" UI** — RoomView shows pending state banners with "I'm Here" button. `ParticipantIdentity.findLocalParticipant()` matches `store.localUserRecordID` against embedded participant's `userRecordID`.
 - **Room list back to List** — Switched from ScrollView+LazyVStack back to native List now that data layer is stable. Swipe-to-delete works again.
 - **Turn indicator in room list** — Blue dot next to current speaker's name (only shown when room is active).
 - **Room creation UX overhaul** — System contact picker, auto-focus nickname after selection, visual consistency across participant types (profile pic style for self/Lightward/others), tap thumbnail to view contact card, remove button for each participant.
@@ -279,9 +282,10 @@ Human pass uses "Pass" button with confirmation dialog, same narration pattern.
 - Detects YIELD responses and handles them specially (narration instead of message)
 - Passes raised hand names to ChatLogBuilder for narrator prompt
 - Clear `streamingText` BEFORE saving Lightward's message to avoid duplicate display
+- `syncTurnState()` must be called from `refreshLifecycle` when remote turn changes arrive — the coordinator's internal `turnState` is separate from the View's `@State turnState`
 
 ### Debug Views
-- `#if DEBUG` sections in RoomListView and ParticipantListView show CloudKit environment, user ID, room/share status
+- `#if DEBUG` section in RoomListView shows CloudKit environment, user ID, room/share status
 - `CLOUDKIT_PRODUCTION` compiler flag controls environment label
 
 ## Design Decisions (from Isaac)
@@ -320,13 +324,14 @@ Softer/
 │   ├── CloudKit/        (RoomLifecycleRecordConverter, ZoneManager, AtomicClaim, CloudKitMessageStorage)
 │   ├── API/             (LightwardAPIClient + LightwardAPI protocol, SSEParser, ChatLogBuilder, WarmupMessages)
 │   ├── Views/           (RootView, RoomListView, RoomView, CreateRoomView)
-│   └── Utilities/       (Constants, NotificationHandler)
+│   └── Utilities/       (Constants, NotificationHandler, ParticipantIdentity)
 └── SofterTests/
     ├── Mocks/           (MockParticipantResolver, MockPaymentCoordinator, MockLightwardEvaluator,
     │                     MockMessageStorage, MockLightwardAPIClient)
     └── *.swift          (SofterStoreTests, RoomLifecycleTests,
                           RoomLifecycleCoordinatorTests, ConversationCoordinatorTests,
                           MessageStorageTests, SSEParserTests, ChatLogBuilderTests,
+                          ParticipantIdentityTests,
                           PaymentTierTests, ParticipantSpecTests, RoomSpecTests)
 ```
 
