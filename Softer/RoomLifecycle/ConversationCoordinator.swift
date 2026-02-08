@@ -11,7 +11,6 @@ actor ConversationCoordinator {
     private let apiClient: any LightwardAPI
 
     private let onTurnChange: @Sendable (TurnState) -> Void
-    private let onStreamingText: @Sendable (String) -> Void
 
     init(
         roomID: String,
@@ -19,8 +18,7 @@ actor ConversationCoordinator {
         initialTurnState: TurnState = .initial,
         messageStorage: MessageStorage,
         apiClient: any LightwardAPI,
-        onTurnChange: @escaping @Sendable (TurnState) -> Void = { _ in },
-        onStreamingText: @escaping @Sendable (String) -> Void = { _ in }
+        onTurnChange: @escaping @Sendable (TurnState) -> Void = { _ in }
     ) {
         self.roomID = roomID
         self.spec = spec
@@ -28,7 +26,6 @@ actor ConversationCoordinator {
         self.messageStorage = messageStorage
         self.apiClient = apiClient
         self.onTurnChange = onTurnChange
-        self.onStreamingText = onStreamingText
     }
 
     /// Current participant whose turn it is.
@@ -93,18 +90,6 @@ actor ConversationCoordinator {
         }
     }
 
-    /// Raise hand to indicate desire to speak out of turn.
-    func raiseHand(participantID: String) {
-        turnState.raisedHands.insert(participantID)
-        onTurnChange(turnState)
-    }
-
-    /// Lower a previously raised hand.
-    func lowerHand(participantID: String) {
-        turnState.raisedHands.remove(participantID)
-        onTurnChange(turnState)
-    }
-
     /// Get current turn state.
     var currentTurnState: TurnState {
         turnState
@@ -116,8 +101,6 @@ actor ConversationCoordinator {
         if externalState.currentTurnIndex > turnState.currentTurnIndex {
             turnState.currentTurnIndex = externalState.currentTurnIndex
         }
-        // Merge raised hands (union)
-        turnState.raisedHands.formUnion(externalState.raisedHands)
     }
 
     /// If it's Lightward's turn, generate their response.
@@ -142,7 +125,6 @@ actor ConversationCoordinator {
 
     private func advanceTurn() {
         turnState.advanceTurn(participantCount: spec.participants.count)
-        turnState.raisedHands.removeAll()
         onTurnChange(turnState)
     }
 
@@ -150,38 +132,24 @@ actor ConversationCoordinator {
         // Fetch conversation history
         let messages = try await messageStorage.fetchMessages(roomID: roomID)
 
-        // Build chat log for API
+        // Build plaintext body for API
         let participantNames = spec.participants.map { $0.nickname }
-        // Use simple participant list for room context (not the UI display string with depth)
         let roomContext = participantNames.joined(separator: ", ")
 
-        // Get names of participants who raised their hand
-        let raisedHandNames = turnState.raisedHands.compactMap { handID in
-            spec.participants.first { $0.id == handID }?.nickname
-        }
-
-        let chatLog = ChatLogBuilder.build(
+        let body = ChatLogBuilder.build(
             messages: messages,
             roomName: roomContext,
-            participantNames: participantNames,
-            raisedHands: raisedHandNames
+            participantNames: participantNames
         )
 
-        // Stream response
-        var fullResponse = ""
-
-        for try await chunk in apiClient.stream(chatLog: chatLog) {
-            fullResponse += chunk
-            onStreamingText(fullResponse)
-        }
+        // Request response
+        let fullResponse = try await apiClient.respond(body: body)
 
         // Check if Lightward yielded
         let trimmed = fullResponse.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let didYield = trimmed == "YIELD" || trimmed.hasPrefix("YIELD.")
 
         if didYield {
-            // Clear streaming text immediately for yield (don't show "YIELD" to user)
-            onStreamingText("")
             // Lightward yielded - save narration message
             let lightwardNickname = spec.lightwardParticipant?.nickname ?? "Lightward"
             let narrationMessage = Message(

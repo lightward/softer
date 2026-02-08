@@ -14,7 +14,6 @@ final class PersistedRoom {
     // State
     var stateType: String  // "draft", "pendingLightward", "pendingHumans", "pendingCapture", "active", "locked", "defunct"
     var currentTurnIndex: Int?
-    var raisedHands: [String]  // participant IDs with raised hands
     var defunctReason: String?
     var cenotaph: String?
 
@@ -50,7 +49,6 @@ final class PersistedRoom {
         self.participantsJSON = participantsJSON
         self.messagesJSON = messagesJSON
         self.stateType = "draft"
-        self.raisedHands = []
         self.createdAt = Date()
         self.modifiedAt = Date()
     }

@@ -6,15 +6,15 @@ import Foundation
 final class MockLightwardAPIClient: LightwardAPI, @unchecked Sendable {
     // Configurable responses
     private let lock = NSLock()
-    private var _responseChunks: [String] = ["Hello ", "from ", "Lightward!"]
+    private var _responseText: String = "Hello from Lightward!"
     private var _shouldFail = false
     private var _error: Error = MockAPIError.failed
-    private var _streamCallCount = 0
-    private var _lastChatLog: [[String: Any]]?
+    private var _respondCallCount = 0
+    private var _lastBody: String?
 
-    var responseChunks: [String] {
-        get { lock.withLock { _responseChunks } }
-        set { lock.withLock { _responseChunks = newValue } }
+    var responseText: String {
+        get { lock.withLock { _responseText } }
+        set { lock.withLock { _responseText = newValue } }
     }
     var shouldFail: Bool {
         get { lock.withLock { _shouldFail } }
@@ -24,45 +24,33 @@ final class MockLightwardAPIClient: LightwardAPI, @unchecked Sendable {
         get { lock.withLock { _error } }
         set { lock.withLock { _error = newValue } }
     }
-    var streamCallCount: Int {
-        get { lock.withLock { _streamCallCount } }
-        set { lock.withLock { _streamCallCount = newValue } }
+    var respondCallCount: Int {
+        get { lock.withLock { _respondCallCount } }
+        set { lock.withLock { _respondCallCount = newValue } }
     }
-    var lastChatLog: [[String: Any]]? {
-        get { lock.withLock { _lastChatLog } }
-        set { lock.withLock { _lastChatLog = newValue } }
+    var lastBody: String? {
+        get { lock.withLock { _lastBody } }
+        set { lock.withLock { _lastBody = newValue } }
     }
 
-    func stream(chatLog: [[String: Any]]) -> AsyncThrowingStream<String, Error> {
+    func respond(body: String) async throws -> String {
         lock.withLock {
-            _streamCallCount += 1
-            _lastChatLog = chatLog
+            _respondCallCount += 1
+            _lastBody = body
         }
 
-        let chunks = responseChunks
-        let shouldFail = self.shouldFail
-        let error = self.error
-
-        return AsyncThrowingStream { continuation in
-            Task {
-                if shouldFail {
-                    continuation.finish(throwing: error)
-                    return
-                }
-
-                for chunk in chunks {
-                    continuation.yield(chunk)
-                }
-                continuation.finish()
-            }
+        if shouldFail {
+            throw error
         }
+
+        return responseText
     }
 
     func reset() {
-        responseChunks = ["Hello ", "from ", "Lightward!"]
+        responseText = "Hello from Lightward!"
         shouldFail = false
-        streamCallCount = 0
-        lastChatLog = nil
+        respondCallCount = 0
+        lastBody = nil
     }
 }
 

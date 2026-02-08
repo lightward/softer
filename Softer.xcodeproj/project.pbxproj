@@ -43,7 +43,6 @@
 		A1B2C3D4E5F60001000A000B /* ZoneManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A000B /* ZoneManager.swift */; };
 		A1B2C3D4E5F60001000A000D /* AtomicClaim.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A000D /* AtomicClaim.swift */; };
 		A1B2C3D4E5F60001000A000E /* LightwardAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A000E /* LightwardAPIClient.swift */; };
-		A1B2C3D4E5F60001000A000F /* SSEParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A000F /* SSEParser.swift */; };
 		A1B2C3D4E5F60001000A0010 /* ChatLogBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0010 /* ChatLogBuilder.swift */; };
 		A1B2C3D4E5F60001000A0011 /* WarmupMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0011 /* WarmupMessages.swift */; };
 		A1B2C3D4E5F60001000A0015 /* RoomListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0015 /* RoomListView.swift */; };
@@ -52,7 +51,6 @@
 		A1B2C3D4E5F60001000A0021 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0021 /* Constants.swift */; };
 		A1B2C3D4E5F60001000A0022 /* NotificationHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0022 /* NotificationHandler.swift */; };
 		A1B2C3D4E5F60001000A0023 /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0023 /* CloudKit.framework */; };
-		A1B2C3D4E5F60001000A0031 /* SSEParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0031 /* SSEParserTests.swift */; };
 		A1B2C3D4E5F60001000A0032 /* ChatLogBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0032 /* ChatLogBuilderTests.swift */; };
 		A1B2C3D4E5F60001000A0040 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0040 /* Assets.xcassets */; };
 		A3787B3FC54B433783802661 /* MockParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8234E08A4114A86A9050D03 /* MockParticipantResolver.swift */; };
@@ -109,7 +107,6 @@
 		A1B2C3D4E5F60002000A000B /* ZoneManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneManager.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A000D /* AtomicClaim.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtomicClaim.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A000E /* LightwardAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightwardAPIClient.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A000F /* SSEParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEParser.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0010 /* ChatLogBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatLogBuilder.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0011 /* WarmupMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarmupMessages.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0015 /* RoomListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomListView.swift; sourceTree = "<group>"; };
@@ -121,7 +118,6 @@
 		A1B2C3D4E5F60002000A0024 /* Softer.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Softer.entitlements; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0025 /* Softer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Softer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1B2C3D4E5F60002000A0026 /* SofterTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SofterTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A1B2C3D4E5F60002000A0031 /* SSEParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEParserTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0032 /* ChatLogBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatLogBuilderTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0040 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A913BED596006F4F9B6E0A0B /* MessageStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MessageStorage.swift; path = MessageStorage.swift; sourceTree = "<group>"; };
@@ -244,7 +240,6 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D4E5F60002000A000E /* LightwardAPIClient.swift */,
-				A1B2C3D4E5F60002000A000F /* SSEParser.swift */,
 				A1B2C3D4E5F60002000A0010 /* ChatLogBuilder.swift */,
 				A1B2C3D4E5F60002000A0011 /* WarmupMessages.swift */,
 			);
@@ -273,7 +268,6 @@
 			isa = PBXGroup;
 			children = (
 				8F90E1E188364C24A1BBD852 /* Mocks */,
-				A1B2C3D4E5F60002000A0031 /* SSEParserTests.swift */,
 				A1B2C3D4E5F60002000A0032 /* ChatLogBuilderTests.swift */,
 				4298F64186A04345A0042E1C /* RoomLifecycleTests.swift */,
 				F2E332572B0B4F77A0F526FA /* RoomLifecycleCoordinatorTests.swift */,
@@ -435,7 +429,6 @@
 				A1B2C3D4E5F60001000A000B /* ZoneManager.swift in Sources */,
 				A1B2C3D4E5F60001000A000D /* AtomicClaim.swift in Sources */,
 				A1B2C3D4E5F60001000A000E /* LightwardAPIClient.swift in Sources */,
-				A1B2C3D4E5F60001000A000F /* SSEParser.swift in Sources */,
 				A1B2C3D4E5F60001000A0010 /* ChatLogBuilder.swift in Sources */,
 				A1B2C3D4E5F60001000A0011 /* WarmupMessages.swift in Sources */,
 				A1B2C3D4E5F60001000A0015 /* RoomListView.swift in Sources */,
@@ -473,7 +466,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1B2C3D4E5F60001000A0031 /* SSEParserTests.swift in Sources */,
 				A1B2C3D4E5F60001000A0032 /* ChatLogBuilderTests.swift in Sources */,
 				66ED3904C8EA4213A5886890 /* RoomLifecycleTests.swift in Sources */,
 				3516084AC4304DF18CC1C100 /* RoomLifecycleCoordinatorTests.swift in Sources */,

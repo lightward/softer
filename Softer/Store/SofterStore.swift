@@ -578,8 +578,7 @@ final class SofterStore {
 
         dataStore.updateTurnState(
             roomID: roomID,
-            turnIndex: turnState.currentTurnIndex,
-            raisedHands: turnState.raisedHands
+            turnIndex: turnState.currentTurnIndex
         )
 
         // Sync to CloudKit in background
@@ -667,8 +666,7 @@ final class SofterStore {
 
     func conversationCoordinator(
         for lifecycle: RoomLifecycle,
-        onTurnChange: @escaping @Sendable (TurnState) -> Void = { _ in },
-        onStreamingText: @escaping @Sendable (String) -> Void = { _ in }
+        onTurnChange: @escaping @Sendable (TurnState) -> Void = { _ in }
     ) -> ConversationCoordinator? {
         guard let dataStore = dataStore else { return nil }
         guard lifecycle.isActive, let turnState = lifecycle.turnState else { return nil }
@@ -695,8 +693,7 @@ final class SofterStore {
             initialTurnState: turnState,
             messageStorage: messageStorage,
             apiClient: apiClient,
-            onTurnChange: wrappedOnTurnChange,
-            onStreamingText: onStreamingText
+            onTurnChange: wrappedOnTurnChange
         )
     }
 }

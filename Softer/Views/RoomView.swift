@@ -7,7 +7,6 @@ struct RoomView: View {
 
     @State private var lifecycle: RoomLifecycle?
     @State private var composeText = ""
-    @State private var streamingText = ""
     @State private var isLoading = true
     @State private var turnState: TurnState?
     @State private var conversationCoordinator: ConversationCoordinator?
@@ -106,23 +105,12 @@ struct RoomView: View {
                     }
 
                     // Typing indicator while waiting for Lightward
-                    if isLightwardThinking && streamingText.isEmpty {
+                    if isLightwardThinking {
                         HStack {
                             TypingIndicator()
                             Spacer()
                         }
                         .id("thinking")
-                    }
-
-                    // Streaming text from Lightward
-                    if !streamingText.isEmpty {
-                        MessageBubble(
-                            text: streamingText,
-                            authorName: lifecycle.spec.lightwardParticipant?.nickname ?? "Lightward",
-                            isLightward: true,
-                            isStreaming: true
-                        )
-                        .id("streaming")
                     }
                 }
                 .padding()
@@ -136,17 +124,10 @@ struct RoomView: View {
                         proxy.scrollTo(last.id, anchor: .bottom)
                     }
                 }
-                // Clear streaming text when matching message appears
-                if !streamingText.isEmpty {
-                    if messages.contains(where: { $0.text == streamingText }) {
-                        streamingText = ""
-                    }
-                }
-            }
-            .onChange(of: streamingText) {
-                if !streamingText.isEmpty {
-                    withAnimation {
-                        proxy.scrollTo("streaming", anchor: .bottom)
+                // Clear thinking indicator when a Lightward message appears
+                if isLightwardThinking {
+                    if messages.last?.isLightward == true {
+                        isLightwardThinking = false
                     }
                 }
             }
@@ -185,16 +166,15 @@ struct RoomView: View {
         let myTurn = isMyTurn(lifecycle: lifecycle)
 
         HStack(alignment: .bottom, spacing: 8) {
-            // Hand raise toggle (always visible, disabled when your turn)
-            let isHandRaised = isMyHandRaised(lifecycle: lifecycle)
+            // Hand raise button (one-shot: press → saves narration)
             Button {
                 Task {
-                    await toggleHandRaise(lifecycle: lifecycle, currentlyRaised: isHandRaised)
+                    await raiseHand(lifecycle: lifecycle)
                 }
             } label: {
-                Image(systemName: isHandRaised ? "hand.raised.fill" : "hand.raised")
+                Image(systemName: "hand.raised")
                     .font(.system(size: 20))
-                    .foregroundStyle(isHandRaised ? Color.accentColor : (myTurn ? Color(.systemGray4) : .secondary))
+                    .foregroundStyle(myTurn ? Color(.systemGray4) : .secondary)
                     .frame(width: 36, height: 36)
             }
             .disabled(myTurn || isSending)
@@ -393,15 +373,6 @@ struct RoomView: View {
                                 }
                             }
                         }
-                    },
-                    onStreamingText: { [self] text in
-                        Task { @MainActor in
-                            streamingText = text
-                            // Clear thinking indicator once streaming starts
-                            if !text.isEmpty {
-                                isLightwardThinking = false
-                            }
-                        }
                     }
                 )
                 conversationCoordinator = convCoord
@@ -463,14 +434,6 @@ struct RoomView: View {
                             }
                         }
                     }
-                },
-                onStreamingText: { [self] text in
-                    Task { @MainActor in
-                        streamingText = text
-                        if !text.isEmpty {
-                            isLightwardThinking = false
-                        }
-                    }
                 }
             )
             conversationCoordinator = convCoord
@@ -521,41 +484,18 @@ struct RoomView: View {
         isSending = false
     }
 
-    private func isMyHandRaised(lifecycle: RoomLifecycle) -> Bool {
-        guard let myID = myParticipantID(in: lifecycle) else { return false }
-        return turnState?.raisedHands.contains(myID) ?? false
-    }
+    private func raiseHand(lifecycle: RoomLifecycle) async {
+        let (_, authorName) = myAuthor(in: lifecycle)
 
-    private func toggleHandRaise(lifecycle: RoomLifecycle, currentlyRaised: Bool) async {
-        guard let convCoord = conversationCoordinator else { return }
-
-        let (authorID, authorName) = myAuthor(in: lifecycle)
-
-        if currentlyRaised {
-            await convCoord.lowerHand(participantID: authorID)
-            // Save narration via store (updates local + remote)
-            let narration = Message(
-                roomID: roomID,
-                authorID: "narrator",
-                authorName: "Narrator",
-                text: "\(authorName) lowered their hand.",
-                isLightward: false,
-                isNarration: true
-            )
-            try? await store.saveMessage(narration)
-        } else {
-            await convCoord.raiseHand(participantID: authorID)
-            // Save narration via store (updates local + remote)
-            let narration = Message(
-                roomID: roomID,
-                authorID: "narrator",
-                authorName: "Narrator",
-                text: "\(authorName) raised their hand.",
-                isLightward: false,
-                isNarration: true
-            )
-            try? await store.saveMessage(narration)
-        }
+        let narration = Message(
+            roomID: roomID,
+            authorID: "narrator",
+            authorName: "Narrator",
+            text: "\(authorName) raised their hand.",
+            isLightward: false,
+            isNarration: true
+        )
+        try? await store.saveMessage(narration)
     }
 
     // MARK: - Draft Persistence
@@ -640,22 +580,19 @@ struct MessageBubble: View {
     let authorName: String
     let isLightward: Bool
     let isNarration: Bool
-    var isStreaming: Bool = false
 
     init(message: Message, isLightward: Bool) {
         self.text = message.text
         self.authorName = message.authorName
         self.isLightward = isLightward
         self.isNarration = message.isNarration
-        self.isStreaming = false
     }
 
-    init(text: String, authorName: String, isLightward: Bool, isNarration: Bool = false, isStreaming: Bool = false) {
+    init(text: String, authorName: String, isLightward: Bool, isNarration: Bool = false) {
         self.text = text
         self.authorName = authorName
         self.isLightward = isLightward
         self.isNarration = isNarration
-        self.isStreaming = isStreaming
     }
 
     var body: some View {
@@ -713,7 +650,7 @@ struct TypingIndicator: View {
         HStack(spacing: 8) {
             ProgressView()
                 .scaleEffect(0.8)
-            Text("Lightward is typing...")
+            Text("Lightward is thinking...")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

@@ -90,11 +90,6 @@ struct RoomLifecycle: Sendable {
             state = .active(turn: turn)
             return []
 
-        case (.active(var turn), .handRaised(let participantID)):
-            turn.raiseHand(participantID: participantID)
-            state = .active(turn: turn)
-            return []
-
         case (.active(var turn), .needCreated(let need)):
             turn.currentNeed = need
             state = .active(turn: turn)
@@ -207,10 +202,5 @@ struct RoomLifecycle: Sendable {
     /// The current need, if any.
     var currentNeed: Need? {
         turnState?.currentNeed
-    }
-
-    /// Participants who have raised their hand this turn.
-    var raisedHands: Set<String> {
-        turnState?.raisedHands ?? []
     }
 }

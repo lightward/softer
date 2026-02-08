@@ -76,10 +76,9 @@ final class PersistenceStore {
 
     // MARK: - Turn State
 
-    func updateTurnState(roomID: String, turnIndex: Int, raisedHands: Set<String>) {
+    func updateTurnState(roomID: String, turnIndex: Int) {
         guard let room = room(id: roomID) else { return }
         room.currentTurnIndex = turnIndex
-        room.raisedHands = Array(raisedHands)
         room.modifiedAt = Date()
         try? modelContext.save()
     }
@@ -226,16 +225,12 @@ extension PersistedRoom {
             case .higherTurnWins:
                 let localTurn = self.currentTurnIndex ?? 0
                 self.currentTurnIndex = max(localTurn, turn.currentTurnIndex)
-                let localHands = Set(self.raisedHands)
-                self.raisedHands = Array(localHands.union(turn.raisedHands))
             case .remoteWins:
                 self.currentTurnIndex = turn.currentTurnIndex
-                self.raisedHands = Array(turn.raisedHands)
             }
         case .locked(let cenotaph, let turn):
             self.stateType = "locked"
             self.currentTurnIndex = turn.currentTurnIndex
-            self.raisedHands = Array(turn.raisedHands)
             self.cenotaph = cenotaph
         case .defunct:
             self.stateType = "defunct"
@@ -279,14 +274,12 @@ extension PersistedRoom {
         case "active":
             let turn = TurnState(
                 currentTurnIndex: currentTurnIndex ?? 0,
-                raisedHands: Set(raisedHands),
                 currentNeed: nil
             )
             return .active(turn: turn)
         case "locked":
             let turn = TurnState(
                 currentTurnIndex: currentTurnIndex ?? 0,
-                raisedHands: Set(raisedHands),
                 currentNeed: nil
             )
             return .locked(cenotaph: cenotaph ?? "", finalTurn: turn)

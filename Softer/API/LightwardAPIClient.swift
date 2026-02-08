@@ -2,8 +2,7 @@ import Foundation
 
 /// Protocol for Lightward API interaction, enabling testing.
 protocol LightwardAPI: Sendable {
-    /// Streams a response from Lightward given a chat log.
-    func stream(chatLog: [[String: Any]]) -> AsyncThrowingStream<String, Error>
+    func respond(body: String) async throws -> String
 }
 
 actor LightwardAPIClient: LightwardAPI {
@@ -13,98 +12,33 @@ actor LightwardAPIClient: LightwardAPI {
         self.session = session
     }
 
-    nonisolated func stream(chatLog: [[String: Any]]) -> AsyncThrowingStream<String, Error> {
-        let session = self.session
-        return AsyncThrowingStream { continuation in
-            Task {
-                do {
-                    let request = try Self.buildRequest(chatLog: chatLog)
-                    let (bytes, response) = try await session.bytes(for: request)
-
-                    guard let httpResponse = response as? HTTPURLResponse else {
-                        continuation.finish(throwing: APIError.invalidResponse)
-                        return
-                    }
-
-                    guard httpResponse.statusCode == 200 else {
-                        continuation.finish(throwing: APIError.httpError(httpResponse.statusCode))
-                        return
-                    }
-
-                    let parser = SSEParser()
-                    var byteBuffer = Data()
-
-                    for try await byte in bytes {
-                        byteBuffer.append(byte)
-
-                        // Try to decode as UTF-8 and process when we have complete events
-                        guard let lineBuffer = String(data: byteBuffer, encoding: .utf8) else {
-                            // Incomplete UTF-8 sequence, wait for more bytes
-                            continue
-                        }
-
-                        // Process when we have potential complete events (double newline)
-                        if lineBuffer.hasSuffix("\n\n") || lineBuffer.hasSuffix("\r\n\r\n") {
-                            let events = await parser.parse(chunk: lineBuffer)
-                            byteBuffer.removeAll()
-
-                            for event in events {
-                                if SSEParser.isMessageStop(event: event) {
-                                    continuation.finish()
-                                    return
-                                }
-                                if let text = SSEParser.extractContentDelta(from: event) {
-                                    continuation.yield(text)
-                                }
-                            }
-                        }
-                    }
-
-                    // Process any remaining buffer
-                    if !byteBuffer.isEmpty, let remaining = String(data: byteBuffer, encoding: .utf8) {
-                        let events = await parser.parse(chunk: remaining + "\n\n")
-                        for event in events {
-                            if let text = SSEParser.extractContentDelta(from: event) {
-                                continuation.yield(text)
-                            }
-                        }
-                    }
-
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-        }
-    }
-
-    func completeResponse(chatLog: [[String: Any]]) async throws -> String {
-        var result = ""
-        for try await chunk in stream(chatLog: chatLog) {
-            result += chunk
-        }
-        return result
-    }
-
-    private static func buildRequest(chatLog: [[String: Any]]) throws -> URLRequest {
+    nonisolated func respond(body: String) async throws -> String {
         var request = URLRequest(url: Constants.lightwardAPIURL)
         request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        request.setValue("text/plain", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body.data(using: .utf8)
 
-        let body: [String: Any] = [
-            "chat_log": chatLog
-        ]
+        let (data, response) = try await session.data(for: request)
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        return request
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(httpResponse.statusCode)
+        }
+
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw APIError.invalidResponse
+        }
+
+        return text
     }
 }
 
 enum APIError: Error, LocalizedError {
     case invalidResponse
     case httpError(Int)
-    case invalidJSON
 
     var errorDescription: String? {
         switch self {
@@ -112,8 +46,6 @@ enum APIError: Error, LocalizedError {
             return "Invalid response from server"
         case .httpError(let code):
             return "HTTP error: \(code)"
-        case .invalidJSON:
-            return "Invalid JSON in request"
         }
     }
 }

@@ -31,31 +31,13 @@ struct LightwardRoomEvaluator: LightwardEvaluator {
         Respond with exactly one word: "accept" or "decline"
         """
 
-        let chatLog = buildChatLog(prompt: prompt)
-
         do {
-            let response = try await apiClient.completeResponse(chatLog: chatLog)
+            let response = try await apiClient.respond(body: prompt)
             return parseDecision(from: response)
         } catch {
             // On error, default to decline to avoid creating rooms Lightward can't participate in
             return .declined
         }
-    }
-
-    private func buildChatLog(prompt: String) -> [[String: Any]] {
-        // Single user message asking for the decision
-        return [
-            [
-                "role": "user",
-                "content": [
-                    [
-                        "type": "text",
-                        "text": prompt,
-                        "cache_control": ["type": "ephemeral"]
-                    ]
-                ]
-            ]
-        ]
     }
 
     private func parseDecision(from response: String) -> LightwardDecision {

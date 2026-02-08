@@ -3,21 +3,15 @@ import Foundation
 /// Turn state for an active room conversation.
 struct TurnState: Sendable, Codable, Equatable {
     var currentTurnIndex: Int
-    var raisedHands: Set<String>  // participant IDs who have raised hands
     var currentNeed: Need?
 
-    static let initial = TurnState(currentTurnIndex: 0, raisedHands: [], currentNeed: nil)
+    static let initial = TurnState(currentTurnIndex: 0, currentNeed: nil)
 
     mutating func advanceTurn(participantCount: Int) {
         guard participantCount > 0 else { return }
         // Don't modulo here - let index grow for higherTurnWins merge strategy
         // Display code does % participantCount when showing whose turn
         currentTurnIndex += 1
-        raisedHands.removeAll()
-    }
-
-    mutating func raiseHand(participantID: String) {
-        raisedHands.insert(participantID)
     }
 }
 
@@ -74,7 +68,6 @@ enum RoomEvent: Sendable, Equatable {
 
     // Active room events
     case messageSent  // Advances turn
-    case handRaised(participantID: String)
     case needCreated(Need)
     case needClaimed(deviceID: String)
     case needCompleted

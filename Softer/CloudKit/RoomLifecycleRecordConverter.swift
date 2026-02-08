@@ -198,11 +198,6 @@ enum RoomLifecycleRecordConverter {
         // TurnState fields (for active/locked states)
         if let turn = encoded.turnState {
             record["currentTurnIndex"] = turn.currentTurnIndex as NSNumber
-            if turn.raisedHands.isEmpty {
-                record["raisedHands"] = nil
-            } else {
-                record["raisedHands"] = Array(turn.raisedHands) as NSArray
-            }
 
             // Need state
             if let need = turn.currentNeed {
@@ -218,7 +213,6 @@ enum RoomLifecycleRecordConverter {
             }
         } else {
             record["currentTurnIndex"] = nil
-            record["raisedHands"] = nil
             record["needID"] = nil
             record["needType"] = nil
             record["needClaimedBy"] = nil
@@ -352,8 +346,6 @@ enum RoomLifecycleRecordConverter {
             return nil
         }
 
-        let raisedHands = Set(record["raisedHands"] as? [String] ?? [])
-
         var currentNeed: Need?
         if let needID = record["needID"] as? String,
            let needTypeRaw = record["needType"] as? String,
@@ -368,7 +360,6 @@ enum RoomLifecycleRecordConverter {
 
         return TurnState(
             currentTurnIndex: turnIndex,
-            raisedHands: raisedHands,
             currentNeed: currentNeed
         )
     }

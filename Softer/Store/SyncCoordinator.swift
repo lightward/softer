@@ -681,16 +681,6 @@ actor SyncCoordinator {
                 merged["currentTurnIndex"] = max(localTurn, serverTurn) as NSNumber
             }
 
-            // Raised hands: union merge (stored as array)
-            let localHands = Set(local["raisedHands"] as? [String] ?? [])
-            let serverHands = Set(server["raisedHands"] as? [String] ?? [])
-            let handsUnion = localHands.union(serverHands)
-            if handsUnion.isEmpty {
-                merged["raisedHands"] = nil
-            } else {
-                merged["raisedHands"] = Array(handsUnion) as NSArray
-            }
-
             // Messages: union by ID, sorted by createdAt
             let localMessagesJSON = local["messagesJSON"] as? String ?? "[]"
             let serverMessagesJSON = server["messagesJSON"] as? String ?? "[]"

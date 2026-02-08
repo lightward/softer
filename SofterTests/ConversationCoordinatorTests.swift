@@ -63,7 +63,7 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, raisedHands: [], currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
             messageStorage: storage,
             apiClient: api,
             onTurnChange: { turn in
@@ -92,7 +92,7 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, raisedHands: [], currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
             messageStorage: storage,
             apiClient: api
         )
@@ -104,19 +104,19 @@ final class ConversationCoordinatorTests: XCTestCase {
             text: "Hello Lightward"
         )
 
-        XCTAssertEqual(api.streamCallCount, 1)
+        XCTAssertEqual(api.respondCallCount, 1)
     }
 
     func testLightwardResponseIsSaved() async throws {
         let storage = MockMessageStorage()
         let api = MockLightwardAPIClient()
-        api.responseChunks = ["Hello from Lightward!"]
+        api.responseText = "Hello from Lightward!"
         let spec = makeSpec()
 
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, raisedHands: [], currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
             messageStorage: storage,
             apiClient: api
         )
@@ -136,37 +136,6 @@ final class ConversationCoordinatorTests: XCTestCase {
         XCTAssertTrue(saved[1].isLightward)
     }
 
-    func testStreamingTextUpdates() async throws {
-        let storage = MockMessageStorage()
-        let api = MockLightwardAPIClient()
-        api.responseChunks = ["Hello ", "world!"]
-        let spec = makeSpec()
-
-        // Thread-safe collector (no Task spawning needed)
-        let collector = StreamingCollector()
-        let coordinator = ConversationCoordinator(
-            roomID: "room-1",
-            spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, raisedHands: [], currentNeed: nil),
-            messageStorage: storage,
-            apiClient: api,
-            onStreamingText: { text in
-                collector.append(text)
-            }
-        )
-
-        try await coordinator.sendMessage(
-            authorID: "jax-id",
-            authorName: "Jax",
-            text: "Hello"
-        )
-
-        // Should have received streaming updates: "Hello " then "Hello world!"
-        let updates = collector.updates
-        XCTAssertTrue(updates.contains("Hello "))
-        XCTAssertTrue(updates.contains("Hello world!"))
-    }
-
     func testYieldTurnWithoutMessage() async throws {
         let storage = MockMessageStorage()
         let api = MockLightwardAPIClient()
@@ -175,7 +144,7 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, raisedHands: [], currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
             messageStorage: storage,
             apiClient: api
         )
@@ -191,62 +160,17 @@ final class ConversationCoordinatorTests: XCTestCase {
         XCTAssertTrue(saved[0].isLightward)
     }
 
-    func testRaiseHand() async throws {
-        let storage = MockMessageStorage()
-        let api = MockLightwardAPIClient()
-        let spec = makeSpec()
-
-        var lastTurnState: TurnState?
-        let coordinator = ConversationCoordinator(
-            roomID: "room-1",
-            spec: spec,
-            messageStorage: storage,
-            apiClient: api,
-            onTurnChange: { turn in
-                lastTurnState = turn
-            }
-        )
-
-        await coordinator.raiseHand(participantID: "mira-id")
-
-        XCTAssertNotNil(lastTurnState)
-        XCTAssertTrue(lastTurnState!.raisedHands.contains("mira-id"))
-    }
-
-    func testLowerHand() async throws {
-        let storage = MockMessageStorage()
-        let api = MockLightwardAPIClient()
-        let spec = makeSpec()
-
-        var lastTurnState: TurnState?
-        let coordinator = ConversationCoordinator(
-            roomID: "room-1",
-            spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, raisedHands: ["mira-id"], currentNeed: nil),
-            messageStorage: storage,
-            apiClient: api,
-            onTurnChange: { turn in
-                lastTurnState = turn
-            }
-        )
-
-        await coordinator.lowerHand(participantID: "mira-id")
-
-        XCTAssertNotNil(lastTurnState)
-        XCTAssertFalse(lastTurnState!.raisedHands.contains("mira-id"))
-    }
-
     func testTurnWrapsAfterFullCycle() async throws {
         let storage = MockMessageStorage()
         let api = MockLightwardAPIClient()
-        api.responseChunks = ["Response"]
+        api.responseText = "Response"
         let spec = makeSpec() // Jax(0), Lightward(1), Mira(2)
 
         var turnChanges: [TurnState] = []
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, raisedHands: [], currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
             messageStorage: storage,
             apiClient: api,
             onTurnChange: { turn in
@@ -287,13 +211,13 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, raisedHands: [], currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
             messageStorage: storage,
             apiClient: api
         )
 
         // Simulate remote sync: another device advanced to turn 2 (Mira)
-        await coordinator.syncTurnState(TurnState(currentTurnIndex: 2, raisedHands: [], currentNeed: nil))
+        await coordinator.syncTurnState(TurnState(currentTurnIndex: 2, currentNeed: nil))
 
         // Mira sends → should advance from 2 to 3 (Jax), NOT from 0 to 1 (Lightward)
         try await coordinator.sendMessage(authorID: "mira-id", authorName: "Mira", text: "Hi from Mira")
@@ -304,7 +228,7 @@ final class ConversationCoordinatorTests: XCTestCase {
         let current = await coordinator.currentTurnParticipant
         XCTAssertEqual(current?.nickname, "Jax")
         // Lightward API should NOT have been called
-        XCTAssertEqual(api.streamCallCount, 0)
+        XCTAssertEqual(api.respondCallCount, 0)
     }
 
     func testSyncTurnStateNeverGoesBackward() async throws {
@@ -315,13 +239,13 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 5, raisedHands: [], currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 5, currentNeed: nil),
             messageStorage: storage,
             apiClient: api
         )
 
         // Stale remote data with lower turn index should be ignored
-        await coordinator.syncTurnState(TurnState(currentTurnIndex: 2, raisedHands: [], currentNeed: nil))
+        await coordinator.syncTurnState(TurnState(currentTurnIndex: 2, currentNeed: nil))
 
         let turn = await coordinator.currentTurnState
         XCTAssertEqual(turn.currentTurnIndex, 5, "Should not go backward")
@@ -346,7 +270,7 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, raisedHands: [], currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
             messageStorage: storage,
             apiClient: api
         )
@@ -359,27 +283,10 @@ final class ConversationCoordinatorTests: XCTestCase {
         )
 
         // API should NOT have been called since it's Mira's turn, not Lightward's
-        XCTAssertEqual(api.streamCallCount, 0)
+        XCTAssertEqual(api.respondCallCount, 0)
 
         // Should be Mira's turn
         let finalTurn = await coordinator.currentTurnState
         XCTAssertEqual(finalTurn.currentTurnIndex, 1)
-    }
-}
-
-// MARK: - Test Helpers
-
-/// Thread-safe collector for streaming text updates.
-/// Uses a lock instead of actor to avoid Task spawning in callbacks.
-private final class StreamingCollector: @unchecked Sendable {
-    private let lock = NSLock()
-    private var _updates: [String] = []
-
-    var updates: [String] {
-        lock.withLock { _updates }
-    }
-
-    func append(_ text: String) {
-        lock.withLock { _updates.append(text) }
     }
 }
