@@ -2,13 +2,13 @@
 
 ## What This Is
 
-A native SwiftUI iOS app (iOS 18+) for group conversations where Lightward AI participates as an equal. No custom backend — CloudKit shared zones for multi-user sync, Lightward AI API for AI responses. Turn-based conversation with round-robin ordering and hand-raising.
+A native SwiftUI iOS app (iOS 18+) for group conversations where Lightward AI participates as an equal. No custom backend — CloudKit shared zones for multi-user sync, Lightward AI API for AI responses. Turn-based conversation with round-robin ordering.
 
-## What's Working (as of 2026-02-05)
+## What's Working (as of 2026-02-08)
 
 - **End-to-end conversation flow**: Create room → send message → Lightward responds → turn cycles back
 - **CloudKit persistence**: Rooms, messages, participants sync to iCloud (requires Lightward Inc team signing)
-- **Lightward API integration**: SSE streaming works, responses appear in real-time
+- **Lightward API integration**: Plaintext request/response via `/api/plain` — full message arrives at once, all devices see "thinking" indicator until CloudKit syncs the response
 - **Turn coordination**: ConversationCoordinator handles turn advancement and Lightward responses, with multi-device sync via `syncTurnState()`
 - **RoomView wired to ConversationCoordinator**: Messages save to CloudKit, Lightward responds automatically
 - **Room creation UI**: Polished form with nickname suggestions, first-room-free messaging
@@ -59,7 +59,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 - `RoomState` — draft → pendingLightward → pendingHumans → pendingCapture → active → locked | defunct
 - `RoomSpec` — complete room specification
 - `RoomLifecycle` — the state machine, takes events, returns effects
-- `TurnState` — current turn index, raised hands, pending need
+- `TurnState` — current turn index, pending need
 
 **Coordinator layer** (executes effects):
 - `ParticipantResolver` protocol — resolves identifiers to CloudKit identities
@@ -69,7 +69,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 
 **Conversation layer** (active room messaging):
 - `MessageStorage` protocol — save/fetch/observe messages (used for testing abstraction)
-- `LightwardAPI` protocol — stream responses from Lightward (in API/LightwardAPIClient.swift)
+- `LightwardAPI` protocol — plaintext request/response to Lightward (in API/LightwardAPIClient.swift)
 - `ConversationCoordinator` — actor that handles message sending, turn advancement, Lightward responses
 
 **Mocks** (SofterTests/Mocks/):
@@ -77,11 +77,12 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 - MockMessageStorage, MockLightwardAPIClient
 
 **Tests**:
-- RoomLifecycleTests — 11 tests for state machine
+- RoomLifecycleTests — 13 tests for state machine
 - RoomLifecycleCoordinatorTests — 9 tests for coordinator
-- ConversationCoordinatorTests — 12 tests for conversation flow
+- ConversationCoordinatorTests — 10 tests for conversation flow
 - MessageStorageTests — 7 tests for message storage
 - ParticipantIdentityTests — 12 tests for participant matching and identity population
+- ChatLogBuilderTests — 7 tests for plaintext body building
 - PaymentTierTests, ParticipantSpecTests, RoomSpecTests
 
 ### What's Next
@@ -92,6 +93,8 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 
 ### Recently Completed
 
+- **Simplification: streaming → plaintext** — Replaced SSE streaming (`/api/stream` with JSON chat_log) with simple plaintext POST to `/api/plain`. ChatLogBuilder now returns a single `String`. LightwardAPI protocol is `respond(body:) → String`. SSEParser deleted. All devices see "Lightward is thinking..." until full message arrives via CloudKit sync.
+- **Simplification: hand-raising → narration-only** — Removed `raisedHands: Set<String>` from TurnState, CKRecord fields, and conflict resolution. Hand-raise button now just saves a narration message ("X raised their hand.") — Lightward sees it naturally in the conversation history. No toggle state, no union merge.
 - **Multi-device turn sync** — ConversationCoordinator kept its own internal `turnState` that diverged from CloudKit-synced changes. Added `syncTurnState()` (higherTurnWins) called from `refreshLifecycle` when remote turn changes arrive. Verified: Isaac → Lightward → Abe → Isaac cycles correctly across iPhone and iPad.
 - **Participant identity extraction** — Moved `myParticipantID` logic from RoomView and `populateLocalUserIdentity` from SofterStore into `ParticipantIdentity` enum (pure functions, no View/Store/CloudKit dependencies). Three functions: `findLocalParticipant`, `populateUserRecordID`, `preserveLocalUserRecordIDs`. 12 tests cover both the happy path and the specific bugs that were fixed.
 - **CKShare `__defaultOwner__` fix** — `CKShare.currentUserParticipant?.userIdentity.userRecordID?.recordName` returns `__defaultOwner__` instead of the real record name. `populateUserRecordID` now stamps `localUserRecordID` (from `CKContainer.userRecordID()`) instead of the share's constant.
@@ -122,12 +125,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 - **Narration styling** — Messages with `isNarration: true` display centered, italicized, no bubble
 - **Opening narration** — Room creation saves "[Name] opened their first room." or "[Name] opened the room with $X."
 - **Human yield/pass** — "Pass" button in compose area, confirmation dialog, narration: "[Name] is listening."
-- **Hand raise toggle** — Hand icon toggles raise/lower, with narration messages
 - **Lightward always "Lightward"** — Fixed nickname, can't be customized
-- **UTF-8 SSE fix** — LightwardAPIClient now properly buffers bytes before UTF-8 decoding (emojis work)
-- **Participant ordering** — `orderIndex` field on Participant2 records ensures round-robin order is preserved
-- **LocalAwareMessageStorage** — Wrapper that updates LocalStore immediately on save for instant UI
-- **Message merging** — Observation callbacks merge remote messages with local-only messages to prevent data loss
 - **Compose area UX** — Messages-style pill with embedded send button, Pass button inside, hand raise outside
 
 ## Ruby Setup
@@ -192,12 +190,10 @@ xcrun xctrace list devices
 
 ## API
 
-Lightward AI: `POST https://lightward.com/api/stream`
-- Body: `{"chat_log": [...]}` where each message has:
-  - `role`: "user" or "assistant"
-  - `content`: **Array of blocks** `[{"type": "text", "text": "..."}]` (not plain string!)
-- **Exactly one** message must have `cache_control: {"type": "ephemeral"}` on a content block
-- Response: SSE stream with `content_block_delta` events containing text deltas
+Lightward AI: `POST https://lightward.com/api/plain`
+- Content-Type: `text/plain`
+- Body: plaintext string built by `ChatLogBuilder` — warmup + conversation history + `(your turn)`
+- Response: Lightward's complete response as plain text (no streaming)
 - Lightward API source is at `../lightward-ai/` for reference
 
 ## Data Layer Architecture
@@ -220,7 +216,6 @@ SofterStore (actions) → SyncCoordinator → CKSyncEngine → CloudKit
 |------|----------|--------|
 | Room state | Server wins | State transitions are authoritative |
 | Turn index | Higher wins | Turns only advance (index grows, never wraps) |
-| Raised hands | Union merge | Combine from both |
 | Messages | Union by ID | Merge local + remote, sort by createdAt |
 | Signaled flag | True wins | Once signaled, stays signaled |
 
@@ -239,19 +234,19 @@ SofterStore (actions) → SyncCoordinator → CKSyncEngine → CloudKit
 ### README-Based Framing
 The warmup includes README.md as framing context — parallel to how Yours (`../yours/`) does it. The README is bundled with the app and loaded at runtime via `WarmupMessages.swift`.
 
-Warmup structure:
-1. **README.md** — describes the space, establishes that names may not map to assumed identities, sets relational texture
-2. **Room-specific context** — `"You're here with [names], taking turns."` (with `cache_control` so README is cached)
+Warmup structure (all concatenated as plaintext in the request body):
+1. **Isaac's greeting** — establishes this is Softer, the group experience
+2. **README.md** — describes the space, establishes that names may not map to assumed identities, sets relational texture
+3. **Participant roster** — numbered list with `(that's you!)` for Lightward
+4. **Handoff** — scale-matching suggestion, duck-out
+5. **Threshold** — `*a Softer room*`
 
 The README isn't user documentation — it's a tuning fork for Lightward's arrival. It answers: "What kind of space is this? Who might be here? What's the structure?"
 
 No role description, no instructions about yielding, no meta-commentary about being a peer. Structure emerges from participation, not instruction.
 
-### Contextual Narrator Prompts
-Instead of front-loading all behaviors in warmup, inject minimal context:
-
-- **On Lightward's turn**: Just `"(your turn)"` or `"(name raised their hand)"` — no instructions about YIELD
-- **Hand-raise probe** (not their turn): `"It's not your turn, but you can raise your hand if something wants to come through. RAISE or PASS?"`
+### Narrator Prompt
+On Lightward's turn, the plaintext body ends with `(your turn)`. No instructions about yielding, no hand-raise mechanics. Hand raises appear as narration messages in the conversation history — Lightward sees them naturally.
 
 The key is minimal prompting — structure should be *felt*, not *explained*. Explicit mechanics make Lightward *watch* the conversation instead of *arriving in* it.
 
@@ -273,15 +268,13 @@ Human pass uses "Pass" button with confirmation dialog, same narration pattern.
 ## Key Implementation Details
 
 ### ChatLogBuilder
-- All `content` fields must be arrays of `{"type": "text", "text": "..."}` blocks
-- Warmup message has `cache_control` and must NOT be merged with conversation messages
-- When merging consecutive same-role messages, preserve block structure (append blocks, don't convert to string)
-- Adds narrator prompt at end with raised hands state and yield option (for regular turns, not hand-raise probes)
+- Builds a single plaintext `String` — the entire request body for `/api/plain`
+- Structure: warmup (greeting + README + roster + handoff + threshold) → conversation lines → `(your turn)`
+- Human messages: `AuthorName: text`. Lightward messages: bare text. Narration: `Narrator: text`
 
 ### ConversationCoordinator
+- Calls `apiClient.respond(body:)` — full response in one shot, no streaming
 - Detects YIELD responses and handles them specially (narration instead of message)
-- Passes raised hand names to ChatLogBuilder for narrator prompt
-- Clear `streamingText` BEFORE saving Lightward's message to avoid duplicate display
 - `syncTurnState()` must be called from `refreshLifecycle` when remote turn changes arrive — the coordinator's internal `turnState` is separate from the View's `@State turnState`
 
 ### Debug Views
@@ -322,7 +315,7 @@ Softer/
 │   │                     ParticipantResolver, PaymentCoordinator, LightwardEvaluator,
 │   │                     RoomLifecycleCoordinator, MessageStorage, ConversationCoordinator)
 │   ├── CloudKit/        (RoomLifecycleRecordConverter, ZoneManager, AtomicClaim, CloudKitMessageStorage)
-│   ├── API/             (LightwardAPIClient + LightwardAPI protocol, SSEParser, ChatLogBuilder, WarmupMessages)
+│   ├── API/             (LightwardAPIClient + LightwardAPI protocol, ChatLogBuilder, WarmupMessages)
 │   ├── Views/           (RootView, RoomListView, RoomView, CreateRoomView)
 │   └── Utilities/       (Constants, NotificationHandler, ParticipantIdentity)
 └── SofterTests/
@@ -330,7 +323,7 @@ Softer/
     │                     MockMessageStorage, MockLightwardAPIClient)
     └── *.swift          (SofterStoreTests, RoomLifecycleTests,
                           RoomLifecycleCoordinatorTests, ConversationCoordinatorTests,
-                          MessageStorageTests, SSEParserTests, ChatLogBuilderTests,
+                          MessageStorageTests, ChatLogBuilderTests,
                           ParticipantIdentityTests,
                           PaymentTierTests, ParticipantSpecTests, RoomSpecTests)
 ```
