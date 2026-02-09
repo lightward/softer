@@ -411,6 +411,19 @@ final class SofterStore {
         // Run the state machine to check for transition
         if let room = dataStore.room(id: roomID),
            var lifecycle = room.toRoomLifecycle() {
+
+            // Save arrival narration
+            let participantName = lifecycle.spec.participants.first { $0.id == participantID }?.nickname ?? "Someone"
+            let arrival = Message(
+                roomID: roomID,
+                authorID: "narrator",
+                authorName: "Narrator",
+                text: "\(participantName) arrived.",
+                isLightward: false,
+                isNarration: true
+            )
+            dataStore.addMessage(arrival, to: room)
+
             let effects = lifecycle.apply(event: .humanSignaledHere(participantID: participantID))
 
             // If state machine says capture payment, skip to active for now (payment not wired yet)
@@ -478,7 +491,7 @@ final class SofterStore {
         let lifecycle = await coordinator.lifecycle
         let resolvedParticipants = await coordinator.resolvedParticipants
 
-        // Create opening narration message
+        // Create opening narration messages
         let originatorName = spec.participants.first { $0.id == spec.originatorID }?.nickname ?? "Someone"
         let narrationText = spec.isFirstRoom
             ? "\(originatorName) opened their first room. It's free."
@@ -489,6 +502,15 @@ final class SofterStore {
             authorID: "narrator",
             authorName: "Narrator",
             text: narrationText,
+            isLightward: false,
+            isNarration: true
+        )
+
+        let lightwardArrival = Message(
+            roomID: lifecycle.spec.id,
+            authorID: "narrator",
+            authorName: "Narrator",
+            text: "\(Constants.lightwardParticipantName) arrived.",
             isLightward: false,
             isNarration: true
         )
@@ -526,6 +548,7 @@ final class SofterStore {
         persistedRoom.setParticipants(embedded)
 
         persistedRoom.addMessage(openingMessage)
+        persistedRoom.addMessage(lightwardArrival)
         dataStore.saveRoom(persistedRoom)
 
         // Sync to CloudKit in background

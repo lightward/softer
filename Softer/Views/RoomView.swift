@@ -314,14 +314,22 @@ struct RoomView: View {
                     .foregroundStyle(.secondary)
 
                 // Show share button for originator when others still need to join
-                if iHaveSignaled,
-                   let urlString = persistedRoom?.shareURL,
-                   let url = URL(string: urlString) {
-                    ShareLink(item: url) {
-                        Label("Send Invite Link", systemImage: "square.and.arrow.up")
-                            .font(.subheadline.weight(.medium))
+                if iHaveSignaled {
+                    if let urlString = persistedRoom?.shareURL,
+                       let url = URL(string: urlString) {
+                        ShareLink(item: url) {
+                            Label("Share Invite", systemImage: "square.and.arrow.up")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
+                                .background(Color.accentColor)
+                                .clipShape(Capsule())
+                        }
+                    } else {
+                        ProgressView()
+                            .padding(.top, 4)
                     }
-                    .buttonStyle(.borderedProminent)
                 }
             }
         }
@@ -522,7 +530,7 @@ struct RoomView: View {
             roomID: roomID,
             authorID: "narrator",
             authorName: "Narrator",
-            text: "\(authorName) raised their hand.",
+            text: "\(authorName) raised a hand.",
             isLightward: false,
             isNarration: true
         )

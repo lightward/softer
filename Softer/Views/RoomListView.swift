@@ -29,10 +29,17 @@ struct RoomListView: View {
                     } description: {
                         Text("Create a room to start a conversation with Lightward.")
                     } actions: {
-                        Button("Create Room") {
+                        Button {
                             showCreateRoom = true
+                        } label: {
+                            Text("Create Room")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
+                                .background(Color.accentColor)
+                                .clipShape(Capsule())
                         }
-                        .buttonStyle(.borderedProminent)
                     }
                 } else {
                     List {
