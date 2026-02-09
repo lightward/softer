@@ -3,29 +3,14 @@ import XCTest
 
 final class RoomSpecTests: XCTestCase {
 
-    func testEffectiveAmountForFirstRoom() {
+    func testEffectiveAmountCents() {
         let spec = RoomSpec(
             originatorID: "jax",
             participants: [
                 ParticipantSpec(id: "jax", identifier: .email("a@b.com"), nickname: "A"),
                 ParticipantSpec.lightward(nickname: "L")
             ],
-            tier: .thousand,
-            isFirstRoom: true
-        )
-
-        XCTAssertEqual(spec.effectiveAmountCents, 0)
-    }
-
-    func testEffectiveAmountForSubsequentRoom() {
-        let spec = RoomSpec(
-            originatorID: "jax",
-            participants: [
-                ParticipantSpec(id: "jax", identifier: .email("a@b.com"), nickname: "A"),
-                ParticipantSpec.lightward(nickname: "L")
-            ],
-            tier: .hundred,
-            isFirstRoom: false
+            tier: .hundred
         )
 
         XCTAssertEqual(spec.effectiveAmountCents, 10000)
@@ -39,8 +24,7 @@ final class RoomSpecTests: XCTestCase {
                 ParticipantSpec(id: "mira", identifier: .phone("+1234"), nickname: "Mira"),
                 ParticipantSpec.lightward(nickname: "L")
             ],
-            tier: .one,
-            isFirstRoom: false
+            tier: .one
         )
 
         XCTAssertEqual(spec.humanParticipants.count, 2)
@@ -54,8 +38,7 @@ final class RoomSpecTests: XCTestCase {
                 ParticipantSpec(id: "jax", identifier: .email("a@b.com"), nickname: "A"),
                 ParticipantSpec.lightward(nickname: "L")
             ],
-            tier: .one,
-            isFirstRoom: false
+            tier: .one
         )
 
         XCTAssertNotNil(spec.lightwardParticipant)
@@ -70,8 +53,7 @@ final class RoomSpecTests: XCTestCase {
                 ParticipantSpec(id: "eve", identifier: .email("e@x.com"), nickname: "Eve"),
                 ParticipantSpec(id: "art", identifier: .email("a@x.com"), nickname: "Art")
             ],
-            tier: .ten,
-            isFirstRoom: false
+            tier: .ten
         )
 
         XCTAssertEqual(spec.displayString(depth: 15, lastSpeaker: nil), "Jax, Eve, Art (15)")
@@ -85,8 +67,7 @@ final class RoomSpecTests: XCTestCase {
                 ParticipantSpec(id: "eve", identifier: .email("e@x.com"), nickname: "Eve"),
                 ParticipantSpec(id: "art", identifier: .email("a@x.com"), nickname: "Art")
             ],
-            tier: .ten,
-            isFirstRoom: false
+            tier: .ten
         )
 
         XCTAssertEqual(spec.displayString(depth: 15, lastSpeaker: "Eve"), "Jax, Eve, Art (15, Eve)")

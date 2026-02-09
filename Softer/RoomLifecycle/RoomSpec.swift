@@ -7,7 +7,6 @@ struct RoomSpec: Sendable, Codable, Equatable {
     let originatorID: String  // The participant ID of the person creating the room
     let participants: [ParticipantSpec]
     let tier: PaymentTier
-    let isFirstRoom: Bool  // First room is free
     let createdAt: Date
 
     init(
@@ -15,20 +14,18 @@ struct RoomSpec: Sendable, Codable, Equatable {
         originatorID: String,
         participants: [ParticipantSpec],
         tier: PaymentTier,
-        isFirstRoom: Bool,
         createdAt: Date = Date()
     ) {
         self.id = id
         self.originatorID = originatorID
         self.participants = participants
         self.tier = tier
-        self.isFirstRoom = isFirstRoom
         self.createdAt = createdAt
     }
 
-    /// The effective payment amount in cents. Zero for first room.
+    /// The payment amount in cents for this room.
     var effectiveAmountCents: Int {
-        isFirstRoom ? 0 : tier.cents
+        tier.cents
     }
 
     /// All human participants (excluding Lightward).

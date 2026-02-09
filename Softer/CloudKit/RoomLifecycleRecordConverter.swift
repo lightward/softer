@@ -166,7 +166,6 @@ enum RoomLifecycleRecordConverter {
         // RoomSpec fields
         record["originatorID"] = spec.originatorID as NSString
         record["tier"] = spec.tier.rawValue as NSNumber
-        record["isFirstRoom"] = (spec.isFirstRoom ? 1 : 0) as NSNumber
         record["createdAtDate"] = spec.createdAt as NSDate
         record["modifiedAtDate"] = lifecycle.modifiedAt as NSDate
 
@@ -225,7 +224,6 @@ enum RoomLifecycleRecordConverter {
         guard let originatorID = record["originatorID"] as? String,
               let tierRaw = record["tier"] as? Int,
               let tier = PaymentTier(rawValue: tierRaw),
-              let isFirstRoomInt = record["isFirstRoom"] as? Int,
               let stateType = record["stateType"] as? String,
               let participantsJSON = record["participantsJSON"] as? String,
               let jsonData = participantsJSON.data(using: .utf8),
@@ -243,7 +241,6 @@ enum RoomLifecycleRecordConverter {
             originatorID: originatorID,
             participants: participantSpecs,
             tier: tier,
-            isFirstRoom: isFirstRoomInt == 1,
             createdAt: record["createdAtDate"] as? Date ?? record.creationDate ?? Date()
         )
 

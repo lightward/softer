@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftData
 import ContactsUI
 
 struct CreateRoomView: View {
@@ -15,16 +14,12 @@ struct CreateRoomView: View {
     // Creation state
     @State private var isCreating = false
     @State private var errorMessage: String?
-    @State private var cachedIsFirstRoom: Bool?
 
     // Contact picker
     @State private var showContactPicker = false
 
     // Focus state for auto-focusing new participant nickname
     @FocusState private var focusedParticipantID: UUID?
-
-    // Query for active/locked rooms to check isFirstRoom
-    @Query private var persistedRooms: [PersistedRoom]
 
     var body: some View {
         NavigationStack {
@@ -72,25 +67,14 @@ struct CreateRoomView: View {
                 }
 
                 Section {
-                    if cachedIsFirstRoom ?? isFirstRoom {
-                        Text("Your first room is free")
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 4)
-                    } else {
-                        Picker("Amount", selection: $selectedTier) {
-                            ForEach(PaymentTier.allCases, id: \.self) { tier in
-                                Text(tier.displayString).tag(tier)
-                            }
+                    Picker("Amount", selection: $selectedTier) {
+                        ForEach(PaymentTier.allCases, id: \.self) { tier in
+                            Text(tier.displayString).tag(tier)
                         }
-                        .pickerStyle(.segmented)
                     }
+                    .pickerStyle(.segmented)
                 } header: {
                     Text("Payment")
-                }
-                .onAppear {
-                    if cachedIsFirstRoom == nil {
-                        cachedIsFirstRoom = isFirstRoom
-                    }
                 }
 
                 if let error = errorMessage {
@@ -143,20 +127,6 @@ struct CreateRoomView: View {
         }
     }
 
-    private var isFirstRoom: Bool {
-        // Check if any rooms are past draft state
-        let roomsInProgress = persistedRooms.compactMap { $0.toRoomLifecycle() }
-            .filter { lifecycle in
-                switch lifecycle.state {
-                case .draft, .defunct:
-                    return false
-                case .pendingParticipants, .pendingCapture, .active, .locked:
-                    return true
-                }
-            }
-        return roomsInProgress.isEmpty
-    }
-
     private var isValid: Bool {
         !myNickname.trimmingCharacters(in: .whitespaces).isEmpty
     }
@@ -199,8 +169,7 @@ struct CreateRoomView: View {
             let lifecycle = try await store.createRoom(
                 participants: participants,
                 tier: selectedTier,
-                originatorNickname: myNickname,
-                isFirstRoom: cachedIsFirstRoom ?? isFirstRoom
+                originatorNickname: myNickname
             )
             isPresented = false
             onCreated?(lifecycle.spec.id)

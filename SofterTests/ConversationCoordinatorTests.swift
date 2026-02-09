@@ -11,8 +11,7 @@ final class ConversationCoordinatorTests: XCTestCase {
                 ParticipantSpec.lightward(nickname: "Lightward"),
                 ParticipantSpec(identifier: .email("mira@example.com"), nickname: "Mira"),
             ],
-            tier: .ten,
-            isFirstRoom: false
+            tier: .ten
         )
     }
 
@@ -28,8 +27,7 @@ final class ConversationCoordinatorTests: XCTestCase {
                 ParticipantSpec(identifier: .email("mira@example.com"), nickname: "Mira"),
                 ParticipantSpec.lightward(nickname: "Lightward"),
             ],
-            tier: .ten,
-            isFirstRoom: false
+            tier: .ten
         )
 
         let coordinator = ConversationCoordinator(
@@ -263,8 +261,7 @@ final class ConversationCoordinatorTests: XCTestCase {
                 ParticipantSpec(identifier: .email("mira@example.com"), nickname: "Mira"),
                 ParticipantSpec.lightward(nickname: "Lightward"),
             ],
-            tier: .one,
-            isFirstRoom: true
+            tier: .one
         )
 
         let coordinator = ConversationCoordinator(

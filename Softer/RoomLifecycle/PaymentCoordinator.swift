@@ -24,7 +24,6 @@ enum PaymentError: Error, Sendable, Equatable {
 /// Coordinates Apple Pay authorization and capture.
 protocol PaymentCoordinator: Sendable {
     /// Authorize a payment amount. The amount is held but not captured.
-    /// For first room (cents == 0), returns a "free" authorization.
     func authorize(cents: Int) async -> Result<PaymentAuthorization, PaymentError>
 
     /// Capture a previously authorized payment.

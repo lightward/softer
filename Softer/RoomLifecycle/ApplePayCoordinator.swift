@@ -16,7 +16,7 @@ final class ApplePayCoordinator: NSObject, PaymentCoordinator, @unchecked Sendab
     }
 
     func authorize(cents: Int) async -> Result<PaymentAuthorization, PaymentError> {
-        // First room is free - return a synthetic authorization
+        // Zero-amount authorization (synthetic)
         if cents == 0 {
             let auth = PaymentAuthorization(
                 id: UUID().uuidString,

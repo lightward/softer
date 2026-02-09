@@ -64,20 +64,6 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
         XCTAssertEqual(lifecycle.state, .active(turn: .initial))
     }
 
-    func testFirstRoomIsFree() async throws {
-        let spec = makeSpec(isFirstRoom: true)
-        let coordinator = RoomLifecycleCoordinator(
-            spec: spec,
-            resolver: resolver,
-            payment: payment
-        )
-
-        try await coordinator.start()
-
-        // Verify $0 authorization
-        XCTAssertEqual(payment.lastAuthorizedCents, 0)
-    }
-
     // MARK: - Resolution Failure
 
     func testResolutionFailureStopsAndThrows() async {
@@ -244,15 +230,14 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func makeSpec(isFirstRoom: Bool = false) -> RoomSpec {
+    private func makeSpec() -> RoomSpec {
         RoomSpec(
             originatorID: "jax-id",
             participants: [
                 ParticipantSpec(id: "jax-id", identifier: .email("jax@example.com"), nickname: "Jax"),
                 ParticipantSpec(id: "lightward-id", identifier: .lightward, nickname: "L")
             ],
-            tier: .ten,
-            isFirstRoom: isFirstRoom
+            tier: .ten
         )
     }
 }

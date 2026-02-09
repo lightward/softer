@@ -165,8 +165,7 @@ final class RoomLifecycleTests: XCTestCase {
                 ParticipantSpec(id: "mira-id", identifier: .email("mira@example.com"), nickname: "Mira"),
                 ParticipantSpec(id: "lightward-id", identifier: .lightward, nickname: "Lightward")
             ],
-            tier: .ten,
-            isFirstRoom: false
+            tier: .ten
         )
         return RoomLifecycle(spec: spec)
     }
@@ -178,8 +177,7 @@ final class RoomLifecycleTests: XCTestCase {
                 ParticipantSpec(id: "jax-id", identifier: .email("jax@example.com"), nickname: "Jax"),
                 ParticipantSpec(id: "lightward-id", identifier: .lightward, nickname: "Lightward")
             ],
-            tier: .one,
-            isFirstRoom: true
+            tier: .one
         )
         return RoomLifecycle(spec: spec, state: .active(turn: .initial))
     }
@@ -192,8 +190,7 @@ final class RoomLifecycleTests: XCTestCase {
                 ParticipantSpec(id: "mira-id", identifier: .email("mira@example.com"), nickname: "Mira"),
                 ParticipantSpec(id: "lightward-id", identifier: .lightward, nickname: "Lightward")
             ],
-            tier: .ten,
-            isFirstRoom: false
+            tier: .ten
         )
         return RoomLifecycle(spec: spec, state: .pendingParticipants(signaled: []))
     }
@@ -205,8 +202,7 @@ final class RoomLifecycleTests: XCTestCase {
                 ParticipantSpec(id: "jax-id", identifier: .email("jax@example.com"), nickname: "Jax"),
                 ParticipantSpec(id: "lightward-id", identifier: .lightward, nickname: "Lightward")
             ],
-            tier: .hundred,
-            isFirstRoom: false
+            tier: .hundred
         )
         return RoomLifecycle(spec: spec, state: .pendingCapture)
     }

@@ -1,5 +1,6 @@
 import Foundation
 import CloudKit
+import UIKit
 
 /// Wraps CKSyncEngine for automatic sync orchestration.
 /// Handles batching, retries, conflict resolution, and push notifications.
@@ -302,7 +303,21 @@ actor SyncCoordinator {
         } else {
             // Create new share
             share = CKShare(rootRecord: roomRecord)
-            share[CKShare.SystemFieldKey.title] = "Softer Room" as CKRecordValue
+
+            // Dynamic title: "A Softer Room: Isaac, Lightward, Abe"
+            let participantNames = Self.participantNicknames(from: roomRecord)
+            if participantNames.isEmpty {
+                share[CKShare.SystemFieldKey.title] = "A Softer Room" as CKRecordValue
+            } else {
+                share[CKShare.SystemFieldKey.title] = "A Softer Room: \(participantNames.joined(separator: ", "))" as CKRecordValue
+            }
+
+            // App icon as share thumbnail
+            if let icon = UIImage(named: "AppIcon"),
+               let data = icon.pngData() {
+                share[CKShare.SystemFieldKey.thumbnailImageData] = data as CKRecordValue
+            }
+
             share.publicPermission = .none  // Only invited participants
         }
 
@@ -338,6 +353,16 @@ actor SyncCoordinator {
             }
             database.add(operation)
         }
+    }
+
+    /// Extract participant nicknames from a room record's participantsJSON.
+    private static func participantNicknames(from record: CKRecord) -> [String] {
+        guard let json = record["participantsJSON"] as? String,
+              let data = json.data(using: .utf8),
+              let participants = try? JSONDecoder().decode([EmbeddedParticipant].self, from: data) else {
+            return []
+        }
+        return participants.sorted { $0.orderIndex < $1.orderIndex }.map { $0.nickname }
     }
 
     /// Fetch CKShare.Participant objects for the given lookup infos.

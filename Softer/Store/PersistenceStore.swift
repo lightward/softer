@@ -170,7 +170,6 @@ extension PersistedRoom {
             id: lifecycle.spec.id,
             originatorID: lifecycle.spec.originatorID,
             tierRawValue: lifecycle.spec.tier.rawValue,
-            isFirstRoom: lifecycle.spec.isFirstRoom,
             participantsJSON: participantsJSON
         )
         room.createdAt = lifecycle.spec.createdAt
@@ -251,7 +250,6 @@ extension PersistedRoom {
             originatorID: originatorID,
             participants: specs,
             tier: PaymentTier(rawValue: tierRawValue) ?? .one,
-            isFirstRoom: isFirstRoom,
             createdAt: createdAt
         )
 

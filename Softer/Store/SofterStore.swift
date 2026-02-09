@@ -450,8 +450,7 @@ final class SofterStore {
     func createRoom(
         participants: [ParticipantSpec],
         tier: PaymentTier,
-        originatorNickname: String,
-        isFirstRoom: Bool
+        originatorNickname: String
     ) async throws -> RoomLifecycle {
         guard let container = container,
               let dataStore = dataStore else {
@@ -466,8 +465,7 @@ final class SofterStore {
         let spec = RoomSpec(
             originatorID: originatorSpec.id,
             participants: participants,
-            tier: tier,
-            isFirstRoom: isFirstRoom
+            tier: tier
         )
 
         // Create lifecycle coordinator — resolve participants and authorize payment
@@ -495,9 +493,7 @@ final class SofterStore {
 
         // Create opening narration
         let originatorName = spec.participants.first { $0.id == spec.originatorID }?.nickname ?? "Someone"
-        let narrationText = spec.isFirstRoom
-            ? "\(originatorName) opened their first room. It's free."
-            : "\(originatorName) opened the room at \(spec.tier.displayString)."
+        let narrationText = "\(originatorName) opened the room at \(spec.tier.displayString)."
 
         let openingMessage = Message(
             roomID: lifecycle.spec.id,

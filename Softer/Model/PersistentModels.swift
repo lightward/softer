@@ -9,7 +9,6 @@ final class PersistedRoom {
     @Attribute(.unique) var id: String
     var originatorID: String
     var tierRawValue: Int
-    var isFirstRoom: Bool
 
     // State
     var stateType: String  // "draft", "pendingParticipants", "pendingCapture", "active", "locked", "defunct"
@@ -38,14 +37,12 @@ final class PersistedRoom {
         id: String = UUID().uuidString,
         originatorID: String,
         tierRawValue: Int,
-        isFirstRoom: Bool,
         participantsJSON: String = "[]",
         messagesJSON: String = "[]"
     ) {
         self.id = id
         self.originatorID = originatorID
         self.tierRawValue = tierRawValue
-        self.isFirstRoom = isFirstRoom
         self.participantsJSON = participantsJSON
         self.messagesJSON = messagesJSON
         self.stateType = "draft"
