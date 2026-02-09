@@ -77,6 +77,8 @@ struct CreateRoomView: View {
                     .pickerStyle(.segmented)
                 } header: {
                     Text("Payment")
+                } footer: {
+                    Text("Every room is the same product. [Pay what feels good.](https://lightward.inc/pricing) Your choice is visible to all participants.")
                 }
 
             }
