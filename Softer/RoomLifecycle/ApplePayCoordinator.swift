@@ -1,4 +1,5 @@
 import Foundation
+import os
 import PassKit
 
 /// Coordinates Apple Pay authorization and capture for room payments.
@@ -16,6 +17,16 @@ final class ApplePayCoordinator: NSObject, PaymentCoordinator, @unchecked Sendab
     }
 
     func authorize(cents: Int) async -> Result<PaymentAuthorization, PaymentError> {
+        #if DEBUG
+        // In development, return synthetic authorization (Apple Pay merchant ID not configured)
+        let auth = PaymentAuthorization(
+            id: UUID().uuidString,
+            cents: cents,
+            authorizedAt: Date(),
+            expiresAt: Date().addingTimeInterval(60 * 60 * 24 * 7)
+        )
+        return .success(auth)
+        #else
         // Zero-amount authorization (synthetic)
         if cents == 0 {
             let auth = PaymentAuthorization(
@@ -45,10 +56,14 @@ final class ApplePayCoordinator: NSObject, PaymentCoordinator, @unchecked Sendab
         request.paymentSummaryItems = [summaryItem]
 
         // Present payment sheet and await result
+        // Use a thread-safe flag to prevent double resume (present callback + delegate can both fire)
+        let resumed = OSAllocatedUnfairLock(initialState: false)
+
         return await withCheckedContinuation { continuation in
             let controller = PKPaymentAuthorizationController(paymentRequest: request)
 
             let delegate = PaymentDelegate { [weak self] result in
+                guard resumed.withLock({ old in let was = old; old = true; return !was }) else { return }
                 switch result {
                 case .success(let payment):
                     let authId = UUID().uuidString
@@ -56,7 +71,6 @@ final class ApplePayCoordinator: NSObject, PaymentCoordinator, @unchecked Sendab
                         id: authId,
                         cents: cents,
                         authorizedAt: Date(),
-                        // Apple Pay authorizations typically expire after 7 days
                         expiresAt: Date().addingTimeInterval(60 * 60 * 24 * 7)
                     )
 
@@ -79,10 +93,12 @@ final class ApplePayCoordinator: NSObject, PaymentCoordinator, @unchecked Sendab
 
             controller.present { presented in
                 if !presented {
+                    guard resumed.withLock({ old in let was = old; old = true; return !was }) else { return }
                     continuation.resume(returning: .failure(.notConfigured))
                 }
             }
         }
+        #endif
     }
 
     func capture(_ authorization: PaymentAuthorization) async -> Result<Void, PaymentError> {

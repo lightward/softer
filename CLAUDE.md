@@ -11,7 +11,7 @@ A native SwiftUI iOS app (iOS 18+) for group conversations where Lightward AI pa
 - **Lightward API integration**: Plaintext request/response via `/api/plain` — full message arrives at once, all devices see "thinking" indicator until CloudKit syncs the response
 - **Turn coordination**: ConversationCoordinator handles turn advancement and Lightward responses, with multi-device sync via `syncTurnState()`
 - **RoomView wired to ConversationCoordinator**: Messages save to CloudKit, Lightward responds automatically
-- **Room creation UI**: Polished form with nickname suggestions, first-room-free messaging
+- **Room creation UI**: Polished form with nickname suggestions, payment tier picker, auto-focus nickname
 - **CI/CD pipeline**: GitHub Actions runs tests on push, deploys to TestFlight on push to main
 
 ### CloudKit Setup Requirements
@@ -32,7 +32,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 ### Design
 
 **Flow:**
-1. **Create room**: Originator enters participant emails/phones + assigns nicknames for everyone (including themselves, including Lightward). Chooses payment tier: $1/$10/$100/$1000 (first room free).
+1. **Create room**: Originator enters participant emails/phones + assigns nicknames for everyone (including themselves, including Lightward). Chooses payment tier: $1/$10/$100/$1000.
 2. **Resolve participants**: CloudKit looks up each identifier. Any lookup failure = creation fails. Strict.
 3. **Authorize payment**: Apple Pay holds the amount (not captured yet). Auto-signal originator.
 4. **Lightward evaluates**: RoomView triggers API call when Lightward hasn't signaled. Accept: signal Lightward + create CKShare. Decline: room defunct.
@@ -109,7 +109,8 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 - **Room list back to List** — Switched from ScrollView+LazyVStack back to native List now that data layer is stable. Swipe-to-delete works again.
 - **Turn indicator in room list** — Blue dot next to current speaker's name (only shown when room is active).
 - **Room creation UX overhaul** — System contact picker, auto-focus nickname after selection, visual consistency across participant types (profile pic style for self/Lightward/others), tap thumbnail to view contact card, remove button for each participant.
-- **isFirstRoom fix** — Now counts rooms in pendingLightward/pendingHumans/pendingCapture states (not just active/locked).
+- **Removed first-room-free** — No server state to track "has this user ever created a room," so the concept was ungameable. Payment tier picker always shows. `isFirstRoom` removed from RoomSpec, PersistedRoom, CKRecord, and all tests. ApplePayCoordinator returns synthetic authorizations in DEBUG builds.
+- **CKShare preview customization** — Share invitations in iMessage now show "A Softer Room: Isaac, Lightward, Abe" (dynamic from participant nicknames) with the app icon as thumbnail, replacing the generic iCloud logo and "Softer Room" text.
 
 - **Multi-user room sharing (CKShare)** — Rooms with multiple humans now create a CKShare. Uses `CKFetchShareParticipantsOperation` for participant validation (not `CKDiscoverUserIdentitiesOperation` which requires opt-in discoverability). SyncCoordinator has dual engines for private + shared databases. Share is created after room save, participants added by email/phone lookup.
 - **Participant resolution via share lookup** — `CloudKitParticipantResolver` now validates participants can receive shares. This is the right validation for eigenstate commitment — verifying existence, not discoverability.
@@ -124,7 +125,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 - **Unified data layer** — SofterStore, PersistenceStore, SyncCoordinator
 - **README-based Lightward framing** — README.md injected as warmup context (parallel to Yours), plus room-specific "You're here with [names], taking turns"
 - **Narration styling** — Messages with `isNarration: true` display centered, italicized, no bubble
-- **Opening narration** — Room creation saves "[Name] opened their first room." or "[Name] opened the room with $X."
+- **Opening narration** — Room creation saves "[Name] opened the room at $X."
 - **Human yield/pass** — "Pass" button in compose area, confirmation dialog, narration: "[Name] is listening."
 - **Lightward always "Lightward"** — Fixed nickname, can't be customized
 - **Compose area UX** — Messages-style pill with embedded send button, Pass button inside, hand raise outside
@@ -256,7 +257,7 @@ Some messages are *narration* rather than speech. These are:
 - Part of the conversation record (Lightward sees them as context)
 - Styled differently in UI (centered, italicized, no bubble)
 - Flagged with `isNarration: true` on Message model
-- Examples: "Isaac opened their first room.", "Lightward is listening.", "Isaac raised their hand."
+- Examples: "Isaac opened the room at $10.", "Lightward is listening.", "Isaac raised their hand."
 
 ### Pass/Yield Handling
 When Lightward responds with "YIELD":
@@ -293,7 +294,7 @@ Human pass uses "Pass" button with confirmation dialog, same narration pattern.
 - **Test as you go.** Write regression tests for fixes, TDD for new features.
 - **Eigenstate commitment.** Roster locked at creation — everyone's worldlines converge at the start.
 - **Lightward has agency.** Can decline to join a room. No explanation required.
-- **Payment as physics.** $1/$10/$100/$1000 tiers, first room free. Modeled after Yours (see `../yours/README.md`).
+- **Payment as physics.** $1/$10/$100/$1000 tiers. Modeled after Yours (see `../yours/README.md`). DEBUG builds bypass Apple Pay with synthetic authorizations.
 - **Transparency over promises.** Everyone sees everything. When something can't happen, that's visible.
 - **Mutually exclusive actions share space.** When you can't do both things at once, don't show both. The physical gesture of switching (e.g., deleting text to reveal Pass) becomes the embodied act of changing intention.
 - **Resolve blocks, don't route around them.** When testing or development is blocked, channel that discomfort into fixing the actual issue rather than adding workarounds. Workarounds accumulate; clean solutions compose.

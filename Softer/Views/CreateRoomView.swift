@@ -18,7 +18,8 @@ struct CreateRoomView: View {
     // Contact picker
     @State private var showContactPicker = false
 
-    // Focus state for auto-focusing new participant nickname
+    // Focus state
+    @FocusState private var nicknameFieldFocused: Bool
     @FocusState private var focusedParticipantID: UUID?
 
     var body: some View {
@@ -33,6 +34,7 @@ struct CreateRoomView: View {
                             .foregroundStyle(Color.accentColor)
                         TextField("Your nickname", text: $myNickname)
                             .textContentType(.givenName)
+                            .focused($nicknameFieldFocused)
                     }
 
                     // Lightward - sparkle in circle style
@@ -86,6 +88,9 @@ struct CreateRoomView: View {
             }
             .navigationTitle("New Room")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                nicknameFieldFocused = true
+            }
             .sheet(isPresented: $showContactPicker) {
                 ContactPicker { contact in
                     // Add participant with contact info
