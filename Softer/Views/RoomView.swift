@@ -314,15 +314,15 @@ struct RoomView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
-                // I've signaled, waiting for others
+                // I've signaled, waiting for others — narration above, action below
+                let shareURL = persistedRoom?.shareURL.flatMap { URL(string: $0) }
                 let names = waitingFor.map { $0.nickname }.joined(separator: ", ")
+
                 Text("Waiting for \(names)...")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
-                // Show share button for originator when others still need to join
-                if let urlString = persistedRoom?.shareURL,
-                   let url = URL(string: urlString) {
+                if let url = shareURL {
                     ShareLink(item: url) {
                         Label("Share Invite", systemImage: "square.and.arrow.up")
                             .font(.headline)
@@ -333,8 +333,17 @@ struct RoomView: View {
                             .clipShape(Capsule())
                     }
                 } else {
-                    ProgressView()
-                        .padding(.top, 4)
+                    Label {
+                        Text("Share Invite")
+                            .font(.headline)
+                    } icon: {
+                        ProgressView()
+                    }
+                    .foregroundStyle(.white.opacity(0.6))
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(Color.accentColor.opacity(0.5))
+                    .clipShape(Capsule())
                 }
             }
         }

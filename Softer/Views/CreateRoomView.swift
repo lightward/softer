@@ -204,6 +204,8 @@ struct CreateRoomView: View {
             )
             isPresented = false
             onCreated?(lifecycle.spec.id)
+            // Don't reset isCreating on success — sheet is dismissing
+            return
         } catch let error as RoomLifecycleError {
             errorMessage = describeError(error)
         } catch {
