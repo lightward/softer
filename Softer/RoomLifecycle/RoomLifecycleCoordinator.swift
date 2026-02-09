@@ -5,7 +5,6 @@ enum RoomLifecycleError: Error, Sendable {
     case resolutionFailed(participantID: String, error: ResolutionError)
     case paymentAuthorizationFailed(PaymentError)
     case paymentCaptureFailed(PaymentError)
-    case lightwardDeclined
     case cancelled
     case expired
     case invalidState(String)
@@ -19,25 +18,22 @@ actor RoomLifecycleCoordinator {
 
     private let resolver: ParticipantResolver
     private let payment: PaymentCoordinator
-    private let lightward: LightwardEvaluator
     private let onStateChange: @Sendable (RoomState) -> Void
 
     init(
         spec: RoomSpec,
         resolver: ParticipantResolver,
         payment: PaymentCoordinator,
-        lightward: LightwardEvaluator,
         onStateChange: @escaping @Sendable (RoomState) -> Void = { _ in }
     ) {
         self.lifecycle = RoomLifecycle(spec: spec)
         self.resolver = resolver
         self.payment = payment
-        self.lightward = lightward
         self.onStateChange = onStateChange
     }
 
-    /// Start the room creation process.
-    /// Resolves participants, authorizes payment, asks Lightward, dispatches invites.
+    /// Start the room creation process: resolve participants and authorize payment.
+    /// Room arrives at pendingParticipants(signaled: []).
     func start() async throws {
         // Resolve all participants
         let result = await resolver.resolveAll(lifecycle.spec.participants)
@@ -61,33 +57,29 @@ actor RoomLifecycleCoordinator {
             throw RoomLifecycleError.paymentAuthorizationFailed(error)
         }
 
-        // Ask Lightward
-        let decision = await lightward.evaluate(
-            roster: lifecycle.spec.participants,
-            tier: lifecycle.spec.tier
-        )
-        switch decision {
-        case .accepted:
-            applyEvent(.lightwardAccepted)
-        case .declined:
-            applyEvent(.lightwardDeclined)
-            throw RoomLifecycleError.lightwardDeclined
-        }
-
-        // Room is now pending humans - invites dispatched via the effect
+        // Room is now pendingParticipants(signaled: [])
     }
 
-    /// Signal that a human participant is present.
+    /// Signal that a participant is present.
     func signalHere(participantID: String) async throws {
-        guard case .pendingHumans = lifecycle.state else {
+        guard case .pendingParticipants = lifecycle.state else {
             throw RoomLifecycleError.invalidState("Cannot signal here in state \(lifecycle.state)")
         }
 
-        applyEvent(.humanSignaledHere(participantID: participantID))
+        applyEvent(.signaled(participantID: participantID))
 
-        // If all humans are present, we moved to pendingCapture and need to capture
+        // If all participants are present, we moved to pendingCapture and need to capture
         if case .pendingCapture = lifecycle.state {
             try await capturePayment()
+        }
+    }
+
+    /// Record that a participant declined to join.
+    func decline(participantID: String) async {
+        applyEvent(.participantDeclined(participantID: participantID))
+        if let auth = paymentAuthorization {
+            await payment.release(auth)
+            paymentAuthorization = nil
         }
     }
 

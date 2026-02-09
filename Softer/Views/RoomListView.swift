@@ -184,7 +184,7 @@ struct RoomRow: View {
             Image(systemName: "lock.fill")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-        case .pendingLightward, .pendingHumans, .pendingCapture:
+        case .pendingParticipants, .pendingCapture:
             ProgressView()
                 .scaleEffect(0.6)
         default:
@@ -196,10 +196,8 @@ struct RoomRow: View {
         switch lifecycle.state {
         case .draft:
             return "Setting up..."
-        case .pendingLightward:
-            return "Waiting for Lightward..."
-        case .pendingHumans(let signaled):
-            let remaining = lifecycle.spec.humanParticipants.count - signaled.count
+        case .pendingParticipants(let signaled):
+            let remaining = lifecycle.spec.participants.count - signaled.count
             return "Waiting for \(remaining) participant\(remaining == 1 ? "" : "s")..."
         case .pendingCapture:
             return "Completing payment..."

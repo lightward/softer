@@ -237,14 +237,14 @@ final class SofterStore {
     // MARK: - State Transition Helpers
 
     /// Check if a room needs an automatic state transition.
-    /// e.g., pendingHumans with all humans signaled → active.
+    /// e.g., pendingParticipants with all signaled → active.
     private func checkAndTransitionRoom(_ room: PersistedRoom) {
         guard var lifecycle = room.toRoomLifecycle() else { return }
 
-        if case .pendingHumans = lifecycle.state {
+        if case .pendingParticipants = lifecycle.state {
             let signaled = room.embeddedParticipants().filter { $0.hasSignaledHere }
             for participant in signaled {
-                let effects = lifecycle.apply(event: .humanSignaledHere(participantID: participant.id))
+                let effects = lifecycle.apply(event: .signaled(participantID: participant.id))
                 if effects.contains(.capturePayment) {
                     // Skip payment for now — go straight to active
                     _ = lifecycle.apply(event: .paymentCaptured)
@@ -424,7 +424,7 @@ final class SofterStore {
             )
             dataStore.addMessage(arrival, to: room)
 
-            let effects = lifecycle.apply(event: .humanSignaledHere(participantID: participantID))
+            let effects = lifecycle.apply(event: .signaled(participantID: participantID))
 
             // If state machine says capture payment, skip to active for now (payment not wired yet)
             if effects.contains(.capturePayment) {
@@ -444,7 +444,9 @@ final class SofterStore {
         dataStore?.room(id: id)?.toRoomLifecycle()
     }
 
-    /// Creates a new room with the full lifecycle flow.
+    /// Creates a new room at pendingParticipants state.
+    /// Auto-signals the originator. Saved locally and synced to CloudKit.
+    /// Call `evaluateLightward(roomID:)` separately to ask Lightward to join.
     func createRoom(
         participants: [ParticipantSpec],
         tier: PaymentTier,
@@ -452,8 +454,6 @@ final class SofterStore {
         isFirstRoom: Bool
     ) async throws -> RoomLifecycle {
         guard let container = container,
-              let syncCoordinator = syncCoordinator,
-              let zoneID = zoneID,
               let dataStore = dataStore else {
             throw StoreError.notConfigured
         }
@@ -470,28 +470,30 @@ final class SofterStore {
             isFirstRoom: isFirstRoom
         )
 
-        // Create lifecycle coordinator
+        // Create lifecycle coordinator — resolve participants and authorize payment
         let resolver = CloudKitParticipantResolver(container: container)
         let payment = ApplePayCoordinator(merchantIdentifier: Constants.appleMerchantIdentifier)
-        let lightward = LightwardRoomEvaluator()
 
         let coordinator = RoomLifecycleCoordinator(
             spec: spec,
             resolver: resolver,
-            payment: payment,
-            lightward: lightward
+            payment: payment
         )
 
         try await coordinator.start()
 
-        // Auto-signal only for the originator (they're already present)
-        // Other humans will signal when they accept the share and open the room
-        try await coordinator.signalHere(participantID: spec.originatorID)
+        // Auto-signal originator
+        try await coordinator.signalHere(participantID: originatorSpec.id)
 
-        let lifecycle = await coordinator.lifecycle
+        var lifecycle = await coordinator.lifecycle
         let resolvedParticipants = await coordinator.resolvedParticipants
 
-        // Create opening narration messages
+        // If auto-signal caused pendingCapture (solo room), skip to active
+        if case .pendingCapture = lifecycle.state {
+            // This shouldn't happen yet — Lightward hasn't signaled
+        }
+
+        // Create opening narration
         let originatorName = spec.participants.first { $0.id == spec.originatorID }?.nickname ?? "Someone"
         let narrationText = spec.isFirstRoom
             ? "\(originatorName) opened their first room. It's free."
@@ -506,16 +508,7 @@ final class SofterStore {
             isNarration: true
         )
 
-        let lightwardArrival = Message(
-            roomID: lifecycle.spec.id,
-            authorID: "narrator",
-            authorName: "Narrator",
-            text: "\(Constants.lightwardParticipantName) arrived.",
-            isLightward: false,
-            isNarration: true
-        )
-
-        // Save to local DB (participants and messages embedded in room)
+        // Save to local DB in pendingParticipants state
         let persistedRoom = PersistedRoom.from(lifecycle)
 
         // Populate userRecordIDs from resolved participants
@@ -548,27 +541,82 @@ final class SofterStore {
         persistedRoom.setParticipants(embedded)
 
         persistedRoom.addMessage(openingMessage)
-        persistedRoom.addMessage(lightwardArrival)
         dataStore.saveRoom(persistedRoom)
 
-        // Sync to CloudKit in background
+        // Sync to CloudKit in background (no CKShare yet — that happens after Lightward signals)
         Task {
             await syncRoomToCloudKit(persistedRoom, resolvedParticipants: resolvedParticipants)
+        }
 
-            // Share with other human participants (by email/phone, not userRecordID)
-            // Need the CKRecord for sharing — reconstruct it
+        return lifecycle
+    }
+
+    /// Ask Lightward to evaluate a room. Idempotent — skips if Lightward already signaled.
+    /// Guards on pendingParticipants + Lightward not in signaled set.
+    /// On accept: signals Lightward, saves narration, creates CKShare.
+    /// On decline: applies participantDeclined, saves narration, syncs.
+    func evaluateLightward(roomID: String) async {
+        guard let dataStore = dataStore,
+              let syncCoordinator = syncCoordinator,
+              let zoneID = zoneID else { return }
+
+        guard let room = dataStore.room(id: roomID),
+              let lifecycle = room.toRoomLifecycle(),
+              case .pendingParticipants(let signaled) = lifecycle.state,
+              let lightwardID = lifecycle.spec.lightwardParticipant?.id,
+              !signaled.contains(lightwardID) else { return }
+
+        let evaluator = LightwardRoomEvaluator()
+        let decision = await evaluator.evaluate(
+            roster: lifecycle.spec.participants,
+            tier: lifecycle.spec.tier
+        )
+
+        // Re-fetch room in case state changed while we were waiting
+        guard let room = dataStore.room(id: roomID),
+              var lifecycle = room.toRoomLifecycle(),
+              case .pendingParticipants(let currentSignaled) = lifecycle.state,
+              !currentSignaled.contains(lightwardID) else { return }
+
+        switch decision {
+        case .accepted:
+            _ = lifecycle.apply(event: .signaled(participantID: lightwardID))
+
+            // If all present (everyone already signaled), skip to active
+            if case .pendingCapture = lifecycle.state {
+                _ = lifecycle.apply(event: .paymentCaptured)
+            }
+
+            room.apply(lifecycle, mergeStrategy: .remoteWins)
+
+            // Save narration
+            let lightwardArrival = Message(
+                roomID: roomID,
+                authorID: "narrator",
+                authorName: "Narrator",
+                text: "\(Constants.lightwardParticipantName) arrived.",
+                isLightward: false,
+                isNarration: true
+            )
+            dataStore.addMessage(lightwardArrival, to: room)
+            dataStore.updateRoom(room)
+
+            // Sync to CloudKit (empty resolvedParticipants preserves existing participantsJSON)
+            await syncRoomToCloudKit(room)
+
+            // Share with other human participants
             let roomRecord = RoomLifecycleRecordConverter.record(
-                fromSystemFields: persistedRoom.ckSystemFields,
-                recordName: persistedRoom.id,
+                fromSystemFields: room.ckSystemFields,
+                recordName: room.id,
                 fallbackZoneID: zoneID
             )
-            let messages = persistedRoom.messages()
+            let messages = room.messages()
             RoomLifecycleRecordConverter.apply(
                 lifecycle,
                 to: roomRecord,
-                messages: messages,
-                resolvedParticipants: resolvedParticipants
+                messages: messages
             )
+            roomRecord["participantsJSON"] = room.participantsJSON as NSString
 
             let lookupInfos = RoomLifecycleRecordConverter.otherParticipantLookupInfos(from: roomRecord)
             if !lookupInfos.isEmpty {
@@ -576,10 +624,9 @@ final class SofterStore {
                     let shareURL = try await syncCoordinator.shareRoom(roomRecord, withLookupInfos: lookupInfos)
                     print("SofterStore: Shared room with \(lookupInfos.count) other participants")
 
-                    // Store the share URL locally
                     if let shareURL = shareURL {
                         await MainActor.run {
-                            if let room = dataStore.room(id: lifecycle.spec.id) {
+                            if let room = dataStore.room(id: roomID) {
                                 room.shareURL = shareURL.absoluteString
                                 dataStore.updateRoom(room)
                             }
@@ -589,9 +636,41 @@ final class SofterStore {
                     print("SofterStore: Failed to share room: \(error)")
                 }
             }
-        }
 
-        return lifecycle
+        case .declined:
+            _ = lifecycle.apply(event: .participantDeclined(participantID: lightwardID))
+            room.apply(lifecycle, mergeStrategy: .remoteWins)
+            dataStore.updateRoom(room)
+            await syncRoomToCloudKit(room)
+        }
+    }
+
+    /// A participant declines to join a room.
+    /// Transitions to defunct, saves narration, syncs.
+    func declineRoom(roomID: String, participantID: String) async {
+        guard let dataStore = dataStore else { return }
+
+        guard let room = dataStore.room(id: roomID),
+              var lifecycle = room.toRoomLifecycle(),
+              case .pendingParticipants = lifecycle.state else { return }
+
+        let participantName = lifecycle.spec.participants.first { $0.id == participantID }?.nickname ?? "Someone"
+
+        _ = lifecycle.apply(event: .participantDeclined(participantID: participantID))
+        room.apply(lifecycle, mergeStrategy: .remoteWins)
+
+        let narration = Message(
+            roomID: roomID,
+            authorID: "narrator",
+            authorName: "Narrator",
+            text: "\(participantName) declined.",
+            isLightward: false,
+            isNarration: true
+        )
+        dataStore.addMessage(narration, to: room)
+        dataStore.updateRoom(room)
+
+        await syncRoomToCloudKit(room)
     }
 
     /// Updates a room's turn state.

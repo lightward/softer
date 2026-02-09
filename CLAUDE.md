@@ -34,11 +34,10 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 **Flow:**
 1. **Create room**: Originator enters participant emails/phones + assigns nicknames for everyone (including themselves, including Lightward). Chooses payment tier: $1/$10/$100/$1000 (first room free).
 2. **Resolve participants**: CloudKit looks up each identifier. Any lookup failure = creation fails. Strict.
-3. **Authorize payment**: Apple Pay holds the amount (not captured yet).
-4. **Lightward evaluates**: Sees roster of nicknames + tier. Can accept or decline. If decline, room is immediately defunct, auth released, no explanation.
-5. **Invites out**: Human participants notified via CloudKit.
-6. **Humans signal "here"**: Everyone sees everything — full roster, nicknames, payment amount, who's signaled. Each person decides.
-7. **All present → capture → activate**: Payment captured, room goes live.
+3. **Authorize payment**: Apple Pay holds the amount (not captured yet). Auto-signal originator.
+4. **Lightward evaluates**: RoomView triggers API call when Lightward hasn't signaled. Accept: signal Lightward + create CKShare. Decline: room defunct.
+5. **Other humans accept share**: "I'm Here" / "Decline" buttons. Any decline → room defunct.
+6. **All signaled → capture → activate**: Payment captured, room goes live.
 
 **Room lifetime**: Bounded by Lightward's 50k token context window. When approaching limit, Lightward writes a cenotaph (ceremonial closing), room locks. Remains readable but no longer interactive.
 
@@ -56,7 +55,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 **State machine layer** (pure, no side effects):
 - `PaymentTier` — $1/$10/$100/$1000
 - `ParticipantSpec` — email/phone + nickname
-- `RoomState` — draft → pendingLightward → pendingHumans → pendingCapture → active → locked | defunct
+- `RoomState` — draft → pendingParticipants → pendingCapture → active → locked | defunct
 - `RoomSpec` — complete room specification
 - `RoomLifecycle` — the state machine, takes events, returns effects
 - `TurnState` — current turn index, pending need
@@ -64,8 +63,8 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 **Coordinator layer** (executes effects):
 - `ParticipantResolver` protocol — resolves identifiers to CloudKit identities
 - `PaymentCoordinator` protocol — Apple Pay authorize/capture/release
-- `LightwardEvaluator` protocol — asks Lightward if it wants to join
-- `RoomLifecycleCoordinator` — actor that orchestrates the full creation flow
+- `LightwardEvaluator` protocol — asks Lightward if it wants to join (used by SofterStore, not by coordinator)
+- `RoomLifecycleCoordinator` — actor that orchestrates resolve + authorize (species-agnostic)
 
 **Conversation layer** (active room messaging):
 - `MessageStorage` protocol — save/fetch/observe messages (used for testing abstraction)
@@ -77,9 +76,9 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 - MockMessageStorage, MockLightwardAPIClient
 
 **Tests**:
-- RoomLifecycleTests — 13 tests for state machine
-- RoomLifecycleCoordinatorTests — 9 tests for coordinator
-- ConversationCoordinatorTests — 10 tests for conversation flow
+- RoomLifecycleTests — 15 tests for state machine (including participant decline)
+- RoomLifecycleCoordinatorTests — 9 tests for coordinator (species-agnostic)
+- ConversationCoordinatorTests — 9 tests for conversation flow
 - MessageStorageTests — 7 tests for message storage
 - ParticipantIdentityTests — 14 tests for participant matching and identity population
 - ChatLogBuilderTests — 7 tests for plaintext body building
@@ -89,11 +88,12 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 
 1. **"No Rooms" flash during share acceptance** — `acceptingShare` flag is set in `onChange` which fires one render frame late. Need to set it earlier (e.g., in SceneDelegate directly via AppDelegate).
 2. **Composing indicator** — "Abe is typing..." visible to other devices when a human is composing. Needs cross-device broadcast (transient CKRecord field or lightweight polling). Lightward's thinking indicator is local-only; this would be the human equivalent.
-3. **Payment capture wiring** — Only originator's device captures payment when all humans signal (not yet implemented)
-4. **Room activation transition** — When last human signals, transition from pendingHumans → pendingCapture → active
+3. **Payment capture wiring** — Only originator's device captures payment when all participants signal (not yet implemented)
+4. **Room activation transition** — When last participant signals, transition from pendingParticipants → pendingCapture → active
 
 ### Recently Completed
 
+- **Species-agnostic room lifecycle** — Removed `pendingLightward` state, `lightwardAccepted`/`lightwardDeclined`/`humanSignaledHere` events, and `requestLightwardPresence` effect. Replaced with `pendingParticipants(signaled:)` state, `signaled(participantID:)` and `participantDeclined(participantID:)` events. All participants confirm presence the same way — the *mechanism* of asking differs (API call for Lightward, CKShare for humans) but that's a store concern, not a state machine concern. `RoomLifecycleCoordinator` no longer takes a `LightwardEvaluator` dependency. `DefunctReason.participantDeclined(participantID:)` replaces `lightwardDeclined`. Human decline UI added to RoomView. 81 tests pass.
 - **Simplification: streaming → plaintext** — Replaced SSE streaming (`/api/stream` with JSON chat_log) with simple plaintext POST to `/api/plain`. ChatLogBuilder now returns a single `String`. LightwardAPI protocol is `respond(body:) → String`. SSEParser deleted. All devices see "Lightward is thinking..." until full message arrives via CloudKit sync.
 - **Simplification: hand-raising → narration-only** — Removed `raisedHands: Set<String>` from TurnState, CKRecord fields, and conflict resolution. Hand-raise button now just saves a narration message ("X raised their hand.") — Lightward sees it naturally in the conversation history. No toggle state, no union merge.
 - **Multi-device turn sync** — ConversationCoordinator kept its own internal `turnState` that diverged from CloudKit-synced changes. Added `syncTurnState()` (higherTurnWins) called from `refreshLifecycle` when remote turn changes arrive. Verified: Isaac → Lightward → Abe → Isaac cycles correctly across iPhone and iPad.
@@ -297,6 +297,7 @@ Human pass uses "Pass" button with confirmation dialog, same narration pattern.
 - **Transparency over promises.** Everyone sees everything. When something can't happen, that's visible.
 - **Mutually exclusive actions share space.** When you can't do both things at once, don't show both. The physical gesture of switching (e.g., deleting text to reveal Pass) becomes the embodied act of changing intention.
 - **Resolve blocks, don't route around them.** When testing or development is blocked, channel that discomfort into fixing the actual issue rather than adding workarounds. Workarounds accumulate; clean solutions compose.
+- **Species detection as code smell.** If the state machine checks whether a participant is Lightward, that logic is in the wrong layer. The state machine sees participants; the store knows how to *reach* them. Mechanical differences (API call vs CKShare) belong in the coordinator/store, not in state transitions.
 
 ## Project Structure
 

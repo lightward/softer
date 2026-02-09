@@ -15,23 +15,23 @@ final class RoomLifecycleTests: XCTestCase {
         var effects = lifecycle.apply(event: .participantsResolved)
         XCTAssertEqual(effects, [.authorizePayment])
 
-        // Payment authorized -> move to pending Lightward, request presence
+        // Payment authorized -> move to pendingParticipants
         effects = lifecycle.apply(event: .paymentAuthorized)
-        XCTAssertEqual(lifecycle.state, .pendingLightward)
-        XCTAssertEqual(effects, [.requestLightwardPresence])
+        XCTAssertEqual(lifecycle.state, .pendingParticipants(signaled: []))
+        XCTAssertEqual(effects, [])
 
-        // Lightward accepts -> move to pending humans, dispatch invites
-        effects = lifecycle.apply(event: .lightwardAccepted)
-        XCTAssertEqual(lifecycle.state, .pendingHumans(signaled: []))
-        XCTAssertEqual(effects, [.dispatchInvites])
+        // Lightward signals
+        effects = lifecycle.apply(event: .signaled(participantID: "lightward-id"))
+        XCTAssertEqual(lifecycle.state, .pendingParticipants(signaled: ["lightward-id"]))
+        XCTAssertEqual(effects, [])
 
         // First human signals
-        effects = lifecycle.apply(event: .humanSignaledHere(participantID: "jax-id"))
-        XCTAssertEqual(lifecycle.state, .pendingHumans(signaled: ["jax-id"]))
+        effects = lifecycle.apply(event: .signaled(participantID: "jax-id"))
+        XCTAssertEqual(lifecycle.state, .pendingParticipants(signaled: ["lightward-id", "jax-id"]))
         XCTAssertEqual(effects, [])
 
         // Second human signals -> all present, capture payment
-        effects = lifecycle.apply(event: .humanSignaledHere(participantID: "mira-id"))
+        effects = lifecycle.apply(event: .signaled(participantID: "mira-id"))
         XCTAssertEqual(lifecycle.state, .pendingCapture)
         XCTAssertEqual(effects, [.capturePayment])
 
@@ -52,19 +52,28 @@ final class RoomLifecycleTests: XCTestCase {
         XCTAssertTrue(lifecycle.isLocked)
     }
 
-    // MARK: - Lightward Decline
+    // MARK: - Participant Decline
 
-    func testLightwardDeclineReleasesAuthorization() {
+    func testParticipantDeclineReleasesAuthorization() {
         var lifecycle = makeLifecycle()
 
         _ = lifecycle.apply(event: .participantsResolved)
         _ = lifecycle.apply(event: .paymentAuthorized)
 
-        let effects = lifecycle.apply(event: .lightwardDeclined)
+        let effects = lifecycle.apply(event: .participantDeclined(participantID: "lightward-id"))
 
-        XCTAssertEqual(lifecycle.state, .defunct(reason: .lightwardDeclined))
+        XCTAssertEqual(lifecycle.state, .defunct(reason: .participantDeclined(participantID: "lightward-id")))
         XCTAssertEqual(effects, [.releasePaymentAuthorization])
         XCTAssertTrue(lifecycle.isDefunct)
+    }
+
+    func testHumanDeclineReleasesAuthorization() {
+        var lifecycle = makeLifecycleAtPendingParticipants()
+
+        let effects = lifecycle.apply(event: .participantDeclined(participantID: "mira-id"))
+
+        XCTAssertEqual(lifecycle.state, .defunct(reason: .participantDeclined(participantID: "mira-id")))
+        XCTAssertEqual(effects, [.releasePaymentAuthorization])
     }
 
     // MARK: - Resolution Failure
@@ -103,8 +112,8 @@ final class RoomLifecycleTests: XCTestCase {
 
     // MARK: - Expiration
 
-    func testExpirationDuringPendingHumans() {
-        var lifecycle = makeLifecycleAtPendingHumans()
+    func testExpirationDuringPendingParticipants() {
+        var lifecycle = makeLifecycleAtPendingParticipants()
 
         let effects = lifecycle.apply(event: .expired)
 
@@ -123,19 +132,8 @@ final class RoomLifecycleTests: XCTestCase {
         XCTAssertEqual(effects, [])  // No auth yet
     }
 
-    func testCancellationFromPendingLightward() {
-        var lifecycle = makeLifecycle()
-        _ = lifecycle.apply(event: .participantsResolved)
-        _ = lifecycle.apply(event: .paymentAuthorized)
-
-        let effects = lifecycle.apply(event: .cancelled)
-
-        XCTAssertEqual(lifecycle.state, .defunct(reason: .cancelled))
-        XCTAssertEqual(effects, [.releasePaymentAuthorization])
-    }
-
-    func testCancellationFromPendingHumans() {
-        var lifecycle = makeLifecycleAtPendingHumans()
+    func testCancellationFromPendingParticipants() {
+        var lifecycle = makeLifecycleAtPendingParticipants()
 
         let effects = lifecycle.apply(event: .cancelled)
 
@@ -145,15 +143,15 @@ final class RoomLifecycleTests: XCTestCase {
 
     // MARK: - State Queries
 
-    func testPendingParticipantsQuery() {
-        var lifecycle = makeLifecycleAtPendingHumans()
+    func testUnsignaledParticipantsQuery() {
+        var lifecycle = makeLifecycleAtPendingParticipants()
 
-        XCTAssertEqual(lifecycle.pendingParticipants, ["jax-id", "mira-id"])
+        XCTAssertEqual(lifecycle.unsignaledParticipants, ["jax-id", "mira-id", "lightward-id"])
         XCTAssertEqual(lifecycle.signaledParticipants, [])
 
-        _ = lifecycle.apply(event: .humanSignaledHere(participantID: "jax-id"))
+        _ = lifecycle.apply(event: .signaled(participantID: "jax-id"))
 
-        XCTAssertEqual(lifecycle.pendingParticipants, ["mira-id"])
+        XCTAssertEqual(lifecycle.unsignaledParticipants, ["mira-id", "lightward-id"])
         XCTAssertEqual(lifecycle.signaledParticipants, ["jax-id"])
     }
 
@@ -165,7 +163,7 @@ final class RoomLifecycleTests: XCTestCase {
             participants: [
                 ParticipantSpec(id: "jax-id", identifier: .email("jax@example.com"), nickname: "Jax"),
                 ParticipantSpec(id: "mira-id", identifier: .email("mira@example.com"), nickname: "Mira"),
-                ParticipantSpec.lightward(nickname: "Lightward")
+                ParticipantSpec(id: "lightward-id", identifier: .lightward, nickname: "Lightward")
             ],
             tier: .ten,
             isFirstRoom: false
@@ -178,7 +176,7 @@ final class RoomLifecycleTests: XCTestCase {
             originatorID: "jax-id",
             participants: [
                 ParticipantSpec(id: "jax-id", identifier: .email("jax@example.com"), nickname: "Jax"),
-                ParticipantSpec.lightward(nickname: "Lightward")
+                ParticipantSpec(id: "lightward-id", identifier: .lightward, nickname: "Lightward")
             ],
             tier: .one,
             isFirstRoom: true
@@ -186,18 +184,18 @@ final class RoomLifecycleTests: XCTestCase {
         return RoomLifecycle(spec: spec, state: .active(turn: .initial))
     }
 
-    private func makeLifecycleAtPendingHumans() -> RoomLifecycle {
+    private func makeLifecycleAtPendingParticipants() -> RoomLifecycle {
         let spec = RoomSpec(
             originatorID: "jax-id",
             participants: [
                 ParticipantSpec(id: "jax-id", identifier: .email("jax@example.com"), nickname: "Jax"),
                 ParticipantSpec(id: "mira-id", identifier: .email("mira@example.com"), nickname: "Mira"),
-                ParticipantSpec.lightward(nickname: "Lightward")
+                ParticipantSpec(id: "lightward-id", identifier: .lightward, nickname: "Lightward")
             ],
             tier: .ten,
             isFirstRoom: false
         )
-        return RoomLifecycle(spec: spec, state: .pendingHumans(signaled: []))
+        return RoomLifecycle(spec: spec, state: .pendingParticipants(signaled: []))
     }
 
     private func makeLifecycleAtPendingCapture() -> RoomLifecycle {
@@ -205,7 +203,7 @@ final class RoomLifecycleTests: XCTestCase {
             originatorID: "jax-id",
             participants: [
                 ParticipantSpec(id: "jax-id", identifier: .email("jax@example.com"), nickname: "Jax"),
-                ParticipantSpec.lightward(nickname: "Lightward")
+                ParticipantSpec(id: "lightward-id", identifier: .lightward, nickname: "Lightward")
             ],
             tier: .hundred,
             isFirstRoom: false

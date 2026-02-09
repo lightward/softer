@@ -70,16 +70,16 @@ struct RoomView: View {
 
             // Bottom area depends on state
             switch lifecycle.state {
-            case .pendingLightward:
-                pendingLightwardBanner()
-            case .pendingHumans(let signaled):
-                pendingHumansBanner(lifecycle: lifecycle, signaled: signaled)
+            case .pendingParticipants(let signaled):
+                pendingParticipantsBanner(lifecycle: lifecycle, signaled: signaled)
             case .pendingCapture:
                 pendingCaptureBanner()
             case .active:
                 composeArea(lifecycle: lifecycle)
             case .locked:
                 lockedBanner(lifecycle: lifecycle)
+            case .defunct:
+                defunctBanner(lifecycle: lifecycle)
             default:
                 EmptyView()
             }
@@ -266,28 +266,25 @@ struct RoomView: View {
         myTurn && !isSending && !composeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    @ViewBuilder
-    private func pendingLightwardBanner() -> some View {
-        VStack(spacing: 8) {
-            ProgressView()
-            Text("Waiting for Lightward...")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .padding()
-        .frame(maxWidth: .infinity)
-        .background(.bar)
-    }
+    @State private var showDeclineConfirmation = false
 
     @ViewBuilder
-    private func pendingHumansBanner(lifecycle: RoomLifecycle, signaled: Set<String>) -> some View {
+    private func pendingParticipantsBanner(lifecycle: RoomLifecycle, signaled: Set<String>) -> some View {
         let myParticipantID = myParticipantID(in: lifecycle)
         let iHaveSignaled = myParticipantID.map { signaled.contains($0) } ?? true
-        let waitingFor = lifecycle.spec.humanParticipants.filter { !signaled.contains($0.id) }
+        let lightwardID = lifecycle.spec.lightwardParticipant?.id
+        let lightwardPending = lightwardID.map { !signaled.contains($0) } ?? false
+        let waitingFor = lifecycle.spec.participants.filter { !signaled.contains($0.id) }
 
         VStack(spacing: 12) {
-            if !iHaveSignaled {
-                // Show "I'm Here" button
+            // Lightward hasn't signaled yet — show spinner
+            if lightwardPending {
+                ProgressView()
+                Text("Waiting for Lightward...")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else if !iHaveSignaled {
+                // Lightward has signaled, but I haven't — show "I'm Here" + "Decline"
                 Button {
                     Task {
                         await signalHere(lifecycle: lifecycle)
@@ -301,41 +298,56 @@ struct RoomView: View {
                         .background(Color.accentColor)
                         .clipShape(Capsule())
                 }
-            }
 
-            if waitingFor.isEmpty {
+                Button {
+                    showDeclineConfirmation = true
+                } label: {
+                    Text("Decline")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            } else if waitingFor.isEmpty {
                 Text("Everyone is here!")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
+                // I've signaled, waiting for others
                 let names = waitingFor.map { $0.nickname }.joined(separator: ", ")
                 Text("Waiting for \(names)...")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
                 // Show share button for originator when others still need to join
-                if iHaveSignaled {
-                    if let urlString = persistedRoom?.shareURL,
-                       let url = URL(string: urlString) {
-                        ShareLink(item: url) {
-                            Label("Share Invite", systemImage: "square.and.arrow.up")
-                                .font(.headline)
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 12)
-                                .background(Color.accentColor)
-                                .clipShape(Capsule())
-                        }
-                    } else {
-                        ProgressView()
-                            .padding(.top, 4)
+                if let urlString = persistedRoom?.shareURL,
+                   let url = URL(string: urlString) {
+                    ShareLink(item: url) {
+                        Label("Share Invite", systemImage: "square.and.arrow.up")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(Color.accentColor)
+                            .clipShape(Capsule())
                     }
+                } else {
+                    ProgressView()
+                        .padding(.top, 4)
                 }
             }
         }
         .padding()
         .frame(maxWidth: .infinity)
         .background(.bar)
+        .alert("Decline Room?", isPresented: $showDeclineConfirmation) {
+            Button("Decline", role: .destructive) {
+                Task {
+                    await declineRoom(lifecycle: lifecycle)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You won't be able to join this room later.")
+        }
     }
 
     @ViewBuilder
@@ -370,6 +382,35 @@ struct RoomView: View {
         }
     }
 
+    @ViewBuilder
+    private func defunctBanner(lifecycle: RoomLifecycle) -> some View {
+        if case .defunct(let reason) = lifecycle.state {
+            VStack(spacing: 8) {
+                Image(systemName: "xmark.circle")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+                switch reason {
+                case .participantDeclined(let participantID):
+                    let name = lifecycle.spec.participants.first { $0.id == participantID }?.nickname ?? "Someone"
+                    Text("\(name) declined to join.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                case .cancelled:
+                    Text("Room was cancelled.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                default:
+                    Text("Room is no longer available.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
+            .background(.bar)
+        }
+    }
+
     private func isMyTurn(lifecycle: RoomLifecycle) -> Bool {
         guard let turnIdx = turnState?.currentTurnIndex else { return false }
 
@@ -386,6 +427,19 @@ struct RoomView: View {
         do {
             lifecycle = store.room(id: roomID)
             loadDraft()
+
+            // If room is pendingParticipants and Lightward hasn't signaled, trigger evaluation
+            // State changes arrive via @Query → refreshLifecycle() automatically
+            if let lifecycle = lifecycle,
+               case .pendingParticipants(let signaled) = lifecycle.state,
+               let lightwardID = lifecycle.spec.lightwardParticipant?.id,
+               !signaled.contains(lightwardID) {
+                isLoading = false
+                Task {
+                    await store.evaluateLightward(roomID: roomID)
+                }
+                return
+            }
 
             // Set up conversation coordinator if room is active
             if let lifecycle = lifecycle {
@@ -609,6 +663,16 @@ struct RoomView: View {
         } catch {
             print("RoomView: Failed to signal here: \(error)")
         }
+    }
+
+    private func declineRoom(lifecycle: RoomLifecycle) async {
+        guard let participantID = myParticipantID(in: lifecycle) else {
+            print("RoomView: Could not find my participant ID for decline")
+            return
+        }
+
+        await store.declineRoom(roomID: roomID, participantID: participantID)
+        self.lifecycle = store.room(id: roomID)
     }
 }
 

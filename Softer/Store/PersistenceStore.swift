@@ -180,7 +180,7 @@ extension PersistedRoom {
     }
 
     private static func signaledIDs(from state: RoomState) -> Set<String> {
-        if case .pendingHumans(let signaled) = state {
+        if case .pendingParticipants(let signaled) = state {
             return signaled
         }
         return []
@@ -211,11 +211,8 @@ extension PersistedRoom {
         case .draft:
             self.stateType = "draft"
             self.currentTurnIndex = nil
-        case .pendingLightward:
-            self.stateType = "pendingLightward"
-            self.currentTurnIndex = nil
-        case .pendingHumans:
-            self.stateType = "pendingHumans"
+        case .pendingParticipants:
+            self.stateType = "pendingParticipants"
             self.currentTurnIndex = nil
         case .pendingCapture:
             self.stateType = "pendingCapture"
@@ -266,10 +263,8 @@ extension PersistedRoom {
         switch stateType {
         case "draft":
             return .draft
-        case "pendingLightward":
-            return .pendingLightward
-        case "pendingHumans":
-            return .pendingHumans(signaled: signaledIDs)
+        case "pendingParticipants":
+            return .pendingParticipants(signaled: signaledIDs)
         case "pendingCapture":
             return .pendingCapture
         case "active":
@@ -296,8 +291,8 @@ extension PersistedRoom {
         switch reason {
         case .resolutionFailed(let participantID):
             return "resolutionFailed:\(participantID)"
-        case .lightwardDeclined:
-            return "lightwardDeclined"
+        case .participantDeclined(let participantID):
+            return "participantDeclined:\(participantID)"
         case .paymentAuthorizationFailed:
             return "paymentAuthorizationFailed"
         case .paymentCaptureFailed:
@@ -315,8 +310,11 @@ extension PersistedRoom {
             let participantID = String(encoded.dropFirst("resolutionFailed:".count))
             return .resolutionFailed(participantID: participantID)
         }
+        if encoded.hasPrefix("participantDeclined:") {
+            let participantID = String(encoded.dropFirst("participantDeclined:".count))
+            return .participantDeclined(participantID: participantID)
+        }
         switch encoded {
-        case "lightwardDeclined": return .lightwardDeclined
         case "paymentAuthorizationFailed": return .paymentAuthorizationFailed
         case "paymentCaptureFailed": return .paymentCaptureFailed
         case "cancelled": return .cancelled

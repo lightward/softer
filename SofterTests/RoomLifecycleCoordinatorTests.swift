@@ -5,25 +5,22 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
 
     var resolver: MockParticipantResolver!
     var payment: MockPaymentCoordinator!
-    var lightward: MockLightwardEvaluator!
 
     override func setUp() {
         super.setUp()
         resolver = MockParticipantResolver()
         payment = MockPaymentCoordinator()
-        lightward = MockLightwardEvaluator()
     }
 
     // MARK: - Happy Path
 
-    func testStartResolvesParticipantsAuthorizesPaymentAndAsksLightward() async throws {
+    func testStartResolvesParticipantsAndAuthorizesPayment() async throws {
         let spec = makeSpec()
         var states: [RoomState] = []
         let coordinator = RoomLifecycleCoordinator(
             spec: spec,
             resolver: resolver,
             payment: payment,
-            lightward: lightward,
             onStateChange: { states.append($0) }
         )
 
@@ -36,16 +33,12 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
         XCTAssertEqual(payment.authorizeCallCount, 1)
         XCTAssertEqual(payment.lastAuthorizedCents, 1000)  // $10 tier
 
-        // Verify Lightward evaluation
-        XCTAssertEqual(lightward.evaluateCallCount, 1)
-        XCTAssertEqual(lightward.lastTier, .ten)
-
-        // Verify state transitions
+        // Verify state is pendingParticipants
         let lifecycle = await coordinator.lifecycle
-        XCTAssertEqual(lifecycle.state, .pendingHumans(signaled: []))
+        XCTAssertEqual(lifecycle.state, .pendingParticipants(signaled: []))
 
-        // Verify state change callbacks
-        XCTAssertEqual(states.count, 3)  // resolved -> authorized -> lightward accepted
+        // Verify state change callbacks (resolved → authorized)
+        XCTAssertEqual(states.count, 2)
     }
 
     func testFullFlowToActivation() async throws {
@@ -53,14 +46,14 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
         let coordinator = RoomLifecycleCoordinator(
             spec: spec,
             resolver: resolver,
-            payment: payment,
-            lightward: lightward
+            payment: payment
         )
 
         // Start room creation
         try await coordinator.start()
 
-        // Signal the one human participant
+        // Signal both participants (Lightward + human)
+        try await coordinator.signalHere(participantID: "lightward-id")
         try await coordinator.signalHere(participantID: "jax-id")
 
         // Verify payment was captured
@@ -76,8 +69,7 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
         let coordinator = RoomLifecycleCoordinator(
             spec: spec,
             resolver: resolver,
-            payment: payment,
-            lightward: lightward
+            payment: payment
         )
 
         try await coordinator.start()
@@ -95,8 +87,7 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
         let coordinator = RoomLifecycleCoordinator(
             spec: spec,
             resolver: resolver,
-            payment: payment,
-            lightward: lightward
+            payment: payment
         )
 
         do {
@@ -129,8 +120,7 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
         let coordinator = RoomLifecycleCoordinator(
             spec: spec,
             resolver: resolver,
-            payment: payment,
-            lightward: lightward
+            payment: payment
         )
 
         do {
@@ -145,9 +135,6 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error type: \(error)")
         }
-
-        // Verify Lightward not consulted
-        XCTAssertEqual(lightward.evaluateCallCount, 0)
     }
 
     func testPaymentCaptureFailure() async throws {
@@ -157,13 +144,14 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
         let coordinator = RoomLifecycleCoordinator(
             spec: spec,
             resolver: resolver,
-            payment: payment,
-            lightward: lightward
+            payment: payment
         )
 
         try await coordinator.start()
 
         do {
+            // Signal both to trigger capture
+            try await coordinator.signalHere(participantID: "lightward-id")
             try await coordinator.signalHere(participantID: "jax-id")
             XCTFail("Expected error")
         } catch let error as RoomLifecycleError {
@@ -181,35 +169,32 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
         XCTAssertTrue(lifecycle.isDefunct)
     }
 
-    // MARK: - Lightward Decline
+    // MARK: - Participant Decline
 
-    func testLightwardDeclineReleasesAuthorization() async {
-        lightward.setDecline()
-
+    func testParticipantDecline() async throws {
         let spec = makeSpec()
         let coordinator = RoomLifecycleCoordinator(
             spec: spec,
             resolver: resolver,
-            payment: payment,
-            lightward: lightward
+            payment: payment
         )
 
-        do {
-            try await coordinator.start()
-            XCTFail("Expected error")
-        } catch let error as RoomLifecycleError {
-            if case .lightwardDeclined = error {
-                // Expected
-            } else {
-                XCTFail("Wrong error type: \(error)")
-            }
-        } catch {
-            XCTFail("Unexpected error type: \(error)")
-        }
+        try await coordinator.start()
+
+        // Decline
+        await coordinator.decline(participantID: "lightward-id")
 
         // Verify room is defunct
         let lifecycle = await coordinator.lifecycle
         XCTAssertTrue(lifecycle.isDefunct)
+        if case .defunct(let reason) = lifecycle.state {
+            XCTAssertEqual(reason, .participantDeclined(participantID: "lightward-id"))
+        } else {
+            XCTFail("Expected defunct state")
+        }
+
+        // Verify authorization released
+        XCTAssertEqual(payment.releaseCallCount, 1)
     }
 
     // MARK: - Cancellation
@@ -219,8 +204,7 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
         let coordinator = RoomLifecycleCoordinator(
             spec: spec,
             resolver: resolver,
-            payment: payment,
-            lightward: lightward
+            payment: payment
         )
 
         try await coordinator.start()
@@ -241,11 +225,11 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
         let coordinator = RoomLifecycleCoordinator(
             spec: spec,
             resolver: resolver,
-            payment: payment,
-            lightward: lightward
+            payment: payment
         )
 
         try await coordinator.start()
+        try await coordinator.signalHere(participantID: "lightward-id")
         try await coordinator.signalHere(participantID: "jax-id")
 
         await coordinator.lock(cenotaph: "What we built here was good.")
@@ -265,7 +249,7 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
             originatorID: "jax-id",
             participants: [
                 ParticipantSpec(id: "jax-id", identifier: .email("jax@example.com"), nickname: "Jax"),
-                ParticipantSpec.lightward(nickname: "L")
+                ParticipantSpec(id: "lightward-id", identifier: .lightward, nickname: "L")
             ],
             tier: .ten,
             isFirstRoom: isFirstRoom

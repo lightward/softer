@@ -266,10 +266,10 @@ enum RoomLifecycleRecordConverter {
     /// Extract signaled participant IDs from room state (for encoding to record).
     private static func signaledParticipantIDs(from state: RoomState) -> Set<String> {
         switch state {
-        case .pendingHumans(let signaled):
+        case .pendingParticipants(let signaled):
             return signaled
         case .active, .locked:
-            // In active/locked states, all humans have signaled
+            // In active/locked states, all participants have signaled
             return []  // We track via hasSignaledHere on each participant
         default:
             return []
@@ -282,10 +282,8 @@ enum RoomLifecycleRecordConverter {
         switch state {
         case .draft:
             return ("draft", nil, nil, nil)
-        case .pendingLightward:
-            return ("pendingLightward", nil, nil, nil)
-        case .pendingHumans:
-            return ("pendingHumans", nil, nil, nil)
+        case .pendingParticipants:
+            return ("pendingParticipants", nil, nil, nil)
         case .pendingCapture:
             return ("pendingCapture", nil, nil, nil)
         case .active(let turn):
@@ -307,10 +305,8 @@ enum RoomLifecycleRecordConverter {
         switch stateType {
         case "draft":
             return .draft
-        case "pendingLightward":
-            return .pendingLightward
-        case "pendingHumans":
-            return .pendingHumans(signaled: Set(signaledParticipantIDs))
+        case "pendingParticipants":
+            return .pendingParticipants(signaled: Set(signaledParticipantIDs))
         case "pendingCapture":
             return .pendingCapture
         case "active":
@@ -328,8 +324,8 @@ enum RoomLifecycleRecordConverter {
         switch reason {
         case .resolutionFailed(let participantID):
             return "resolutionFailed:\(participantID)"
-        case .lightwardDeclined:
-            return "lightwardDeclined"
+        case .participantDeclined(let participantID):
+            return "participantDeclined:\(participantID)"
         case .paymentAuthorizationFailed:
             return "paymentAuthorizationFailed"
         case .paymentCaptureFailed:
@@ -371,9 +367,12 @@ enum RoomLifecycleRecordConverter {
             let participantID = String(encoded.dropFirst("resolutionFailed:".count))
             return .resolutionFailed(participantID: participantID)
         }
+        if encoded.hasPrefix("participantDeclined:") {
+            let participantID = String(encoded.dropFirst("participantDeclined:".count))
+            return .participantDeclined(participantID: participantID)
+        }
 
         switch encoded {
-        case "lightwardDeclined": return .lightwardDeclined
         case "paymentAuthorizationFailed": return .paymentAuthorizationFailed
         case "paymentCaptureFailed": return .paymentCaptureFailed
         case "cancelled": return .cancelled

@@ -21,11 +21,8 @@ enum RoomState: Sendable, Codable, Equatable {
     /// Room specification created, participants not yet resolved via CloudKit.
     case draft
 
-    /// All participants resolved. Payment authorized. Awaiting Lightward's decision.
-    case pendingLightward
-
-    /// Lightward has signaled "here". Awaiting human participants.
-    case pendingHumans(signaled: Set<String>)  // participant IDs who have signaled
+    /// All participants resolved. Payment authorized. Awaiting all participants to signal presence.
+    case pendingParticipants(signaled: Set<String>)  // participant IDs who have signaled
 
     /// All participants present. Awaiting payment capture.
     case pendingCapture
@@ -43,7 +40,7 @@ enum RoomState: Sendable, Codable, Equatable {
 
 enum DefunctReason: Sendable, Codable, Equatable {
     case resolutionFailed(participantID: String)
-    case lightwardDeclined
+    case participantDeclined(participantID: String)
     case paymentAuthorizationFailed
     case paymentCaptureFailed
     case cancelled
@@ -57,10 +54,8 @@ enum RoomEvent: Sendable, Equatable {
     case resolutionFailed(participantID: String)
     case paymentAuthorized
     case paymentAuthorizationFailed
-    case lightwardAccepted
-    case lightwardDeclined
-    case humanSignaledHere(participantID: String)
-    case allHumansPresent
+    case signaled(participantID: String)
+    case participantDeclined(participantID: String)
     case paymentCaptured
     case paymentCaptureFailed
     case cancelled
@@ -80,7 +75,6 @@ enum RoomEvent: Sendable, Equatable {
 enum RoomEffect: Sendable, Equatable {
     case resolveParticipants
     case authorizePayment
-    case requestLightwardPresence
     case dispatchInvites
     case capturePayment
     case releasePaymentAuthorization

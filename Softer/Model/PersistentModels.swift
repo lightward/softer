@@ -12,7 +12,7 @@ final class PersistedRoom {
     var isFirstRoom: Bool
 
     // State
-    var stateType: String  // "draft", "pendingLightward", "pendingHumans", "pendingCapture", "active", "locked", "defunct"
+    var stateType: String  // "draft", "pendingParticipants", "pendingCapture", "active", "locked", "defunct"
     var currentTurnIndex: Int?
     var defunctReason: String?
     var cenotaph: String?

@@ -144,13 +144,13 @@ struct CreateRoomView: View {
     }
 
     private var isFirstRoom: Bool {
-        // Check if any rooms are past draft state (Lightward has been asked)
+        // Check if any rooms are past draft state
         let roomsInProgress = persistedRooms.compactMap { $0.toRoomLifecycle() }
             .filter { lifecycle in
                 switch lifecycle.state {
                 case .draft, .defunct:
                     return false
-                case .pendingLightward, .pendingHumans, .pendingCapture, .active, .locked:
+                case .pendingParticipants, .pendingCapture, .active, .locked:
                     return true
                 }
             }
@@ -221,8 +221,6 @@ struct CreateRoomView: View {
             return "Payment authorization failed"
         case .paymentCaptureFailed:
             return "Payment capture failed"
-        case .lightwardDeclined:
-            return "Lightward chose not to join this room"
         case .cancelled:
             return "Room creation was cancelled"
         case .expired:

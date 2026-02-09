@@ -35,41 +35,35 @@ struct RoomLifecycle: Sendable {
             return []
 
         case (.draft, .paymentAuthorized):
-            state = .pendingLightward
-            return [.requestLightwardPresence]
+            state = .pendingParticipants(signaled: [])
+            return []
 
         case (.draft, .paymentAuthorizationFailed):
             state = .defunct(reason: .paymentAuthorizationFailed)
             return []
 
-        // MARK: - Pending Lightward state transitions
+        // MARK: - Pending Participants state transitions
 
-        case (.pendingLightward, .lightwardAccepted):
-            state = .pendingHumans(signaled: [])
-            return [.dispatchInvites]
-
-        case (.pendingLightward, .lightwardDeclined):
-            state = .defunct(reason: .lightwardDeclined)
-            return [.releasePaymentAuthorization]
-
-        // MARK: - Pending Humans state transitions
-
-        case (.pendingHumans(var signaled), .humanSignaledHere(let participantID)):
+        case (.pendingParticipants(var signaled), .signaled(let participantID)):
             signaled.insert(participantID)
-            let allHumans = Set(spec.humanParticipants.map { $0.id })
-            if signaled == allHumans {
+            let allParticipants = Set(spec.participants.map { $0.id })
+            if signaled == allParticipants {
                 state = .pendingCapture
                 return [.capturePayment]
             } else {
-                state = .pendingHumans(signaled: signaled)
+                state = .pendingParticipants(signaled: signaled)
                 return []
             }
 
-        case (.pendingHumans, .expired):
+        case (.pendingParticipants, .participantDeclined(let participantID)):
+            state = .defunct(reason: .participantDeclined(participantID: participantID))
+            return [.releasePaymentAuthorization]
+
+        case (.pendingParticipants, .expired):
             state = .defunct(reason: .expired)
             return [.releasePaymentAuthorization]
 
-        case (.pendingHumans, .cancelled):
+        case (.pendingParticipants, .cancelled):
             state = .defunct(reason: .cancelled)
             return [.releasePaymentAuthorization]
 
@@ -119,10 +113,6 @@ struct RoomLifecycle: Sendable {
             state = .defunct(reason: .cancelled)
             return []
 
-        case (.pendingLightward, .cancelled):
-            state = .defunct(reason: .cancelled)
-            return [.releasePaymentAuthorization]
-
         case (.pendingCapture, .cancelled):
             state = .defunct(reason: .cancelled)
             return [.releasePaymentAuthorization]
@@ -155,25 +145,25 @@ struct RoomLifecycle: Sendable {
 
     var isPending: Bool {
         switch state {
-        case .draft, .pendingLightward, .pendingHumans, .pendingCapture:
+        case .draft, .pendingParticipants, .pendingCapture:
             return true
         default:
             return false
         }
     }
 
-    /// Returns the set of human participant IDs who have signaled "here".
+    /// Returns the set of participant IDs who have signaled "here".
     var signaledParticipants: Set<String> {
-        if case .pendingHumans(let signaled) = state {
+        if case .pendingParticipants(let signaled) = state {
             return signaled
         }
         return []
     }
 
-    /// Returns the set of human participant IDs who have NOT yet signaled.
-    var pendingParticipants: Set<String> {
-        let allHumans = Set(spec.humanParticipants.map { $0.id })
-        return allHumans.subtracting(signaledParticipants)
+    /// Returns the set of participant IDs who have NOT yet signaled.
+    var unsignaledParticipants: Set<String> {
+        let all = Set(spec.participants.map { $0.id })
+        return all.subtracting(signaledParticipants)
     }
 
     // MARK: - Turn queries (active rooms only)
