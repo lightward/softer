@@ -79,12 +79,6 @@ struct CreateRoomView: View {
                     Text("Payment")
                 }
 
-                if let error = errorMessage {
-                    Section {
-                        Text(error)
-                            .foregroundStyle(.red)
-                    }
-                }
             }
             .navigationTitle("New Room")
             .navigationBarTitleDisplayMode(.inline)
@@ -107,6 +101,14 @@ struct CreateRoomView: View {
                         focusedParticipantID = entry.id
                     }
                 }
+            }
+            .alert("Error", isPresented: .init(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )) {
+                Button("OK") { errorMessage = nil }
+            } message: {
+                Text(errorMessage ?? "")
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -139,6 +141,8 @@ struct CreateRoomView: View {
     private func createRoom() async {
         isCreating = true
         errorMessage = nil
+        nicknameFieldFocused = false
+        focusedParticipantID = nil
 
         // Build participant list
         var participants: [ParticipantSpec] = []
@@ -193,12 +197,21 @@ struct CreateRoomView: View {
         switch error {
         case .resolutionFailed(let participantID, _):
             return "Couldn't find participant: \(participantID)"
-        case .paymentFailed:
-            return "Payment failed"
+        case .paymentFailed(let paymentError):
+            switch paymentError {
+            case .notConfigured:
+                return "Payment failed: product not available. Check that the Paid Apps agreement is active in App Store Connect."
+            case .declined:
+                return "Payment failed: transaction was not verified."
+            case .cancelled:
+                return "Payment was cancelled."
+            case .networkError(let detail):
+                return "Payment failed: \(detail)"
+            }
         case .cancelled:
-            return "Room creation was cancelled"
+            return "Room creation was cancelled."
         case .expired:
-            return "Room creation expired"
+            return "Room creation expired."
         case .invalidState:
             return "Something went wrong. Please try again."
         }

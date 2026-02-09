@@ -37,14 +37,19 @@ final class StoreKitCoordinator: PaymentCoordinator, @unchecked Sendable {
         return .success(())
         #else
         guard let productID = Self.productIDs[tier] else {
+            print("[StoreKit] No product ID mapped for tier: \(tier)")
             return .failure(.notConfigured)
         }
 
         do {
+            print("[StoreKit] Fetching product: \(productID)")
             let products = try await Product.products(for: [productID])
+            print("[StoreKit] Products returned: \(products.count)")
             guard let product = products.first else {
+                print("[StoreKit] Product not found — check App Store Connect status and Paid Apps agreement")
                 return .failure(.notConfigured)
             }
+            print("[StoreKit] Found product: \(product.displayName) (\(product.displayPrice))")
 
             let result = try await product.purchase()
 
@@ -53,18 +58,24 @@ final class StoreKitCoordinator: PaymentCoordinator, @unchecked Sendable {
                 switch verification {
                 case .verified(let transaction):
                     await transaction.finish()
+                    print("[StoreKit] Purchase verified and finished")
                     return .success(())
-                case .unverified:
+                case .unverified(_, let error):
+                    print("[StoreKit] Transaction unverified: \(error)")
                     return .failure(.declined)
                 }
             case .userCancelled:
+                print("[StoreKit] User cancelled")
                 return .failure(.cancelled)
             case .pending:
+                print("[StoreKit] Transaction pending (Ask to Buy?)")
                 return .failure(.declined)
             @unknown default:
+                print("[StoreKit] Unknown purchase result")
                 return .failure(.declined)
             }
         } catch {
+            print("[StoreKit] Error: \(error)")
             return .failure(.networkError(error.localizedDescription))
         }
         #endif
