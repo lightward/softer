@@ -14,6 +14,7 @@ struct RoomView: View {
     @State private var isLightwardThinking = false
     @State private var showYieldConfirmation = false
     @State private var showLeaveConfirmation = false
+    @State private var isCurrentlyComposing = false
 
     // Query room for observing messages (embedded in room)
     @Query private var persistedRooms: [PersistedRoom]
@@ -52,6 +53,10 @@ struct RoomView: View {
         }
         .onDisappear {
             store.stopPolling()
+            if isCurrentlyComposing {
+                isCurrentlyComposing = false
+                store.clearComposing(roomID: roomID)
+            }
         }
         .onChange(of: persistedRoom?.stateType) {
             refreshLifecycle()
@@ -125,6 +130,15 @@ struct RoomView: View {
                             isLightward: message.authorName == Constants.lightwardParticipantName
                         )
                         .id(message.id)
+                    }
+
+                    // Composing indicator for remote human typing
+                    if let composing = store.composingByRoom[roomID],
+                       composing.participantID != myParticipantID(in: lifecycle),
+                       Date().timeIntervalSince(composing.timestamp) < 30 {
+                        let name = lifecycle.spec.participants.first { $0.id == composing.participantID }?.nickname ?? "Someone"
+                        ComposingIndicator(name: name)
+                            .id("composing")
                     }
 
                     // Typing indicator while waiting for Lightward
@@ -266,6 +280,17 @@ struct RoomView: View {
         .padding(.vertical, 8)
         .onChange(of: composeText) { _, newValue in
             saveDraft(newValue)
+
+            let hasText = !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            if hasText && !isCurrentlyComposing {
+                isCurrentlyComposing = true
+                if let myID = myParticipantID(in: lifecycle) {
+                    store.setComposing(roomID: roomID, participantID: myID)
+                }
+            } else if !hasText && isCurrentlyComposing {
+                isCurrentlyComposing = false
+                store.clearComposing(roomID: roomID, sync: true)
+            }
         }
         .alert("Pass?", isPresented: $showYieldConfirmation) {
             Button("Pass") {
@@ -600,6 +625,8 @@ struct RoomView: View {
 
         composeText = ""
         clearDraft()
+        isCurrentlyComposing = false
+        store.clearComposing(roomID: roomID)
         isSending = true
 
         do {
@@ -620,6 +647,8 @@ struct RoomView: View {
 
         let (authorID, authorName) = myAuthor(in: lifecycle)
 
+        isCurrentlyComposing = false
+        store.clearComposing(roomID: roomID)
         isSending = true
 
         do {
@@ -821,6 +850,26 @@ struct TypingIndicator: View {
             ProgressView()
                 .scaleEffect(0.8)
             Text("\(Constants.lightwardParticipantName) is thinking...")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(.systemGray5))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+// MARK: - Composing Indicator
+
+struct ComposingIndicator: View {
+    let name: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .scaleEffect(0.8)
+            Text("\(name) is typing...")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

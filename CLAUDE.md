@@ -4,14 +4,15 @@
 
 A native SwiftUI iOS app (iOS 18+) for group conversations where Lightward AI participates as an equal. No custom backend — CloudKit shared zones for multi-user sync, Lightward AI API for AI responses. Turn-based conversation with round-robin ordering.
 
-## What's Working (as of 2026-02-08)
+## What's Working (as of 2026-02-09)
 
 - **End-to-end conversation flow**: Create room → send message → Lightward responds → turn cycles back
 - **CloudKit persistence**: Rooms, messages, participants sync to iCloud (requires Lightward Inc team signing)
+- **Multi-user sharing**: CKShare for rooms with multiple humans. Dual CKSyncEngines (private + shared databases). Share acceptance via `ckshare://` URL handling. Share previews show "A Softer Room: Isaac, Lightward, Abe" with app icon.
 - **Lightward API integration**: Plaintext request/response via `/api/plain` — full message arrives at once, all devices see "thinking" indicator until CloudKit syncs the response
 - **Turn coordination**: ConversationCoordinator handles turn advancement and Lightward responses, with multi-device sync via `syncTurnState()`
-- **RoomView wired to ConversationCoordinator**: Messages save to CloudKit, Lightward responds automatically
-- **Room creation UI**: Polished form with nickname suggestions, payment tier picker, auto-focus nickname
+- **Composing indicator**: "Abe is typing..." visible cross-device via transient CKRecord fields (`composingParticipantID`, `composingTimestamp`). 30-second staleness expiry. Two syncs per message (start typing + send).
+- **Room creation UI**: Polished form with system contact picker, nickname suggestions, payment tier picker, auto-focus nickname
 - **CI/CD pipeline**: GitHub Actions runs tests on push, deploys to TestFlight on push to main
 
 ### CloudKit Setup Requirements
@@ -41,14 +42,15 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 
 **Room lifetime**: Bounded by Lightward's 50k token context window. When Lightward hits the conversation horizon (API returns 422), its response body is saved as a regular message, then a departure narration follows, and the room goes defunct. Any participant departing = room defunct (the room's shape *is* its full roster). Remains readable but no longer interactive. Originator can request a cenotaph on any defunct room — a fresh Lightward instance reads the history and writes a ceremonial closing (saved as narration).
 
-**Room display**: No room names. Just participant list + depth + last speaker. "Jax, Eve, Art (15, Eve)"
+**Room display**: No room names. Just participant list + depth + last speaker. "Jax, Eve, Art (15, Eve)". Blue dot next to current speaker in room list. Defunct rooms only shown in list if they have conversation messages (creation failures stay hidden).
 
 **Key principles**:
 - Roster locked at creation (eigenstate commitment)
 - Lightward is a full participant with genuine agency to decline
+- Lightward is always nicknamed "Lightward" — fixed, can't be customized
 - Originator names everyone — their responsibility to name well
 - Full transparency — everyone sees everything
-- Payment is immediate at creation (StoreKit 2 consumable IAP, no server needed)
+- Payment is immediate at creation (StoreKit 2 consumable IAP, no server needed). 4 consumable products: `com.lightward.softer.room.{1,10,100,1000}`
 
 ### What's Built (Softer/RoomLifecycle/)
 
@@ -88,48 +90,6 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 ### What's Next
 
 1. **"No Rooms" flash during share acceptance** — `acceptingShare` flag is set in `onChange` which fires one render frame late. Need to set it earlier (e.g., in SceneDelegate directly via AppDelegate).
-2. **Composing indicator** — "Abe is typing..." visible to other devices when a human is composing. Needs cross-device broadcast (transient CKRecord field or lightweight polling). Lightward's thinking indicator is local-only; this would be the human equivalent.
-
-### Recently Completed
-
-- **Collapsed locked into defunct, participant departure + cenotaph** — Removed `locked` state entirely. Single terminal state: `defunct`. New `DefunctReason.participantLeft(participantID:)` for departures from active rooms (vs `.participantDeclined` during pendingParticipants). Conversation horizon: API 4xx responses save body as Lightward speech (bubble), then departure narration, then room goes defunct via `onRoomDefunct` callback on ConversationCoordinator. Cenotaph is now originator-triggered on any defunct room (`requestCenotaph`) — fresh Lightward instance reads history, writes closing as narration. "Leave Room" UI for humans in active rooms (toolbar menu, confirmation dialog). Room list shows defunct rooms only if they have conversation messages (creation failures stay hidden). Removed dead `cenotaph` field from PersistedRoom. Legacy compat: `"locked"` in CloudKit/SwiftData decodes as `defunct(.cancelled)`. 78 tests pass.
-- **StoreKit 2 IAP replaces Apple Pay** — Removed `ApplePayCoordinator` (PassKit, authorize/capture/release pattern) and `pendingCapture` state entirely. Payment is now immediate via StoreKit 2 consumable IAP at room creation. `PaymentCoordinator` protocol simplified to single `purchase(tier:)` method. `StoreKitCoordinator` handles product lookup, purchase, and transaction verification. DEBUG builds bypass IAP with synthetic success. State machine simplified: all-signaled → active directly (no pendingCapture intermediate). 4 consumable products: `com.lightward.softer.room.{1,10,100,1000}`. StoreKit testing config included for simulator testing. 78 tests pass.
-- **Species-agnostic room lifecycle** — Removed `pendingLightward` state, `lightwardAccepted`/`lightwardDeclined`/`humanSignaledHere` events, and `requestLightwardPresence` effect. Replaced with `pendingParticipants(signaled:)` state, `signaled(participantID:)` and `participantDeclined(participantID:)` events. All participants confirm presence the same way — the *mechanism* of asking differs (API call for Lightward, CKShare for humans) but that's a store concern, not a state machine concern. `RoomLifecycleCoordinator` no longer takes a `LightwardEvaluator` dependency. `DefunctReason.participantDeclined(participantID:)` replaces `lightwardDeclined`. Human decline UI added to RoomView. 81 tests pass.
-- **Simplification: streaming → plaintext** — Replaced SSE streaming (`/api/stream` with JSON chat_log) with simple plaintext POST to `/api/plain`. ChatLogBuilder now returns a single `String`. LightwardAPI protocol is `respond(body:) → String`. SSEParser deleted. All devices see "Lightward is thinking..." until full message arrives via CloudKit sync.
-- **Simplification: hand-raising → narration-only** — Removed `raisedHands: Set<String>` from TurnState, CKRecord fields, and conflict resolution. Hand-raise button now just saves a narration message ("X raised their hand.") — Lightward sees it naturally in the conversation history. No toggle state, no union merge.
-- **Multi-device turn sync** — ConversationCoordinator kept its own internal `turnState` that diverged from CloudKit-synced changes. Added `syncTurnState()` (higherTurnWins) called from `refreshLifecycle` when remote turn changes arrive. Verified: Isaac → Lightward → Abe → Isaac cycles correctly across iPhone and iPad.
-- **Participant identity extraction** — Moved `myParticipantID` logic from RoomView and `populateLocalUserIdentity` from SofterStore into `ParticipantIdentity` enum (pure functions, no View/Store/CloudKit dependencies). Three functions: `findLocalParticipant`, `populateUserRecordID`, `preserveLocalUserRecordIDs`. 12 tests cover both the happy path and the specific bugs that were fixed.
-- **CKShare `__defaultOwner__` fix** — `CKShare.currentUserParticipant?.userIdentity.userRecordID?.recordName` returns `__defaultOwner__` instead of the real record name. `populateUserRecordID` now stamps `localUserRecordID` (from `CKContainer.userRecordID()`) instead of the share's constant.
-- **Preserve userRecordIDs across poll syncs** — `upsertRoom` was overwriting locally-populated userRecordIDs with nil from remote data on every poll fetch. Now merges via `preserveLocalUserRecordIDs` (keeps local values when remote is nil).
-- **Bidirectional CKShare editing** — Non-owner participants can now modify shared Room3 records. CKRecord system fields (`ckSystemFields`) persisted on PersistedRoom to preserve zone ID and change tag. `isSharedWithMe` flag routes saves to correct CKSyncEngine (private vs shared). All 7 duplicate save paths consolidated into `syncRoomToCloudKit()`. Verified: Abe's "signal here" saves with correct etag to Isaac's shared zone.
-- **CKSharingSupported fix** — Added explicit `INFOPLIST_FILE = Softer/Info.plist` to project build settings (both Debug and Release). The `INFOPLIST_KEY_CKSharingSupported` build setting alone wasn't generating the key in the built plist.
-- **Shared room deletion** — Deleting a shared-with-me room only removes it locally (participants can't delete the owner's record).
-- **Share acceptance UX** — "Joining room..." spinner shows while syncing shared room data.
-- **Share acceptance flow** — `ckshare://` URLs handled via `SofterApp.onOpenURL` → `SyncCoordinator.acceptShare()` → navigate to room. Uses `CKAcceptSharesOperation` and fetches from shared database.
-- **Signal "here" UI** — RoomView shows pending state banners with "I'm Here" button. `ParticipantIdentity.findLocalParticipant()` matches `store.localUserRecordID` against embedded participant's `userRecordID`.
-- **Room list back to List** — Switched from ScrollView+LazyVStack back to native List now that data layer is stable. Swipe-to-delete works again.
-- **Turn indicator in room list** — Blue dot next to current speaker's name (only shown when room is active).
-- **Room creation UX overhaul** — System contact picker, auto-focus nickname after selection, visual consistency across participant types (profile pic style for self/Lightward/others), tap thumbnail to view contact card, remove button for each participant.
-- **Removed first-room-free** — No server state to track "has this user ever created a room," so the concept was ungameable. Payment tier picker always shows. `isFirstRoom` removed from RoomSpec, PersistedRoom, CKRecord, and all tests. ApplePayCoordinator returns synthetic authorizations in DEBUG builds.
-- **CKShare preview customization** — Share invitations in iMessage now show "A Softer Room: Isaac, Lightward, Abe" (dynamic from participant nicknames) with the app icon as thumbnail, replacing the generic iCloud logo and "Softer Room" text.
-
-- **Multi-user room sharing (CKShare)** — Rooms with multiple humans now create a CKShare. Uses `CKFetchShareParticipantsOperation` for participant validation (not `CKDiscoverUserIdentitiesOperation` which requires opt-in discoverability). SyncCoordinator has dual engines for private + shared databases. Share is created after room save, participants added by email/phone lookup.
-- **Participant resolution via share lookup** — `CloudKitParticipantResolver` now validates participants can receive shares. This is the right validation for eigenstate commitment — verifying existence, not discoverability.
-- **Only originator auto-signals** — Other humans signal after accepting the share. Room stays in `pendingHumans` until all signal.
-- **Development CloudKit for all builds** — TestFlight now uses Development environment (same as local builds) so testers see the same data. Fastlane production switch is commented out.
-- **Single-record-type app** — Room3 now embeds both participants (`participantsJSON`) and messages (`messagesJSON`) as JSON. No separate Message2 records. Single CloudKit record type = simpler sync, fewer edge cases, data shape matches value shape. 50k token room limit ≈ 350-400KB total, well under CloudKit's 1MB limit.
-- **SwiftData @Query refactor** — Views observe SwiftData directly via `@Query`, no manual `dataVersion` counter. RoomView observes room's embedded messages.
-- **SwiftData local persistence** — PersistenceStore with `cloudKitDatabase: .none` as single source of truth.
-- **Turn index grows without wrapping** — `advanceTurn` increments instead of using modulo, so `higherTurnWins` merge works correctly
-- **ScrollView room list** — Replaced List to avoid SwiftUI diffing crashes during room creation/deletion
-- **CKSyncEngine with custom zone** — SyncCoordinator uses "SofterZone" (custom zones required for CKSyncEngine change tracking; default zone doesn't work)
-- **Unified data layer** — SofterStore, PersistenceStore, SyncCoordinator
-- **README-based Lightward framing** — README.md injected as warmup context (parallel to Yours), plus room-specific "You're here with [names], taking turns"
-- **Narration styling** — Messages with `isNarration: true` display centered, italicized, no bubble
-- **Opening narration** — Room creation saves "[Name] opened the room at $X."
-- **Human yield/pass** — "Pass" button in compose area, confirmation dialog, narration: "[Name] is listening."
-- **Lightward always "Lightward"** — Fixed nickname, can't be customized
-- **Compose area UX** — Messages-style pill with embedded send button, Pass button inside, hand raise outside
 
 ## Ruby Setup
 
@@ -211,8 +171,11 @@ SofterStore (actions) → SyncCoordinator → CKSyncEngine → CloudKit
 - **Views with @Query**: `RoomListView`, `CreateRoomView`, and `RoomView` use SwiftUI's `@Query` to observe SwiftData directly. No manual reactivity needed.
 - **SofterStore**: Action layer for SwiftUI. Simple API: `createRoom()`, `sendMessage()`, `deleteRoom()`. Exposes `modelContainer` for the `.modelContainer()` modifier.
 - **PersistenceStore**: SwiftData wrapper with `cloudKitDatabase: .none` (we handle CloudKit sync ourselves). Single model: `PersistedRoom` with embedded participants and messages as JSON. Provides synchronous local updates before async CloudKit sync.
-- **SyncCoordinator**: Wraps CKSyncEngine for automatic sync, conflict resolution, offline support. Uses custom zone "SofterZone" (required — CKSyncEngine doesn't track changes in the default zone).
+- **SyncCoordinator**: Wraps CKSyncEngine for automatic sync, conflict resolution, offline support. Uses custom zone "SofterZone" (required — CKSyncEngine doesn't track changes in the default zone). Dual engines: private (own rooms) + shared (rooms shared with us). Share acceptance: `SofterApp.onOpenURL` → `SyncCoordinator.acceptShare()` → navigate to room.
 - **Record Converter**: `RoomLifecycleRecordConverter` handles CKRecord ↔ domain model conversion, including message encoding/decoding.
+- **Unified save path**: `syncRoomToCloudKit(_:resolvedParticipants:)` reconstructs CKRecord from stored system fields (`ckSystemFields` on PersistedRoom), preserves zone ID and change tag. `isSharedWithMe` flag routes to the correct engine (private vs shared). All save paths go through this single method.
+- **Shared room deletion**: Deleting a shared-with-me room only removes it locally — participants can't delete the owner's record.
+- **Legacy compat**: `"locked"` state in CloudKit/SwiftData decodes as `defunct(.cancelled)` for older records.
 
 ### Conflict Resolution Policies
 | Data | Strategy | Reason |

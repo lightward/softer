@@ -21,6 +21,10 @@ final class SofterStore {
     /// Local user's CloudKit record ID.
     private(set) var localUserRecordID: String?
 
+    /// Transient composing state per room (not persisted — display-only).
+    /// Key: roomID, Value: (participantID, timestamp).
+    private(set) var composingByRoom: [String: (participantID: String, timestamp: Date)] = [:]
+
     // MARK: - Private State
 
     private var dataStore: PersistenceStore?
@@ -155,6 +159,15 @@ final class SofterStore {
                 if let room = dataStore.room(id: record.recordID.recordName) {
                     room.ckSystemFields = RoomLifecycleRecordConverter.encodeSystemFields(of: record)
                     room.isSharedWithMe = isShared
+
+                    // Read composing state from remote record
+                    let roomID = record.recordID.recordName
+                    if let composingID = record["composingParticipantID"] as? String,
+                       let composingTime = record["composingTimestamp"] as? Date {
+                        composingByRoom[roomID] = (participantID: composingID, timestamp: composingTime)
+                    } else {
+                        composingByRoom.removeValue(forKey: roomID)
+                    }
 
                     // For shared rooms, populate local user's identity from the CKShare
                     if isShared, let syncCoordinator = syncCoordinator {
@@ -352,6 +365,15 @@ final class SofterStore {
             record["participantsJSON"] = room.participantsJSON as NSString
         }
 
+        // Write composing state (transient — rides along with room saves)
+        if let composing = composingByRoom[room.id] {
+            record["composingParticipantID"] = composing.participantID as NSString
+            record["composingTimestamp"] = composing.timestamp as NSDate
+        } else {
+            record["composingParticipantID"] = nil
+            record["composingTimestamp"] = nil
+        }
+
         // Route to correct engine
         if room.isSharedWithMe {
             print("SofterStore: Saving room \(room.id) to shared database")
@@ -379,6 +401,34 @@ final class SofterStore {
     func fetchChanges() async {
         guard let syncCoordinator = syncCoordinator else { return }
         await syncCoordinator.fetchChanges()
+    }
+
+    // MARK: - Composing Indicator
+
+    /// Set composing state for a room and sync to CloudKit.
+    /// Called once when the user starts typing (empty → non-empty).
+    func setComposing(roomID: String, participantID: String) {
+        composingByRoom[roomID] = (participantID: participantID, timestamp: Date())
+
+        Task {
+            guard let dataStore = dataStore,
+                  let room = dataStore.room(id: roomID) else { return }
+            await syncRoomToCloudKit(room)
+        }
+    }
+
+    /// Clear composing state for a room.
+    /// When `sync` is true, triggers a CloudKit save to notify remote devices immediately.
+    func clearComposing(roomID: String, sync: Bool = false) {
+        composingByRoom.removeValue(forKey: roomID)
+
+        if sync {
+            Task {
+                guard let dataStore = dataStore,
+                      let room = dataStore.room(id: roomID) else { return }
+                await syncRoomToCloudKit(room)
+            }
+        }
     }
 
     // MARK: - Share Acceptance
