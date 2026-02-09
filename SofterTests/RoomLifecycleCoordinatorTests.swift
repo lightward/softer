@@ -163,9 +163,9 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
         XCTAssertTrue(lifecycle.isDefunct)
     }
 
-    // MARK: - Cenotaph
+    // MARK: - Participant Left
 
-    func testLockWithCenotaph() async throws {
+    func testParticipantLeft() async throws {
         let spec = makeSpec()
         let coordinator = RoomLifecycleCoordinator(
             spec: spec,
@@ -177,13 +177,13 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
         try await coordinator.signalHere(participantID: "lightward-id")
         try await coordinator.signalHere(participantID: "jax-id")
 
-        await coordinator.lock(cenotaph: "What we built here was good.")
+        await coordinator.leave(participantID: "lightward-id")
 
         let lifecycle = await coordinator.lifecycle
-        if case .locked(let cenotaph, _) = lifecycle.state {
-            XCTAssertEqual(cenotaph, "What we built here was good.")
+        if case .defunct(let reason) = lifecycle.state {
+            XCTAssertEqual(reason, .participantLeft(participantID: "lightward-id"))
         } else {
-            XCTFail("Expected locked state")
+            XCTFail("Expected defunct state")
         }
     }
 

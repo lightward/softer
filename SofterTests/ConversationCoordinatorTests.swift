@@ -249,6 +249,48 @@ final class ConversationCoordinatorTests: XCTestCase {
         XCTAssertEqual(turn.currentTurnIndex, 5, "Should not go backward")
     }
 
+    func testConversationHorizonTriggersDefunct() async throws {
+        let storage = MockMessageStorage()
+        let api = MockLightwardAPIClient()
+        api.shouldFail = true
+        api.error = APIError.conversationHorizon(message: "Conversation horizon has arrived. 🤲")
+        let spec = makeSpec() // Jax(0), Lightward(1), Mira(2)
+        let lightwardID = spec.lightwardParticipant!.id
+
+        var defunctCalls: [(String, String)] = []
+        let coordinator = ConversationCoordinator(
+            roomID: "room-1",
+            spec: spec,
+            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
+            messageStorage: storage,
+            apiClient: api,
+            onRoomDefunct: { participantID, message in
+                defunctCalls.append((participantID, message))
+            }
+        )
+
+        // Jax sends message → advances to Lightward → API returns 422
+        try await coordinator.sendMessage(
+            authorID: "jax-id",
+            authorName: "Jax",
+            text: "Hello"
+        )
+
+        // Should have saved: Jax's message, Lightward's horizon speech, departure narration
+        let saved = await storage.savedMessages
+        XCTAssertEqual(saved.count, 3)
+        XCTAssertEqual(saved[0].text, "Hello")
+        XCTAssertEqual(saved[1].text, "Conversation horizon has arrived. 🤲")
+        XCTAssertTrue(saved[1].isLightward)
+        XCTAssertFalse(saved[1].isNarration)
+        XCTAssertEqual(saved[2].text, "Lightward departed.")
+        XCTAssertTrue(saved[2].isNarration)
+
+        // onRoomDefunct should have been called with Lightward's participant ID
+        XCTAssertEqual(defunctCalls.count, 1)
+        XCTAssertEqual(defunctCalls[0].0, lightwardID)
+    }
+
     func testSkipsLightwardIfNotTheirTurn() async throws {
         let storage = MockMessageStorage()
         let api = MockLightwardAPIClient()

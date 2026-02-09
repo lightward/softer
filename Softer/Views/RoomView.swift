@@ -13,6 +13,7 @@ struct RoomView: View {
     @State private var isSending = false
     @State private var isLightwardThinking = false
     @State private var showYieldConfirmation = false
+    @State private var showLeaveConfirmation = false
 
     // Query room for observing messages (embedded in room)
     @Query private var persistedRooms: [PersistedRoom]
@@ -77,8 +78,6 @@ struct RoomView: View {
                 pendingParticipantsBanner(lifecycle: lifecycle, signaled: signaled)
             case .active:
                 composeArea(lifecycle: lifecycle)
-            case .locked:
-                lockedBanner(lifecycle: lifecycle)
             case .defunct:
                 defunctBanner(lifecycle: lifecycle)
             default:
@@ -89,6 +88,29 @@ struct RoomView: View {
             ToolbarItem(placement: .principal) {
                 navigationTitleView(lifecycle: lifecycle)
             }
+            if lifecycle.isActive {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button(role: .destructive) {
+                            showLeaveConfirmation = true
+                        } label: {
+                            Label("Leave Room", systemImage: "figure.walk.departure")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
+            }
+        }
+        .alert("Leave Room?", isPresented: $showLeaveConfirmation) {
+            Button("Leave", role: .destructive) {
+                Task {
+                    await leaveRoom(lifecycle: lifecycle)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The room will end for everyone. This can't be undone.")
         }
     }
 
@@ -360,36 +382,25 @@ struct RoomView: View {
         }
     }
 
-    @ViewBuilder
-    private func lockedBanner(lifecycle: RoomLifecycle) -> some View {
-        if case .locked(let cenotaph, _) = lifecycle.state {
-            VStack(spacing: 8) {
-                Text("Room Complete")
-                    .font(.headline)
-                if !cenotaph.isEmpty {
-                    Text(cenotaph)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-            }
-            .padding()
-            .frame(maxWidth: .infinity)
-            .background(.bar)
-        }
-    }
+    @State private var isRequestingCenotaph = false
 
     @ViewBuilder
     private func defunctBanner(lifecycle: RoomLifecycle) -> some View {
         if case .defunct(let reason) = lifecycle.state {
             VStack(spacing: 8) {
-                Image(systemName: "xmark.circle")
+                Image(systemName: defunctIcon(for: reason))
                     .font(.title2)
                     .foregroundStyle(.secondary)
+
                 switch reason {
                 case .participantDeclined(let participantID):
                     let name = lifecycle.spec.participants.first { $0.id == participantID }?.nickname ?? "Someone"
                     Text("\(name) declined to join.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                case .participantLeft(let participantID):
+                    let name = lifecycle.spec.participants.first { $0.id == participantID }?.nickname ?? "Someone"
+                    Text("\(name) departed.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 case .cancelled:
@@ -401,11 +412,60 @@ struct RoomView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
+
+                // Cenotaph button for originator
+                if isOriginator(lifecycle: lifecycle) {
+                    if isRequestingCenotaph {
+                        ProgressView()
+                    } else {
+                        Button {
+                            Task {
+                                await requestCenotaph()
+                            }
+                        } label: {
+                            Text("Request Cenotaph")
+                                .font(.subheadline)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.accentColor)
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
             }
             .padding()
             .frame(maxWidth: .infinity)
             .background(.bar)
         }
+    }
+
+    private func isOriginator(lifecycle: RoomLifecycle) -> Bool {
+        guard let myID = myParticipantID(in: lifecycle) else { return false }
+        return myID == lifecycle.spec.originatorID
+    }
+
+    private func defunctIcon(for reason: DefunctReason) -> String {
+        switch reason {
+        case .participantLeft:
+            return "figure.walk.departure"
+        case .participantDeclined:
+            return "xmark.circle"
+        case .cancelled:
+            return "xmark.circle"
+        default:
+            return "exclamationmark.triangle"
+        }
+    }
+
+    private func requestCenotaph() async {
+        isRequestingCenotaph = true
+        do {
+            try await store.requestCenotaph(roomID: roomID)
+        } catch {
+            print("Failed to request cenotaph: \(error)")
+        }
+        isRequestingCenotaph = false
     }
 
     private func isMyTurn(lifecycle: RoomLifecycle) -> Bool {
@@ -669,6 +729,16 @@ struct RoomView: View {
         }
 
         await store.declineRoom(roomID: roomID, participantID: participantID)
+        self.lifecycle = store.room(id: roomID)
+    }
+
+    private func leaveRoom(lifecycle: RoomLifecycle) async {
+        guard let participantID = myParticipantID(in: lifecycle) else {
+            print("RoomView: Could not find my participant ID for leave")
+            return
+        }
+
+        await store.leaveRoom(roomID: roomID, participantID: participantID)
         self.lifecycle = store.room(id: roomID)
     }
 }

@@ -192,9 +192,8 @@ enum RoomLifecycleRecordConverter {
         let encoded = encodeState(lifecycle.state)
         record["stateType"] = encoded.stateType as NSString
         record["defunctReason"] = encoded.defunctReason as NSString?
-        record["cenotaph"] = encoded.cenotaph as NSString?
 
-        // TurnState fields (for active/locked states)
+        // TurnState fields (for active state)
         if let turn = encoded.turnState {
             record["currentTurnIndex"] = turn.currentTurnIndex as NSNumber
 
@@ -250,7 +249,6 @@ enum RoomLifecycleRecordConverter {
         let state = decodeState(
             stateType: stateType,
             defunctReason: record["defunctReason"] as? String,
-            cenotaph: record["cenotaph"] as? String,
             turnState: turnState,
             signaledParticipantIDs: Array(signaledIDs)
         )
@@ -265,8 +263,8 @@ enum RoomLifecycleRecordConverter {
         switch state {
         case .pendingParticipants(let signaled):
             return signaled
-        case .active, .locked:
-            // In active/locked states, all participants have signaled
+        case .active:
+            // In active state, all participants have signaled
             return []  // We track via hasSignaledHere on each participant
         default:
             return []
@@ -275,25 +273,22 @@ enum RoomLifecycleRecordConverter {
 
     // MARK: - State Encoding/Decoding
 
-    private static func encodeState(_ state: RoomState) -> (stateType: String, defunctReason: String?, cenotaph: String?, turnState: TurnState?) {
+    private static func encodeState(_ state: RoomState) -> (stateType: String, defunctReason: String?, turnState: TurnState?) {
         switch state {
         case .draft:
-            return ("draft", nil, nil, nil)
+            return ("draft", nil, nil)
         case .pendingParticipants:
-            return ("pendingParticipants", nil, nil, nil)
+            return ("pendingParticipants", nil, nil)
         case .active(let turn):
-            return ("active", nil, nil, turn)
-        case .locked(let cenotaph, let finalTurn):
-            return ("locked", nil, cenotaph, finalTurn)
+            return ("active", nil, turn)
         case .defunct(let reason):
-            return ("defunct", encodeDefunctReason(reason), nil, nil)
+            return ("defunct", encodeDefunctReason(reason), nil)
         }
     }
 
     private static func decodeState(
         stateType: String,
         defunctReason: String?,
-        cenotaph: String?,
         turnState: TurnState?,
         signaledParticipantIDs: [String]
     ) -> RoomState {
@@ -305,7 +300,8 @@ enum RoomLifecycleRecordConverter {
         case "active":
             return .active(turn: turnState ?? .initial)
         case "locked":
-            return .locked(cenotaph: cenotaph ?? "", finalTurn: turnState ?? .initial)
+            // Legacy compat: locked rooms become defunct
+            return .defunct(reason: .cancelled)
         case "defunct":
             return .defunct(reason: decodeDefunctReason(defunctReason))
         default:
@@ -319,6 +315,8 @@ enum RoomLifecycleRecordConverter {
             return "resolutionFailed:\(participantID)"
         case .participantDeclined(let participantID):
             return "participantDeclined:\(participantID)"
+        case .participantLeft(let participantID):
+            return "participantLeft:\(participantID)"
         case .paymentFailed:
             return "paymentFailed"
         case .cancelled:
@@ -361,6 +359,10 @@ enum RoomLifecycleRecordConverter {
         if encoded.hasPrefix("participantDeclined:") {
             let participantID = String(encoded.dropFirst("participantDeclined:".count))
             return .participantDeclined(participantID: participantID)
+        }
+        if encoded.hasPrefix("participantLeft:") {
+            let participantID = String(encoded.dropFirst("participantLeft:".count))
+            return .participantLeft(participantID: participantID)
         }
 
         switch encoded {

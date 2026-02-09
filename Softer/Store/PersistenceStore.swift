@@ -204,7 +204,6 @@ extension PersistedRoom {
 
         // Update state fields
         self.defunctReason = encodeDefunctReason(lifecycle.state)
-        self.cenotaph = encodeCenotaph(lifecycle.state)
 
         switch lifecycle.state {
         case .draft:
@@ -222,10 +221,6 @@ extension PersistedRoom {
             case .remoteWins:
                 self.currentTurnIndex = turn.currentTurnIndex
             }
-        case .locked(let cenotaph, let turn):
-            self.stateType = "locked"
-            self.currentTurnIndex = turn.currentTurnIndex
-            self.cenotaph = cenotaph
         case .defunct:
             self.stateType = "defunct"
             self.currentTurnIndex = nil
@@ -267,11 +262,8 @@ extension PersistedRoom {
             )
             return .active(turn: turn)
         case "locked":
-            let turn = TurnState(
-                currentTurnIndex: currentTurnIndex ?? 0,
-                currentNeed: nil
-            )
-            return .locked(cenotaph: cenotaph ?? "", finalTurn: turn)
+            // Legacy compat: locked rooms become defunct
+            return .defunct(reason: .cancelled)
         case "defunct":
             return .defunct(reason: decodeDefunctReason())
         default:
@@ -286,6 +278,8 @@ extension PersistedRoom {
             return "resolutionFailed:\(participantID)"
         case .participantDeclined(let participantID):
             return "participantDeclined:\(participantID)"
+        case .participantLeft(let participantID):
+            return "participantLeft:\(participantID)"
         case .paymentFailed:
             return "paymentFailed"
         case .cancelled:
@@ -305,6 +299,10 @@ extension PersistedRoom {
             let participantID = String(encoded.dropFirst("participantDeclined:".count))
             return .participantDeclined(participantID: participantID)
         }
+        if encoded.hasPrefix("participantLeft:") {
+            let participantID = String(encoded.dropFirst("participantLeft:".count))
+            return .participantLeft(participantID: participantID)
+        }
         switch encoded {
         case "paymentFailed": return .paymentFailed
         case "paymentAuthorizationFailed": return .paymentFailed  // Legacy compat
@@ -314,8 +312,4 @@ extension PersistedRoom {
         }
     }
 
-    private func encodeCenotaph(_ state: RoomState) -> String? {
-        guard case .locked(let cenotaph, _) = state else { return nil }
-        return cenotaph
-    }
 }

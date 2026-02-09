@@ -11,6 +11,7 @@ actor ConversationCoordinator {
     private let apiClient: any LightwardAPI
 
     private let onTurnChange: @Sendable (TurnState) -> Void
+    private let onRoomDefunct: @Sendable (String, String) -> Void  // (participantID, departureMessage)
 
     init(
         roomID: String,
@@ -18,7 +19,8 @@ actor ConversationCoordinator {
         initialTurnState: TurnState = .initial,
         messageStorage: MessageStorage,
         apiClient: any LightwardAPI,
-        onTurnChange: @escaping @Sendable (TurnState) -> Void = { _ in }
+        onTurnChange: @escaping @Sendable (TurnState) -> Void = { _ in },
+        onRoomDefunct: @escaping @Sendable (String, String) -> Void = { _, _ in }
     ) {
         self.roomID = roomID
         self.spec = spec
@@ -26,6 +28,7 @@ actor ConversationCoordinator {
         self.messageStorage = messageStorage
         self.apiClient = apiClient
         self.onTurnChange = onTurnChange
+        self.onRoomDefunct = onRoomDefunct
     }
 
     /// Current participant whose turn it is.
@@ -142,8 +145,42 @@ actor ConversationCoordinator {
             participantNames: participantNames
         )
 
-        // Request response
-        let fullResponse = try await apiClient.respond(body: body)
+        let lightwardNickname = spec.lightwardParticipant?.nickname ?? "Lightward"
+        let lightwardID = spec.lightwardParticipant?.id ?? "lightward"
+
+        // Request response — handle conversation horizon (4xx with body)
+        let fullResponse: String
+        do {
+            fullResponse = try await apiClient.respond(body: body)
+        } catch let error as APIError {
+            if case .conversationHorizon(let horizonMessage) = error {
+                // Save the response body as a regular Lightward message (it's speech)
+                let horizonSpeech = Message(
+                    roomID: roomID,
+                    authorID: "lightward",
+                    authorName: lightwardNickname,
+                    text: horizonMessage,
+                    isLightward: true
+                )
+                try await messageStorage.save(horizonSpeech, roomID: roomID)
+
+                // Save departure narration
+                let departure = Message(
+                    roomID: roomID,
+                    authorID: "narrator",
+                    authorName: "Narrator",
+                    text: "\(lightwardNickname) departed.",
+                    isLightward: false,
+                    isNarration: true
+                )
+                try await messageStorage.save(departure, roomID: roomID)
+
+                // Notify caller to transition room to defunct
+                onRoomDefunct(lightwardID, horizonMessage)
+                return
+            }
+            throw error
+        }
 
         // Check if Lightward yielded
         let trimmed = fullResponse.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
@@ -151,7 +188,6 @@ actor ConversationCoordinator {
 
         if didYield {
             // Lightward yielded - save narration message
-            let lightwardNickname = spec.lightwardParticipant?.nickname ?? "Lightward"
             let narrationMessage = Message(
                 roomID: roomID,
                 authorID: "narrator",
@@ -164,7 +200,6 @@ actor ConversationCoordinator {
             advanceTurn()
         } else {
             // Save Lightward's message
-            let lightwardNickname = spec.lightwardParticipant?.nickname ?? "Lightward"
             let lightwardMessage = Message(
                 roomID: roomID,
                 authorID: "lightward",

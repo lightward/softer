@@ -13,9 +13,18 @@ struct RoomListView: View {
     @Query(sort: \PersistedRoom.createdAt, order: .reverse)
     private var persistedRooms: [PersistedRoom]
 
-    /// Transform persisted rooms to domain models, filtering out defunct rooms
+    /// Transform persisted rooms to domain models.
+    /// Defunct rooms only shown if they have conversation history worth revisiting.
     private var rooms: [RoomLifecycle] {
-        persistedRooms.compactMap { $0.toRoomLifecycle() }.filter { !$0.isDefunct }
+        persistedRooms.compactMap { persisted -> RoomLifecycle? in
+            guard let lifecycle = persisted.toRoomLifecycle() else { return nil }
+            if lifecycle.isDefunct {
+                // Only show defunct rooms that had actual conversation (more than just opening narration)
+                let messageCount = persisted.embeddedMessages().filter { !$0.isNarration }.count
+                return messageCount > 0 ? lifecycle : nil
+            }
+            return lifecycle
+        }
     }
 
     var body: some View {
@@ -180,10 +189,6 @@ struct RoomRow: View {
     @ViewBuilder
     private var statusIndicator: some View {
         switch lifecycle.state {
-        case .locked:
-            Image(systemName: "lock.fill")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
         case .pendingParticipants:
             ProgressView()
                 .scaleEffect(0.6)
@@ -203,10 +208,17 @@ struct RoomRow: View {
             let index = turn.currentTurnIndex % lifecycle.spec.participants.count
             let participant = lifecycle.spec.participants[index]
             return "\(participant.nickname)'s turn"
-        case .locked:
-            return "Completed"
-        case .defunct:
-            return "Cancelled"
+        case .defunct(let reason):
+            switch reason {
+            case .participantLeft:
+                return "Ended"
+            case .participantDeclined:
+                return "Declined"
+            case .cancelled:
+                return "Cancelled"
+            default:
+                return "Ended"
+            }
         }
     }
 }

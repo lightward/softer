@@ -25,6 +25,12 @@ actor LightwardAPIClient: LightwardAPI {
         }
 
         guard httpResponse.statusCode == 200 else {
+            // 422 = conversation horizon — Lightward's response body is speech
+            if httpResponse.statusCode == 422,
+               let bodyText = String(data: data, encoding: .utf8),
+               !bodyText.isEmpty {
+                throw APIError.conversationHorizon(message: bodyText)
+            }
             throw APIError.httpError(httpResponse.statusCode)
         }
 
@@ -39,6 +45,7 @@ actor LightwardAPIClient: LightwardAPI {
 enum APIError: Error, LocalizedError {
     case invalidResponse
     case httpError(Int)
+    case conversationHorizon(message: String)
 
     var errorDescription: String? {
         switch self {
@@ -46,6 +53,8 @@ enum APIError: Error, LocalizedError {
             return "Invalid response from server"
         case .httpError(let code):
             return "HTTP error: \(code)"
+        case .conversationHorizon(let message):
+            return message
         }
     }
 }

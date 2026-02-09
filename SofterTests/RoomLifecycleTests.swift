@@ -33,18 +33,17 @@ final class RoomLifecycleTests: XCTestCase {
         // Second human signals -> all present, directly active
         effects = lifecycle.apply(event: .signaled(participantID: "mira-id"))
         XCTAssertEqual(lifecycle.state, .active(turn: .initial))
-        XCTAssertEqual(effects, [.activateRoom])
+        XCTAssertEqual(effects, [])
     }
 
-    func testRoomLockWithCenotaph() {
+    func testParticipantLeftFromActive() {
         var lifecycle = makeActiveLifecycle()
 
-        let cenotaph = "What we built here was good. It's done now."
-        let effects = lifecycle.apply(event: .cenotaphWritten(text: cenotaph))
+        let effects = lifecycle.apply(event: .participantLeft(participantID: "lightward-id"))
 
-        XCTAssertEqual(lifecycle.state, .locked(cenotaph: cenotaph, finalTurn: .initial))
+        XCTAssertEqual(lifecycle.state, .defunct(reason: .participantLeft(participantID: "lightward-id")))
         XCTAssertEqual(effects, [])
-        XCTAssertTrue(lifecycle.isLocked)
+        XCTAssertTrue(lifecycle.isDefunct)
     }
 
     // MARK: - Participant Decline

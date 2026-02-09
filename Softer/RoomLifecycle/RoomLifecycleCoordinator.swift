@@ -81,9 +81,9 @@ actor RoomLifecycleCoordinator {
         applyEvent(.expired)
     }
 
-    /// Lock the room with a cenotaph.
-    func lock(cenotaph: String) {
-        applyEvent(.cenotaphWritten(text: cenotaph))
+    /// Record that a participant has left (departed after room was active).
+    func leave(participantID: String) {
+        applyEvent(.participantLeft(participantID: participantID))
     }
 
     // MARK: - Private

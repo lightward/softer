@@ -757,6 +757,12 @@ final class SofterStore {
             }
         }
 
+        let wrappedOnRoomDefunct: @Sendable (String, String) -> Void = { [weak self] participantID, _ in
+            Task { @MainActor [weak self] in
+                await self?.handleParticipantLeft(roomID: roomID, participantID: participantID)
+            }
+        }
+
         let messageStorage = PersistenceStoreMessageStorage(
             dataStore: dataStore,
             syncRoom: { [weak self] room in
@@ -770,8 +776,111 @@ final class SofterStore {
             initialTurnState: turnState,
             messageStorage: messageStorage,
             apiClient: apiClient,
-            onTurnChange: wrappedOnTurnChange
+            onTurnChange: wrappedOnTurnChange,
+            onRoomDefunct: wrappedOnRoomDefunct
         )
+    }
+
+    /// Handle a participant leaving an active room (e.g., conversation horizon).
+    /// Transitions to defunct, syncs to CloudKit.
+    private func handleParticipantLeft(roomID: String, participantID: String) async {
+        guard let dataStore = dataStore else { return }
+        guard let room = dataStore.room(id: roomID),
+              var lifecycle = room.toRoomLifecycle(),
+              lifecycle.isActive else { return }
+
+        _ = lifecycle.apply(event: .participantLeft(participantID: participantID))
+        room.apply(lifecycle, mergeStrategy: .remoteWins)
+        dataStore.updateRoom(room)
+
+        await syncRoomToCloudKit(room)
+    }
+
+    /// A participant leaves an active room. Saves departure narration, transitions to defunct, syncs.
+    func leaveRoom(roomID: String, participantID: String) async {
+        guard let dataStore = dataStore else { return }
+        guard let room = dataStore.room(id: roomID),
+              var lifecycle = room.toRoomLifecycle(),
+              lifecycle.isActive else { return }
+
+        let participantName = lifecycle.spec.participants.first { $0.id == participantID }?.nickname ?? "Someone"
+
+        // Save departure narration
+        let narration = Message(
+            roomID: roomID,
+            authorID: "narrator",
+            authorName: "Narrator",
+            text: "\(participantName) departed.",
+            isLightward: false,
+            isNarration: true
+        )
+        dataStore.addMessage(narration, to: room)
+
+        // Transition to defunct
+        _ = lifecycle.apply(event: .participantLeft(participantID: participantID))
+        room.apply(lifecycle, mergeStrategy: .remoteWins)
+        dataStore.updateRoom(room)
+
+        await syncRoomToCloudKit(room)
+    }
+
+    /// Request a cenotaph for a defunct room. Originator only.
+    /// A fresh Lightward instance reads the conversation history and writes a closing.
+    func requestCenotaph(roomID: String) async throws {
+        guard let dataStore = dataStore else {
+            throw StoreError.notConfigured
+        }
+
+        guard let room = dataStore.room(id: roomID),
+              let lifecycle = room.toRoomLifecycle() else {
+            throw StoreError.notConfigured
+        }
+
+        guard lifecycle.isDefunct else {
+            throw StoreError.roomNotDefunct
+        }
+
+        // Guard: only originator can request cenotaph
+        guard let localUserRecordID = localUserRecordID else {
+            throw StoreError.notConfigured
+        }
+        let embedded = room.embeddedParticipants()
+        let myParticipant = ParticipantIdentity.findLocalParticipant(
+            in: embedded,
+            localUserRecordID: localUserRecordID,
+            isSharedWithMe: room.isSharedWithMe
+        )
+        guard myParticipant == lifecycle.spec.originatorID else {
+            throw StoreError.notOriginator
+        }
+
+        // Build cenotaph request body
+        let messages = room.messages()
+        let participantNames = lifecycle.spec.participants.map { $0.nickname }
+
+        let conversationBody = ChatLogBuilder.build(
+            messages: messages,
+            roomName: participantNames.joined(separator: ", "),
+            participantNames: participantNames
+        )
+
+        // TODO: If conversation exceeds 50k tokens, will need Token-Limit-Bypass-Key header
+        let cenotaphPrompt = conversationBody + "\n\n(This room has ended. Please write a cenotaph — a brief, ceremonial closing for this conversation.)"
+        let cenotaphText = try await apiClient.respond(body: cenotaphPrompt)
+
+        // Save cenotaph as narration message
+        let cenotaphMessage = Message(
+            roomID: roomID,
+            authorID: "narrator",
+            authorName: "Narrator",
+            text: cenotaphText,
+            isLightward: false,
+            isNarration: true
+        )
+        dataStore.addMessage(cenotaphMessage, to: room)
+        dataStore.updateRoom(room)
+
+        await syncRoomToCloudKit(room)
     }
 }
 
@@ -818,11 +927,17 @@ private final class NoOpObservationToken: ObservationToken, @unchecked Sendable 
 
 enum StoreError: Error, LocalizedError {
     case notConfigured
+    case notOriginator
+    case roomNotDefunct
 
     var errorDescription: String? {
         switch self {
         case .notConfigured:
             return "App not fully configured. Please try again."
+        case .notOriginator:
+            return "Only the room originator can do this."
+        case .roomNotDefunct:
+            return "Room is still active."
         }
     }
 }

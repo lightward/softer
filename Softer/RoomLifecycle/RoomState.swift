@@ -28,16 +28,14 @@ enum RoomState: Sendable, Codable, Equatable {
     /// Turn state is tracked here: current turn index, raised hands, and any pending need.
     case active(turn: TurnState)
 
-    /// Room has reached its natural end. Cenotaph written, conversation preserved.
-    case locked(cenotaph: String, finalTurn: TurnState)
-
-    /// Room creation failed or was cancelled.
+    /// Room is no longer active. Creation failed, cancelled, or a participant departed.
     case defunct(reason: DefunctReason)
 }
 
 enum DefunctReason: Sendable, Codable, Equatable {
     case resolutionFailed(participantID: String)
-    case participantDeclined(participantID: String)
+    case participantDeclined(participantID: String)  // Refused to join (during pendingParticipants)
+    case participantLeft(participantID: String)       // Departed after room was active (includes horizon)
     case paymentFailed
     case cancelled
     case expired
@@ -60,9 +58,7 @@ enum RoomEvent: Sendable, Equatable {
     case needCreated(Need)
     case needClaimed(deviceID: String)
     case needCompleted
-
-    // End of room
-    case cenotaphWritten(text: String)
+    case participantLeft(participantID: String)
 }
 
 /// Effects that the room lifecycle can request.
@@ -70,5 +66,4 @@ enum RoomEffect: Sendable, Equatable {
     case resolveParticipants
     case processPayment
     case dispatchInvites
-    case activateRoom
 }

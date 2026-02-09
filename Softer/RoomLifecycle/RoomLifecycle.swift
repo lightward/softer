@@ -1,6 +1,6 @@
 import Foundation
 
-/// Manages the lifecycle of a room from creation to activation to lock.
+/// Manages the lifecycle of a room from creation to activation to defunct.
 /// This is a pure state machine - all side effects are returned as RoomEffect values.
 struct RoomLifecycle: Sendable {
     let spec: RoomSpec
@@ -49,7 +49,7 @@ struct RoomLifecycle: Sendable {
             let allParticipants = Set(spec.participants.map { $0.id })
             if signaled == allParticipants {
                 state = .active(turn: .initial)
-                return [.activateRoom]
+                return []
             } else {
                 state = .pendingParticipants(signaled: signaled)
                 return []
@@ -93,8 +93,8 @@ struct RoomLifecycle: Sendable {
             state = .active(turn: turn)
             return []
 
-        case (.active(let turn), .cenotaphWritten(let text)):
-            state = .locked(cenotaph: text, finalTurn: turn)
+        case (.active, .participantLeft(let participantID)):
+            state = .defunct(reason: .participantLeft(participantID: participantID))
             return []
 
         // MARK: - Cancellation from any pre-active state
@@ -116,11 +116,6 @@ struct RoomLifecycle: Sendable {
 
     var isActive: Bool {
         if case .active = state { return true }
-        return false
-    }
-
-    var isLocked: Bool {
-        if case .locked = state { return true }
         return false
     }
 
@@ -154,11 +149,10 @@ struct RoomLifecycle: Sendable {
 
     // MARK: - Turn queries (active rooms only)
 
-    /// The turn state, if the room is active or locked.
+    /// The turn state, if the room is active.
     var turnState: TurnState? {
         switch state {
         case .active(let turn): return turn
-        case .locked(_, let finalTurn): return finalTurn
         default: return nil
         }
     }

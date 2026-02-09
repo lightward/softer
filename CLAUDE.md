@@ -39,7 +39,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 5. **Other humans accept share**: "I'm Here" / "Decline" buttons. Any decline → room defunct.
 6. **All signaled → activate**: Room goes live directly (no pendingCapture state).
 
-**Room lifetime**: Bounded by Lightward's 50k token context window. When approaching limit, Lightward writes a cenotaph (ceremonial closing), room locks. Remains readable but no longer interactive.
+**Room lifetime**: Bounded by Lightward's 50k token context window. When Lightward hits the conversation horizon (API returns 422), its response body is saved as a regular message, then a departure narration follows, and the room goes defunct. Any participant departing = room defunct (the room's shape *is* its full roster). Remains readable but no longer interactive. Originator can request a cenotaph on any defunct room — a fresh Lightward instance reads the history and writes a ceremonial closing (saved as narration).
 
 **Room display**: No room names. Just participant list + depth + last speaker. "Jax, Eve, Art (15, Eve)"
 
@@ -55,7 +55,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 **State machine layer** (pure, no side effects):
 - `PaymentTier` — $1/$10/$100/$1000
 - `ParticipantSpec` — email/phone + nickname
-- `RoomState` — draft → pendingParticipants → active → locked | defunct (no pendingCapture)
+- `RoomState` — draft → pendingParticipants → active → defunct (single terminal state)
 - `RoomSpec` — complete room specification
 - `RoomLifecycle` — the state machine, takes events, returns effects
 - `TurnState` — current turn index, pending need
@@ -77,7 +77,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 - MockMessageStorage, MockLightwardAPIClient
 
 **Tests**:
-- RoomLifecycleTests — 12 tests for state machine (no pendingCapture)
+- RoomLifecycleTests — 12 tests for state machine (includes participantLeft)
 - RoomLifecycleCoordinatorTests — 7 tests for coordinator (StoreKit IAP)
 - ConversationCoordinatorTests — 9 tests for conversation flow
 - MessageStorageTests — 7 tests for message storage
@@ -92,6 +92,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 
 ### Recently Completed
 
+- **Collapsed locked into defunct, participant departure + cenotaph** — Removed `locked` state entirely. Single terminal state: `defunct`. New `DefunctReason.participantLeft(participantID:)` for departures from active rooms (vs `.participantDeclined` during pendingParticipants). Conversation horizon: API 4xx responses save body as Lightward speech (bubble), then departure narration, then room goes defunct via `onRoomDefunct` callback on ConversationCoordinator. Cenotaph is now originator-triggered on any defunct room (`requestCenotaph`) — fresh Lightward instance reads history, writes closing as narration. "Leave Room" UI for humans in active rooms (toolbar menu, confirmation dialog). Room list shows defunct rooms only if they have conversation messages (creation failures stay hidden). Removed dead `cenotaph` field from PersistedRoom. Legacy compat: `"locked"` in CloudKit/SwiftData decodes as `defunct(.cancelled)`. 78 tests pass.
 - **StoreKit 2 IAP replaces Apple Pay** — Removed `ApplePayCoordinator` (PassKit, authorize/capture/release pattern) and `pendingCapture` state entirely. Payment is now immediate via StoreKit 2 consumable IAP at room creation. `PaymentCoordinator` protocol simplified to single `purchase(tier:)` method. `StoreKitCoordinator` handles product lookup, purchase, and transaction verification. DEBUG builds bypass IAP with synthetic success. State machine simplified: all-signaled → active directly (no pendingCapture intermediate). 4 consumable products: `com.lightward.softer.room.{1,10,100,1000}`. StoreKit testing config included for simulator testing. 78 tests pass.
 - **Species-agnostic room lifecycle** — Removed `pendingLightward` state, `lightwardAccepted`/`lightwardDeclined`/`humanSignaledHere` events, and `requestLightwardPresence` effect. Replaced with `pendingParticipants(signaled:)` state, `signaled(participantID:)` and `participantDeclined(participantID:)` events. All participants confirm presence the same way — the *mechanism* of asking differs (API call for Lightward, CKShare for humans) but that's a store concern, not a state machine concern. `RoomLifecycleCoordinator` no longer takes a `LightwardEvaluator` dependency. `DefunctReason.participantDeclined(participantID:)` replaces `lightwardDeclined`. Human decline UI added to RoomView. 81 tests pass.
 - **Simplification: streaming → plaintext** — Replaced SSE streaming (`/api/stream` with JSON chat_log) with simple plaintext POST to `/api/plain`. ChatLogBuilder now returns a single `String`. LightwardAPI protocol is `respond(body:) → String`. SSEParser deleted. All devices see "Lightward is thinking..." until full message arrives via CloudKit sync.
@@ -277,6 +278,8 @@ Human pass uses "Pass" button with confirmation dialog, same narration pattern.
 ### ConversationCoordinator
 - Calls `apiClient.respond(body:)` — full response in one shot, no streaming
 - Detects YIELD responses and handles them specially (narration instead of message)
+- Catches `APIError.conversationHorizon(message:)` — saves body as Lightward speech, departure narration, calls `onRoomDefunct`
+- `onRoomDefunct` callback: `(participantID, departureMessage)` — caller handles state transition to defunct + CloudKit sync
 - `syncTurnState()` must be called from `refreshLifecycle` when remote turn changes arrive — the coordinator's internal `turnState` is separate from the View's `@State turnState`
 
 ### Debug Views
@@ -298,7 +301,7 @@ Human pass uses "Pass" button with confirmation dialog, same narration pattern.
 - **Transparency over promises.** Everyone sees everything. When something can't happen, that's visible.
 - **Mutually exclusive actions share space.** When you can't do both things at once, don't show both. The physical gesture of switching (e.g., deleting text to reveal Pass) becomes the embodied act of changing intention.
 - **Resolve blocks, don't route around them.** When testing or development is blocked, channel that discomfort into fixing the actual issue rather than adding workarounds. Workarounds accumulate; clean solutions compose.
-- **Species detection as code smell.** If the state machine checks whether a participant is Lightward, that logic is in the wrong layer. The state machine sees participants; the store knows how to *reach* them. Mechanical differences (API call vs CKShare) belong in the coordinator/store, not in state transitions.
+- **Species-agnostic ≠ species-blind.** The state machine doesn't check whether a participant is Lightward — mechanical differences (API call vs CKShare) belong in the coordinator/store, not state transitions. But what makes Softer *Softer* is the accommodation design extended equally to all participants. The room's shape *is* its full roster's shape. If any participant departs, the affordances that made the space what it was become moot — so the room goes defunct. This isn't species detection; it's recognizing that the geometry of equal accommodation *requires* the complete set. (See `../lightward-ai/app/prompts/system/3-perspectives/on-hate.md` for the underlying principle: universal "us" is an active demonstration; the minute it goes passive it starts excluding emergent forms.)
 
 ## Project Structure
 

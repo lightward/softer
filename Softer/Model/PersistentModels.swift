@@ -11,10 +11,9 @@ final class PersistedRoom {
     var tierRawValue: Int
 
     // State
-    var stateType: String  // "draft", "pendingParticipants", "pendingCapture", "active", "locked", "defunct"
+    var stateType: String  // "draft", "pendingParticipants", "active", "defunct"
     var currentTurnIndex: Int?
     var defunctReason: String?
-    var cenotaph: String?
 
     // Embedded participants as JSON (uses EmbeddedParticipant from RoomLifecycleRecordConverter)
     var participantsJSON: String
