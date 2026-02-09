@@ -244,12 +244,7 @@ final class SofterStore {
         if case .pendingParticipants = lifecycle.state {
             let signaled = room.embeddedParticipants().filter { $0.hasSignaledHere }
             for participant in signaled {
-                let effects = lifecycle.apply(event: .signaled(participantID: participant.id))
-                if effects.contains(.capturePayment) {
-                    // Skip payment for now — go straight to active
-                    _ = lifecycle.apply(event: .paymentCaptured)
-                    break
-                }
+                _ = lifecycle.apply(event: .signaled(participantID: participant.id))
             }
             room.apply(lifecycle, mergeStrategy: .remoteWins)
         }
@@ -424,12 +419,7 @@ final class SofterStore {
             )
             dataStore.addMessage(arrival, to: room)
 
-            let effects = lifecycle.apply(event: .signaled(participantID: participantID))
-
-            // If state machine says capture payment, skip to active for now (payment not wired yet)
-            if effects.contains(.capturePayment) {
-                _ = lifecycle.apply(event: .paymentCaptured)
-            }
+            _ = lifecycle.apply(event: .signaled(participantID: participantID))
 
             // Apply the new state back to the persisted room
             room.apply(lifecycle, mergeStrategy: .remoteWins)
@@ -468,9 +458,9 @@ final class SofterStore {
             tier: tier
         )
 
-        // Create lifecycle coordinator — resolve participants and authorize payment
+        // Create lifecycle coordinator — resolve participants and process payment
         let resolver = CloudKitParticipantResolver(container: container)
-        let payment = ApplePayCoordinator(merchantIdentifier: Constants.appleMerchantIdentifier)
+        let payment = StoreKitCoordinator()
 
         let coordinator = RoomLifecycleCoordinator(
             spec: spec,
@@ -483,13 +473,8 @@ final class SofterStore {
         // Auto-signal originator
         try await coordinator.signalHere(participantID: originatorSpec.id)
 
-        var lifecycle = await coordinator.lifecycle
+        let lifecycle = await coordinator.lifecycle
         let resolvedParticipants = await coordinator.resolvedParticipants
-
-        // If auto-signal caused pendingCapture (solo room), skip to active
-        if case .pendingCapture = lifecycle.state {
-            // This shouldn't happen yet — Lightward hasn't signaled
-        }
 
         // Create opening narration
         let originatorName = spec.participants.first { $0.id == spec.originatorID }?.nickname ?? "Someone"
@@ -577,11 +562,6 @@ final class SofterStore {
         switch decision {
         case .accepted:
             _ = lifecycle.apply(event: .signaled(participantID: lightwardID))
-
-            // If all present (everyone already signaled), skip to active
-            if case .pendingCapture = lifecycle.state {
-                _ = lifecycle.apply(event: .paymentCaptured)
-            }
 
             room.apply(lifecycle, mergeStrategy: .remoteWins)
 

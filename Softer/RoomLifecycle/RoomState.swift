@@ -21,11 +21,8 @@ enum RoomState: Sendable, Codable, Equatable {
     /// Room specification created, participants not yet resolved via CloudKit.
     case draft
 
-    /// All participants resolved. Payment authorized. Awaiting all participants to signal presence.
+    /// All participants resolved. Payment completed. Awaiting all participants to signal presence.
     case pendingParticipants(signaled: Set<String>)  // participant IDs who have signaled
-
-    /// All participants present. Awaiting payment capture.
-    case pendingCapture
 
     /// Room is live. Conversation can proceed.
     /// Turn state is tracked here: current turn index, raised hands, and any pending need.
@@ -41,10 +38,9 @@ enum RoomState: Sendable, Codable, Equatable {
 enum DefunctReason: Sendable, Codable, Equatable {
     case resolutionFailed(participantID: String)
     case participantDeclined(participantID: String)
-    case paymentAuthorizationFailed
-    case paymentCaptureFailed
+    case paymentFailed
     case cancelled
-    case expired  // Authorization expired before all participants signaled
+    case expired
 }
 
 /// Events that can occur during room lifecycle.
@@ -52,12 +48,10 @@ enum RoomEvent: Sendable, Equatable {
     // Creation flow events
     case participantsResolved
     case resolutionFailed(participantID: String)
-    case paymentAuthorized
-    case paymentAuthorizationFailed
+    case paymentCompleted
+    case paymentFailed
     case signaled(participantID: String)
     case participantDeclined(participantID: String)
-    case paymentCaptured
-    case paymentCaptureFailed
     case cancelled
     case expired
 
@@ -74,9 +68,7 @@ enum RoomEvent: Sendable, Equatable {
 /// Effects that the room lifecycle can request.
 enum RoomEffect: Sendable, Equatable {
     case resolveParticipants
-    case authorizePayment
+    case processPayment
     case dispatchInvites
-    case capturePayment
-    case releasePaymentAuthorization
     case activateRoom
 }

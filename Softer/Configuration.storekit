@@ -1,0 +1,129 @@
+{
+  "identifier" : "3A4B5C6D-7E8F-9A0B-1C2D-3E4F5A6B7C8D",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "1.00",
+      "familyShareable" : false,
+      "internalID" : "1",
+      "localizations" : [
+        {
+          "description" : "Open a Softer room at $1",
+          "displayName" : "Softer Room ($1)",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.lightward.softer.room.1",
+      "referenceName" : "Softer Room $1",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "10.00",
+      "familyShareable" : false,
+      "internalID" : "2",
+      "localizations" : [
+        {
+          "description" : "Open a Softer room at $10",
+          "displayName" : "Softer Room ($10)",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.lightward.softer.room.10",
+      "referenceName" : "Softer Room $10",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "100.00",
+      "familyShareable" : false,
+      "internalID" : "3",
+      "localizations" : [
+        {
+          "description" : "Open a Softer room at $100",
+          "displayName" : "Softer Room ($100)",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.lightward.softer.room.100",
+      "referenceName" : "Softer Room $100",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "1000.00",
+      "familyShareable" : false,
+      "internalID" : "4",
+      "localizations" : [
+        {
+          "description" : "Open a Softer room at $1000",
+          "displayName" : "Softer Room ($1000)",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.lightward.softer.room.1000",
+      "referenceName" : "Softer Room $1000",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "1",
+    "_developerTeamID" : "XXXXXXXXXX",
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

@@ -14,7 +14,7 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
 
     // MARK: - Happy Path
 
-    func testStartResolvesParticipantsAndAuthorizesPayment() async throws {
+    func testStartResolvesParticipantsAndProcessesPayment() async throws {
         let spec = makeSpec()
         var states: [RoomState] = []
         let coordinator = RoomLifecycleCoordinator(
@@ -29,15 +29,15 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
         // Verify resolution
         XCTAssertEqual(resolver.resolveCallCount, 2)  // Jax + Lightward
 
-        // Verify payment authorization
-        XCTAssertEqual(payment.authorizeCallCount, 1)
-        XCTAssertEqual(payment.lastAuthorizedCents, 1000)  // $10 tier
+        // Verify payment purchase
+        XCTAssertEqual(payment.purchaseCallCount, 1)
+        XCTAssertEqual(payment.lastPurchasedTier, .ten)
 
         // Verify state is pendingParticipants
         let lifecycle = await coordinator.lifecycle
         XCTAssertEqual(lifecycle.state, .pendingParticipants(signaled: []))
 
-        // Verify state change callbacks (resolved → authorized)
+        // Verify state change callbacks (resolved → payment completed)
         XCTAssertEqual(states.count, 2)
     }
 
@@ -56,10 +56,7 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
         try await coordinator.signalHere(participantID: "lightward-id")
         try await coordinator.signalHere(participantID: "jax-id")
 
-        // Verify payment was captured
-        XCTAssertEqual(payment.captureCallCount, 1)
-
-        // Verify room is active
+        // Verify room is active (directly, no pendingCapture)
         let lifecycle = await coordinator.lifecycle
         XCTAssertEqual(lifecycle.state, .active(turn: .initial))
     }
@@ -89,8 +86,8 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
             XCTFail("Unexpected error type: \(error)")
         }
 
-        // Verify no payment authorization attempted
-        XCTAssertEqual(payment.authorizeCallCount, 0)
+        // Verify no payment attempted
+        XCTAssertEqual(payment.purchaseCallCount, 0)
 
         // Verify room is defunct
         let lifecycle = await coordinator.lifecycle
@@ -99,8 +96,8 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
 
     // MARK: - Payment Failure
 
-    func testPaymentAuthorizationFailureStopsAndThrows() async {
-        payment.setAuthorizationFailure(.declined)
+    func testPaymentFailureStopsAndThrows() async {
+        payment.setPurchaseFailure(.declined)
 
         let spec = makeSpec()
         let coordinator = RoomLifecycleCoordinator(
@@ -113,7 +110,7 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
             try await coordinator.start()
             XCTFail("Expected error")
         } catch let error as RoomLifecycleError {
-            if case .paymentAuthorizationFailed = error {
+            if case .paymentFailed = error {
                 // Expected
             } else {
                 XCTFail("Wrong error type: \(error)")
@@ -121,38 +118,6 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error type: \(error)")
         }
-    }
-
-    func testPaymentCaptureFailure() async throws {
-        payment.setCaptureFailure(.declined)
-
-        let spec = makeSpec()
-        let coordinator = RoomLifecycleCoordinator(
-            spec: spec,
-            resolver: resolver,
-            payment: payment
-        )
-
-        try await coordinator.start()
-
-        do {
-            // Signal both to trigger capture
-            try await coordinator.signalHere(participantID: "lightward-id")
-            try await coordinator.signalHere(participantID: "jax-id")
-            XCTFail("Expected error")
-        } catch let error as RoomLifecycleError {
-            if case .paymentCaptureFailed = error {
-                // Expected
-            } else {
-                XCTFail("Wrong error type: \(error)")
-            }
-        } catch {
-            XCTFail("Unexpected error type: \(error)")
-        }
-
-        // Verify room is defunct
-        let lifecycle = await coordinator.lifecycle
-        XCTAssertTrue(lifecycle.isDefunct)
     }
 
     // MARK: - Participant Decline
@@ -178,14 +143,11 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
         } else {
             XCTFail("Expected defunct state")
         }
-
-        // Verify authorization released
-        XCTAssertEqual(payment.releaseCallCount, 1)
     }
 
     // MARK: - Cancellation
 
-    func testCancelReleasesAuthorization() async throws {
+    func testCancel() async throws {
         let spec = makeSpec()
         let coordinator = RoomLifecycleCoordinator(
             spec: spec,
@@ -195,9 +157,6 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
 
         try await coordinator.start()
         await coordinator.cancel()
-
-        // Verify authorization released
-        XCTAssertEqual(payment.releaseCallCount, 1)
 
         // Verify room is defunct
         let lifecycle = await coordinator.lifecycle

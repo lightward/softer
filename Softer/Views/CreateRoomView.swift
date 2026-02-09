@@ -193,10 +193,8 @@ struct CreateRoomView: View {
         switch error {
         case .resolutionFailed(let participantID, _):
             return "Couldn't find participant: \(participantID)"
-        case .paymentAuthorizationFailed:
-            return "Payment authorization failed"
-        case .paymentCaptureFailed:
-            return "Payment capture failed"
+        case .paymentFailed:
+            return "Payment failed"
         case .cancelled:
             return "Room creation was cancelled"
         case .expired:

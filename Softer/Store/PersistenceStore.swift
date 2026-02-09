@@ -213,9 +213,6 @@ extension PersistedRoom {
         case .pendingParticipants:
             self.stateType = "pendingParticipants"
             self.currentTurnIndex = nil
-        case .pendingCapture:
-            self.stateType = "pendingCapture"
-            self.currentTurnIndex = nil
         case .active(let turn):
             self.stateType = "active"
             switch mergeStrategy {
@@ -263,8 +260,6 @@ extension PersistedRoom {
             return .draft
         case "pendingParticipants":
             return .pendingParticipants(signaled: signaledIDs)
-        case "pendingCapture":
-            return .pendingCapture
         case "active":
             let turn = TurnState(
                 currentTurnIndex: currentTurnIndex ?? 0,
@@ -291,10 +286,8 @@ extension PersistedRoom {
             return "resolutionFailed:\(participantID)"
         case .participantDeclined(let participantID):
             return "participantDeclined:\(participantID)"
-        case .paymentAuthorizationFailed:
-            return "paymentAuthorizationFailed"
-        case .paymentCaptureFailed:
-            return "paymentCaptureFailed"
+        case .paymentFailed:
+            return "paymentFailed"
         case .cancelled:
             return "cancelled"
         case .expired:
@@ -313,8 +306,8 @@ extension PersistedRoom {
             return .participantDeclined(participantID: participantID)
         }
         switch encoded {
-        case "paymentAuthorizationFailed": return .paymentAuthorizationFailed
-        case "paymentCaptureFailed": return .paymentCaptureFailed
+        case "paymentFailed": return .paymentFailed
+        case "paymentAuthorizationFailed": return .paymentFailed  // Legacy compat
         case "cancelled": return .cancelled
         case "expired": return .expired
         default: return .cancelled

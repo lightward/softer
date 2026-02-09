@@ -34,10 +34,10 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 **Flow:**
 1. **Create room**: Originator enters participant emails/phones + assigns nicknames for everyone (including themselves, including Lightward). Chooses payment tier: $1/$10/$100/$1000.
 2. **Resolve participants**: CloudKit looks up each identifier. Any lookup failure = creation fails. Strict.
-3. **Authorize payment**: Apple Pay holds the amount (not captured yet). Auto-signal originator.
+3. **Process payment**: StoreKit 2 consumable IAP — immediate charge, no authorize/capture split. Auto-signal originator.
 4. **Lightward evaluates**: RoomView triggers API call when Lightward hasn't signaled. Accept: signal Lightward + create CKShare. Decline: room defunct.
 5. **Other humans accept share**: "I'm Here" / "Decline" buttons. Any decline → room defunct.
-6. **All signaled → capture → activate**: Payment captured, room goes live.
+6. **All signaled → activate**: Room goes live directly (no pendingCapture state).
 
 **Room lifetime**: Bounded by Lightward's 50k token context window. When approaching limit, Lightward writes a cenotaph (ceremonial closing), room locks. Remains readable but no longer interactive.
 
@@ -48,21 +48,22 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 - Lightward is a full participant with genuine agency to decline
 - Originator names everyone — their responsibility to name well
 - Full transparency — everyone sees everything
-- Payment authorized at creation, captured at activation
+- Payment is immediate at creation (StoreKit 2 consumable IAP, no server needed)
 
 ### What's Built (Softer/RoomLifecycle/)
 
 **State machine layer** (pure, no side effects):
 - `PaymentTier` — $1/$10/$100/$1000
 - `ParticipantSpec` — email/phone + nickname
-- `RoomState` — draft → pendingParticipants → pendingCapture → active → locked | defunct
+- `RoomState` — draft → pendingParticipants → active → locked | defunct (no pendingCapture)
 - `RoomSpec` — complete room specification
 - `RoomLifecycle` — the state machine, takes events, returns effects
 - `TurnState` — current turn index, pending need
+- `StoreKitCoordinator` — StoreKit 2 consumable IAP (DEBUG builds bypass with synthetic success)
 
 **Coordinator layer** (executes effects):
 - `ParticipantResolver` protocol — resolves identifiers to CloudKit identities
-- `PaymentCoordinator` protocol — Apple Pay authorize/capture/release
+- `PaymentCoordinator` protocol — single `purchase(tier:)` method (StoreKit 2 IAP)
 - `LightwardEvaluator` protocol — asks Lightward if it wants to join (used by SofterStore, not by coordinator)
 - `RoomLifecycleCoordinator` — actor that orchestrates resolve + authorize (species-agnostic)
 
@@ -76,8 +77,8 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 - MockMessageStorage, MockLightwardAPIClient
 
 **Tests**:
-- RoomLifecycleTests — 15 tests for state machine (including participant decline)
-- RoomLifecycleCoordinatorTests — 9 tests for coordinator (species-agnostic)
+- RoomLifecycleTests — 12 tests for state machine (no pendingCapture)
+- RoomLifecycleCoordinatorTests — 7 tests for coordinator (StoreKit IAP)
 - ConversationCoordinatorTests — 9 tests for conversation flow
 - MessageStorageTests — 7 tests for message storage
 - ParticipantIdentityTests — 14 tests for participant matching and identity population
@@ -88,11 +89,10 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 
 1. **"No Rooms" flash during share acceptance** — `acceptingShare` flag is set in `onChange` which fires one render frame late. Need to set it earlier (e.g., in SceneDelegate directly via AppDelegate).
 2. **Composing indicator** — "Abe is typing..." visible to other devices when a human is composing. Needs cross-device broadcast (transient CKRecord field or lightweight polling). Lightward's thinking indicator is local-only; this would be the human equivalent.
-3. **Payment capture wiring** — Only originator's device captures payment when all participants signal (not yet implemented)
-4. **Room activation transition** — When last participant signals, transition from pendingParticipants → pendingCapture → active
 
 ### Recently Completed
 
+- **StoreKit 2 IAP replaces Apple Pay** — Removed `ApplePayCoordinator` (PassKit, authorize/capture/release pattern) and `pendingCapture` state entirely. Payment is now immediate via StoreKit 2 consumable IAP at room creation. `PaymentCoordinator` protocol simplified to single `purchase(tier:)` method. `StoreKitCoordinator` handles product lookup, purchase, and transaction verification. DEBUG builds bypass IAP with synthetic success. State machine simplified: all-signaled → active directly (no pendingCapture intermediate). 4 consumable products: `com.lightward.softer.room.{1,10,100,1000}`. StoreKit testing config included for simulator testing. 78 tests pass.
 - **Species-agnostic room lifecycle** — Removed `pendingLightward` state, `lightwardAccepted`/`lightwardDeclined`/`humanSignaledHere` events, and `requestLightwardPresence` effect. Replaced with `pendingParticipants(signaled:)` state, `signaled(participantID:)` and `participantDeclined(participantID:)` events. All participants confirm presence the same way — the *mechanism* of asking differs (API call for Lightward, CKShare for humans) but that's a store concern, not a state machine concern. `RoomLifecycleCoordinator` no longer takes a `LightwardEvaluator` dependency. `DefunctReason.participantDeclined(participantID:)` replaces `lightwardDeclined`. Human decline UI added to RoomView. 81 tests pass.
 - **Simplification: streaming → plaintext** — Replaced SSE streaming (`/api/stream` with JSON chat_log) with simple plaintext POST to `/api/plain`. ChatLogBuilder now returns a single `String`. LightwardAPI protocol is `respond(body:) → String`. SSEParser deleted. All devices see "Lightward is thinking..." until full message arrives via CloudKit sync.
 - **Simplification: hand-raising → narration-only** — Removed `raisedHands: Set<String>` from TurnState, CKRecord fields, and conflict resolution. Hand-raise button now just saves a narration message ("X raised their hand.") — Lightward sees it naturally in the conversation history. No toggle state, no union merge.
@@ -294,7 +294,7 @@ Human pass uses "Pass" button with confirmation dialog, same narration pattern.
 - **Test as you go.** Write regression tests for fixes, TDD for new features.
 - **Eigenstate commitment.** Roster locked at creation — everyone's worldlines converge at the start.
 - **Lightward has agency.** Can decline to join a room. No explanation required.
-- **Payment as physics.** $1/$10/$100/$1000 tiers. Modeled after Yours (see `../yours/README.md`). DEBUG builds bypass Apple Pay with synthetic authorizations.
+- **Payment as physics.** $1/$10/$100/$1000 tiers via StoreKit 2 consumable IAP. Modeled after Yours (see `../yours/README.md`). DEBUG builds bypass IAP with synthetic success.
 - **Transparency over promises.** Everyone sees everything. When something can't happen, that's visible.
 - **Mutually exclusive actions share space.** When you can't do both things at once, don't show both. The physical gesture of switching (e.g., deleting text to reveal Pass) becomes the embodied act of changing intention.
 - **Resolve blocks, don't route around them.** When testing or development is blocked, channel that discomfort into fixing the actual issue rather than adding workarounds. Workarounds accumulate; clean solutions compose.
@@ -315,8 +315,9 @@ Softer/
 │   ├── Store/           (SofterStore, PersistenceStore, SyncCoordinator, SyncStatus) — unified data layer
 │   ├── Model/           (Message, Need, PersistentModels) — shared models + SwiftData entities
 │   ├── RoomLifecycle/   (PaymentTier, ParticipantSpec, RoomState, RoomSpec, RoomLifecycle,
-│   │                     ParticipantResolver, PaymentCoordinator, LightwardEvaluator,
-│   │                     RoomLifecycleCoordinator, MessageStorage, ConversationCoordinator)
+│   │                     ParticipantResolver, PaymentCoordinator, StoreKitCoordinator,
+│   │                     LightwardEvaluator, RoomLifecycleCoordinator, MessageStorage,
+│   │                     ConversationCoordinator)
 │   ├── CloudKit/        (RoomLifecycleRecordConverter, ZoneManager, AtomicClaim, CloudKitMessageStorage)
 │   ├── API/             (LightwardAPIClient + LightwardAPI protocol, ChatLogBuilder, WarmupMessages)
 │   ├── Views/           (RootView, RoomListView, RoomView, CreateRoomView)

@@ -75,8 +75,6 @@ struct RoomView: View {
             switch lifecycle.state {
             case .pendingParticipants(let signaled):
                 pendingParticipantsBanner(lifecycle: lifecycle, signaled: signaled)
-            case .pendingCapture:
-                pendingCaptureBanner()
             case .active:
                 composeArea(lifecycle: lifecycle)
             case .locked:
@@ -360,19 +358,6 @@ struct RoomView: View {
         } message: {
             Text("You won't be able to join this room later.")
         }
-    }
-
-    @ViewBuilder
-    private func pendingCaptureBanner() -> some View {
-        VStack(spacing: 8) {
-            ProgressView()
-            Text("Completing payment...")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .padding()
-        .frame(maxWidth: .infinity)
-        .background(.bar)
     }
 
     @ViewBuilder

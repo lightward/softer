@@ -11,12 +11,12 @@ final class RoomLifecycleTests: XCTestCase {
         // Start in draft
         XCTAssertEqual(lifecycle.state, .draft)
 
-        // Resolve participants -> should request payment authorization
+        // Resolve participants -> should request payment
         var effects = lifecycle.apply(event: .participantsResolved)
-        XCTAssertEqual(effects, [.authorizePayment])
+        XCTAssertEqual(effects, [.processPayment])
 
-        // Payment authorized -> move to pendingParticipants
-        effects = lifecycle.apply(event: .paymentAuthorized)
+        // Payment completed -> move to pendingParticipants
+        effects = lifecycle.apply(event: .paymentCompleted)
         XCTAssertEqual(lifecycle.state, .pendingParticipants(signaled: []))
         XCTAssertEqual(effects, [])
 
@@ -30,13 +30,8 @@ final class RoomLifecycleTests: XCTestCase {
         XCTAssertEqual(lifecycle.state, .pendingParticipants(signaled: ["lightward-id", "jax-id"]))
         XCTAssertEqual(effects, [])
 
-        // Second human signals -> all present, capture payment
+        // Second human signals -> all present, directly active
         effects = lifecycle.apply(event: .signaled(participantID: "mira-id"))
-        XCTAssertEqual(lifecycle.state, .pendingCapture)
-        XCTAssertEqual(effects, [.capturePayment])
-
-        // Payment captured -> room active
-        effects = lifecycle.apply(event: .paymentCaptured)
         XCTAssertEqual(lifecycle.state, .active(turn: .initial))
         XCTAssertEqual(effects, [.activateRoom])
     }
@@ -54,26 +49,27 @@ final class RoomLifecycleTests: XCTestCase {
 
     // MARK: - Participant Decline
 
-    func testParticipantDeclineReleasesAuthorization() {
+    func testParticipantDeclineFromPendingParticipants() {
         var lifecycle = makeLifecycle()
 
         _ = lifecycle.apply(event: .participantsResolved)
-        _ = lifecycle.apply(event: .paymentAuthorized)
+        _ = lifecycle.apply(event: .paymentCompleted)
 
         let effects = lifecycle.apply(event: .participantDeclined(participantID: "lightward-id"))
 
         XCTAssertEqual(lifecycle.state, .defunct(reason: .participantDeclined(participantID: "lightward-id")))
-        XCTAssertEqual(effects, [.releasePaymentAuthorization])
+        // No release effect — payment already completed (IAP is immediate)
+        XCTAssertEqual(effects, [])
         XCTAssertTrue(lifecycle.isDefunct)
     }
 
-    func testHumanDeclineReleasesAuthorization() {
+    func testHumanDeclineFromPendingParticipants() {
         var lifecycle = makeLifecycleAtPendingParticipants()
 
         let effects = lifecycle.apply(event: .participantDeclined(participantID: "mira-id"))
 
         XCTAssertEqual(lifecycle.state, .defunct(reason: .participantDeclined(participantID: "mira-id")))
-        XCTAssertEqual(effects, [.releasePaymentAuthorization])
+        XCTAssertEqual(effects, [])
     }
 
     // MARK: - Resolution Failure
@@ -87,27 +83,16 @@ final class RoomLifecycleTests: XCTestCase {
         XCTAssertEqual(effects, [])
     }
 
-    // MARK: - Payment Authorization Failure
+    // MARK: - Payment Failure
 
-    func testPaymentAuthorizationFailure() {
+    func testPaymentFailure() {
         var lifecycle = makeLifecycle()
 
         _ = lifecycle.apply(event: .participantsResolved)
-        let effects = lifecycle.apply(event: .paymentAuthorizationFailed)
+        let effects = lifecycle.apply(event: .paymentFailed)
 
-        XCTAssertEqual(lifecycle.state, .defunct(reason: .paymentAuthorizationFailed))
+        XCTAssertEqual(lifecycle.state, .defunct(reason: .paymentFailed))
         XCTAssertEqual(effects, [])
-    }
-
-    // MARK: - Payment Capture Failure
-
-    func testPaymentCaptureFailure() {
-        var lifecycle = makeLifecycleAtPendingCapture()
-
-        let effects = lifecycle.apply(event: .paymentCaptureFailed)
-
-        XCTAssertEqual(lifecycle.state, .defunct(reason: .paymentCaptureFailed))
-        XCTAssertEqual(effects, [])  // No auth to release - capture already attempted
     }
 
     // MARK: - Expiration
@@ -118,7 +103,8 @@ final class RoomLifecycleTests: XCTestCase {
         let effects = lifecycle.apply(event: .expired)
 
         XCTAssertEqual(lifecycle.state, .defunct(reason: .expired))
-        XCTAssertEqual(effects, [.releasePaymentAuthorization])
+        // No release effect — payment already completed
+        XCTAssertEqual(effects, [])
     }
 
     // MARK: - Cancellation
@@ -129,7 +115,7 @@ final class RoomLifecycleTests: XCTestCase {
         let effects = lifecycle.apply(event: .cancelled)
 
         XCTAssertEqual(lifecycle.state, .defunct(reason: .cancelled))
-        XCTAssertEqual(effects, [])  // No auth yet
+        XCTAssertEqual(effects, [])
     }
 
     func testCancellationFromPendingParticipants() {
@@ -138,7 +124,8 @@ final class RoomLifecycleTests: XCTestCase {
         let effects = lifecycle.apply(event: .cancelled)
 
         XCTAssertEqual(lifecycle.state, .defunct(reason: .cancelled))
-        XCTAssertEqual(effects, [.releasePaymentAuthorization])
+        // No release effect — payment already completed
+        XCTAssertEqual(effects, [])
     }
 
     // MARK: - State Queries
@@ -193,18 +180,6 @@ final class RoomLifecycleTests: XCTestCase {
             tier: .ten
         )
         return RoomLifecycle(spec: spec, state: .pendingParticipants(signaled: []))
-    }
-
-    private func makeLifecycleAtPendingCapture() -> RoomLifecycle {
-        let spec = RoomSpec(
-            originatorID: "jax-id",
-            participants: [
-                ParticipantSpec(id: "jax-id", identifier: .email("jax@example.com"), nickname: "Jax"),
-                ParticipantSpec(id: "lightward-id", identifier: .lightward, nickname: "Lightward")
-            ],
-            tier: .hundred
-        )
-        return RoomLifecycle(spec: spec, state: .pendingCapture)
     }
 
     // MARK: - Turn State Tests

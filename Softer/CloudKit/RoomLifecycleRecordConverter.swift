@@ -281,8 +281,6 @@ enum RoomLifecycleRecordConverter {
             return ("draft", nil, nil, nil)
         case .pendingParticipants:
             return ("pendingParticipants", nil, nil, nil)
-        case .pendingCapture:
-            return ("pendingCapture", nil, nil, nil)
         case .active(let turn):
             return ("active", nil, nil, turn)
         case .locked(let cenotaph, let finalTurn):
@@ -304,8 +302,6 @@ enum RoomLifecycleRecordConverter {
             return .draft
         case "pendingParticipants":
             return .pendingParticipants(signaled: Set(signaledParticipantIDs))
-        case "pendingCapture":
-            return .pendingCapture
         case "active":
             return .active(turn: turnState ?? .initial)
         case "locked":
@@ -323,10 +319,8 @@ enum RoomLifecycleRecordConverter {
             return "resolutionFailed:\(participantID)"
         case .participantDeclined(let participantID):
             return "participantDeclined:\(participantID)"
-        case .paymentAuthorizationFailed:
-            return "paymentAuthorizationFailed"
-        case .paymentCaptureFailed:
-            return "paymentCaptureFailed"
+        case .paymentFailed:
+            return "paymentFailed"
         case .cancelled:
             return "cancelled"
         case .expired:
@@ -370,8 +364,8 @@ enum RoomLifecycleRecordConverter {
         }
 
         switch encoded {
-        case "paymentAuthorizationFailed": return .paymentAuthorizationFailed
-        case "paymentCaptureFailed": return .paymentCaptureFailed
+        case "paymentFailed": return .paymentFailed
+        case "paymentAuthorizationFailed": return .paymentFailed  // Legacy compat
         case "cancelled": return .cancelled
         case "expired": return .expired
         default: return .cancelled

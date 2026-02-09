@@ -28,18 +28,18 @@ struct RoomLifecycle: Sendable {
         // MARK: - Draft state transitions
 
         case (.draft, .participantsResolved):
-            return [.authorizePayment]
+            return [.processPayment]
 
         case (.draft, .resolutionFailed(let participantID)):
             state = .defunct(reason: .resolutionFailed(participantID: participantID))
             return []
 
-        case (.draft, .paymentAuthorized):
+        case (.draft, .paymentCompleted):
             state = .pendingParticipants(signaled: [])
             return []
 
-        case (.draft, .paymentAuthorizationFailed):
-            state = .defunct(reason: .paymentAuthorizationFailed)
+        case (.draft, .paymentFailed):
+            state = .defunct(reason: .paymentFailed)
             return []
 
         // MARK: - Pending Participants state transitions
@@ -48,8 +48,8 @@ struct RoomLifecycle: Sendable {
             signaled.insert(participantID)
             let allParticipants = Set(spec.participants.map { $0.id })
             if signaled == allParticipants {
-                state = .pendingCapture
-                return [.capturePayment]
+                state = .active(turn: .initial)
+                return [.activateRoom]
             } else {
                 state = .pendingParticipants(signaled: signaled)
                 return []
@@ -57,25 +57,15 @@ struct RoomLifecycle: Sendable {
 
         case (.pendingParticipants, .participantDeclined(let participantID)):
             state = .defunct(reason: .participantDeclined(participantID: participantID))
-            return [.releasePaymentAuthorization]
+            return []
 
         case (.pendingParticipants, .expired):
             state = .defunct(reason: .expired)
-            return [.releasePaymentAuthorization]
+            return []
 
         case (.pendingParticipants, .cancelled):
             state = .defunct(reason: .cancelled)
-            return [.releasePaymentAuthorization]
-
-        // MARK: - Pending Capture state transitions
-
-        case (.pendingCapture, .paymentCaptured):
-            state = .active(turn: .initial)
-            return [.activateRoom]
-
-        case (.pendingCapture, .paymentCaptureFailed):
-            state = .defunct(reason: .paymentCaptureFailed)
-            return []  // Payment was already attempted, no auth to release
+            return []
 
         // MARK: - Active state transitions (turn management)
 
@@ -113,10 +103,6 @@ struct RoomLifecycle: Sendable {
             state = .defunct(reason: .cancelled)
             return []
 
-        case (.pendingCapture, .cancelled):
-            state = .defunct(reason: .cancelled)
-            return [.releasePaymentAuthorization]
-
         // MARK: - Invalid transitions (no-op)
 
         default:
@@ -145,7 +131,7 @@ struct RoomLifecycle: Sendable {
 
     var isPending: Bool {
         switch state {
-        case .draft, .pendingParticipants, .pendingCapture:
+        case .draft, .pendingParticipants:
             return true
         default:
             return false

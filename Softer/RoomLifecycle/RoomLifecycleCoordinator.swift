@@ -3,8 +3,7 @@ import Foundation
 /// Errors that can occur during room lifecycle coordination.
 enum RoomLifecycleError: Error, Sendable {
     case resolutionFailed(participantID: String, error: ResolutionError)
-    case paymentAuthorizationFailed(PaymentError)
-    case paymentCaptureFailed(PaymentError)
+    case paymentFailed(PaymentError)
     case cancelled
     case expired
     case invalidState(String)
@@ -14,7 +13,6 @@ enum RoomLifecycleError: Error, Sendable {
 actor RoomLifecycleCoordinator {
     private(set) var lifecycle: RoomLifecycle
     private(set) var resolvedParticipants: [ResolvedParticipant] = []
-    private var paymentAuthorization: PaymentAuthorization?
 
     private let resolver: ParticipantResolver
     private let payment: PaymentCoordinator
@@ -32,7 +30,7 @@ actor RoomLifecycleCoordinator {
         self.onStateChange = onStateChange
     }
 
-    /// Start the room creation process: resolve participants and authorize payment.
+    /// Start the room creation process: resolve participants and process payment.
     /// Room arrives at pendingParticipants(signaled: []).
     func start() async throws {
         // Resolve all participants
@@ -46,15 +44,14 @@ actor RoomLifecycleCoordinator {
             throw RoomLifecycleError.resolutionFailed(participantID: resolutionError.participantSpec.id, error: resolutionError.error)
         }
 
-        // Authorize payment
-        let paymentResult = await payment.authorize(cents: lifecycle.spec.effectiveAmountCents)
+        // Process payment (immediate charge via StoreKit IAP)
+        let paymentResult = await payment.purchase(tier: lifecycle.spec.tier)
         switch paymentResult {
-        case .success(let auth):
-            paymentAuthorization = auth
-            applyEvent(.paymentAuthorized)
+        case .success:
+            applyEvent(.paymentCompleted)
         case .failure(let error):
-            applyEvent(.paymentAuthorizationFailed)
-            throw RoomLifecycleError.paymentAuthorizationFailed(error)
+            applyEvent(.paymentFailed)
+            throw RoomLifecycleError.paymentFailed(error)
         }
 
         // Room is now pendingParticipants(signaled: [])
@@ -67,38 +64,21 @@ actor RoomLifecycleCoordinator {
         }
 
         applyEvent(.signaled(participantID: participantID))
-
-        // If all participants are present, we moved to pendingCapture and need to capture
-        if case .pendingCapture = lifecycle.state {
-            try await capturePayment()
-        }
     }
 
     /// Record that a participant declined to join.
-    func decline(participantID: String) async {
+    func decline(participantID: String) {
         applyEvent(.participantDeclined(participantID: participantID))
-        if let auth = paymentAuthorization {
-            await payment.release(auth)
-            paymentAuthorization = nil
-        }
     }
 
     /// Cancel the room creation.
-    func cancel() async {
+    func cancel() {
         applyEvent(.cancelled)
-        if let auth = paymentAuthorization {
-            await payment.release(auth)
-            paymentAuthorization = nil
-        }
     }
 
-    /// Mark the room as expired (authorization timeout).
-    func expire() async {
+    /// Mark the room as expired.
+    func expire() {
         applyEvent(.expired)
-        if let auth = paymentAuthorization {
-            await payment.release(auth)
-            paymentAuthorization = nil
-        }
     }
 
     /// Lock the room with a cenotaph.
@@ -107,22 +87,6 @@ actor RoomLifecycleCoordinator {
     }
 
     // MARK: - Private
-
-    private func capturePayment() async throws {
-        guard let auth = paymentAuthorization else {
-            applyEvent(.paymentCaptureFailed)
-            throw RoomLifecycleError.paymentCaptureFailed(.notConfigured)
-        }
-
-        let result = await payment.capture(auth)
-        switch result {
-        case .success:
-            applyEvent(.paymentCaptured)
-        case .failure(let error):
-            applyEvent(.paymentCaptureFailed)
-            throw RoomLifecycleError.paymentCaptureFailed(error)
-        }
-    }
 
     private func applyEvent(_ event: RoomEvent) {
         let _ = lifecycle.apply(event: event)
