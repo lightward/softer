@@ -73,28 +73,31 @@ enum ParticipantIdentity {
         return result
     }
 
-    /// Merge remote participants with local, preserving locally-populated userRecordIDs.
+    /// Merge remote participants with local, preserving locally-populated fields.
     ///
-    /// Remote data from CloudKit won't have userRecordIDs that were populated locally
-    /// (e.g., via CKShare lookup). When remote has nil and local has a value for the
-    /// same participant, keep local's value.
+    /// Preserves:
+    /// - `userRecordID`: Remote won't have IDs populated locally via CKShare lookup.
+    ///   When remote has nil and local has a value, keep local's value.
+    /// - `hasSignaledHere`: True wins. Once signaled locally, stays signaled
+    ///   even if remote hasn't caught up yet.
     static func preserveLocalUserRecordIDs(
         remote: [EmbeddedParticipant],
         local: [EmbeddedParticipant]
     ) -> [EmbeddedParticipant] {
         var result = remote
         for (index, remoteP) in result.enumerated() {
-            guard remoteP.userRecordID == nil else { continue }
-            if let localP = local.first(where: { $0.id == remoteP.id }),
-               localP.userRecordID != nil {
+            guard let localP = local.first(where: { $0.id == remoteP.id }) else { continue }
+            let needsUserRecordID = remoteP.userRecordID == nil && localP.userRecordID != nil
+            let needsSignaledFlag = !remoteP.hasSignaledHere && localP.hasSignaledHere
+            if needsUserRecordID || needsSignaledFlag {
                 result[index] = EmbeddedParticipant(
                     id: remoteP.id,
                     nickname: remoteP.nickname,
                     identifierType: remoteP.identifierType,
                     identifierValue: remoteP.identifierValue,
                     orderIndex: remoteP.orderIndex,
-                    hasSignaledHere: remoteP.hasSignaledHere,
-                    userRecordID: localP.userRecordID
+                    hasSignaledHere: remoteP.hasSignaledHere || localP.hasSignaledHere,
+                    userRecordID: remoteP.userRecordID ?? localP.userRecordID
                 )
             }
         }

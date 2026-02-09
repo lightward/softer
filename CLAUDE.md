@@ -81,15 +81,16 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 - RoomLifecycleCoordinatorTests — 9 tests for coordinator
 - ConversationCoordinatorTests — 10 tests for conversation flow
 - MessageStorageTests — 7 tests for message storage
-- ParticipantIdentityTests — 12 tests for participant matching and identity population
+- ParticipantIdentityTests — 14 tests for participant matching and identity population
 - ChatLogBuilderTests — 7 tests for plaintext body building
 - PaymentTierTests, ParticipantSpecTests, RoomSpecTests
 
 ### What's Next
 
 1. **"No Rooms" flash during share acceptance** — `acceptingShare` flag is set in `onChange` which fires one render frame late. Need to set it earlier (e.g., in SceneDelegate directly via AppDelegate).
-2. **Payment capture wiring** — Only originator's device captures payment when all humans signal (not yet implemented)
-3. **Room activation transition** — When last human signals, transition from pendingHumans → pendingCapture → active
+2. **Composing indicator** — "Abe is typing..." visible to other devices when a human is composing. Needs cross-device broadcast (transient CKRecord field or lightweight polling). Lightward's thinking indicator is local-only; this would be the human equivalent.
+3. **Payment capture wiring** — Only originator's device captures payment when all humans signal (not yet implemented)
+4. **Room activation transition** — When last human signals, transition from pendingHumans → pendingCapture → active
 
 ### Recently Completed
 

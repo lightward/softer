@@ -184,6 +184,34 @@ final class ParticipantIdentityTests: XCTestCase {
         XCTAssertEqual(result[1].userRecordID, "rec-isaac")
     }
 
+    func testPreservesLocalSignaledFlagWhenRemoteIsFalse() {
+        // "True wins" — once signaled locally, poll shouldn't regress it
+        let local = [
+            participant(id: "p1", nickname: "Abe", type: "email", signaled: true, userRecordID: "rec-abe"),
+        ]
+        let remote = [
+            participant(id: "p1", nickname: "Abe", type: "email", signaled: false, userRecordID: "rec-abe"),
+        ]
+
+        let result = ParticipantIdentity.preserveLocalUserRecordIDs(remote: remote, local: local)
+
+        XCTAssertTrue(result[0].hasSignaledHere)
+    }
+
+    func testRemoteSignaledTrueWinsOverLocalFalse() {
+        // Remote says signaled, local hasn't caught up — remote wins
+        let local = [
+            participant(id: "p1", nickname: "Abe", type: "email", signaled: false, userRecordID: "rec-abe"),
+        ]
+        let remote = [
+            participant(id: "p1", nickname: "Abe", type: "email", signaled: true, userRecordID: "rec-abe"),
+        ]
+
+        let result = ParticipantIdentity.preserveLocalUserRecordIDs(remote: remote, local: local)
+
+        XCTAssertTrue(result[0].hasSignaledHere)
+    }
+
     func testRemoteUserRecordIDWinsOverLocal() {
         // If remote has a non-nil value, it should NOT be overwritten
         let local = [participant(id: "p1", nickname: "Abe", type: "email", userRecordID: "old-id")]

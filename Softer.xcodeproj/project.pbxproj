@@ -34,14 +34,14 @@
 		8333545EC5AB47BC977E81B8 /* MockPaymentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93AB894828754745B5158C25 /* MockPaymentCoordinator.swift */; };
 		869B95E779AC4AF9A167C4BE /* ParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD42E62B74C4A27966E2A5F /* ParticipantResolver.swift */; };
 		87ABFD3E123E407590749227 /* LightwardEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04CAFE64AAC44DB398020362 /* LightwardEvaluator.swift */; };
-		8A1C3D5E7F2B4A6C9E0D1B3F /* CloudKitMessageStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E9F7A2B6C8D4E1F5A0B2C4D /* CloudKitMessageStorage.swift */; };
+
 		98B45ECA978100D2E179DAF9 /* ParticipantIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FBF5BB47BBE8B5BEBEDDD1A /* ParticipantIdentityTests.swift */; };
 		A0FBE3C6173532AE05A5BFBA /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC38359FE0404435F413B4A0 /* SyncCoordinator.swift */; };
 		A1B2C3D4E5F60001000A0001 /* SofterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0001 /* SofterApp.swift */; };
 		A1B2C3D4E5F60001000A0003 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0003 /* Message.swift */; };
 		A1B2C3D4E5F60001000A0005 /* Need.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0005 /* Need.swift */; };
 		A1B2C3D4E5F60001000A000B /* ZoneManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A000B /* ZoneManager.swift */; };
-		A1B2C3D4E5F60001000A000D /* AtomicClaim.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A000D /* AtomicClaim.swift */; };
+
 		A1B2C3D4E5F60001000A000E /* LightwardAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A000E /* LightwardAPIClient.swift */; };
 		A1B2C3D4E5F60001000A0010 /* ChatLogBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0010 /* ChatLogBuilder.swift */; };
 		A1B2C3D4E5F60001000A0011 /* WarmupMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0011 /* WarmupMessages.swift */; };
@@ -85,7 +85,7 @@
 		2CCBBDF48A5A43C9A3E6028D /* ApplePayCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePayCoordinator.swift; sourceTree = "<group>"; };
 		37BDA151A463438DA49932C5 /* RoomState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomState.swift; sourceTree = "<group>"; };
 		3B0FD0A47B8A4CE093A55C51 /* MockLightwardEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockLightwardEvaluator.swift; sourceTree = "<group>"; };
-		3E9F7A2B6C8D4E1F5A0B2C4D /* CloudKitMessageStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitMessageStorage.swift; sourceTree = "<group>"; };
+
 		3EBF7A5B844B07826B5E5565 /* SofterStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SofterStoreTests.swift; sourceTree = "<group>"; };
 		409ACFE8C41F574E9E62109A /* ParticipantIdentity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ParticipantIdentity.swift; sourceTree = "<group>"; };
 		4232AB080E07A915C959927F /* PersistenceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PersistenceStore.swift; sourceTree = "<group>"; };
@@ -105,7 +105,7 @@
 		A1B2C3D4E5F60002000A0003 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0005 /* Need.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Need.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A000B /* ZoneManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneManager.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A000D /* AtomicClaim.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtomicClaim.swift; sourceTree = "<group>"; };
+
 		A1B2C3D4E5F60002000A000E /* LightwardAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightwardAPIClient.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0010 /* ChatLogBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatLogBuilder.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0011 /* WarmupMessages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarmupMessages.swift; sourceTree = "<group>"; };
@@ -208,7 +208,7 @@
 				A1B2C3D4E5F60007000A0005 /* API */,
 				05B9E2E95D3F4CE8B06D5ED9 /* RoomLifecycle */,
 				A1B2C3D4E5F60007000A0007 /* Views */,
-				A1B2C3D4E5F60007000A0008 /* ViewModels */,
+
 				A1B2C3D4E5F60007000A000C /* Utilities */,
 				C753B664296F400E41DDF3BE /* Store */,
 			);
@@ -229,9 +229,7 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D4E5F60002000A000B /* ZoneManager.swift */,
-				A1B2C3D4E5F60002000A000D /* AtomicClaim.swift */,
 				1CD59F08D9F846108AA8B17C /* RoomLifecycleRecordConverter.swift */,
-				3E9F7A2B6C8D4E1F5A0B2C4D /* CloudKitMessageStorage.swift */,
 			);
 			path = CloudKit;
 			sourceTree = "<group>";
@@ -255,13 +253,6 @@
 				240B4B7CE85349DCA8FFBA0C /* RootView.swift */,
 			);
 			path = Views;
-			sourceTree = "<group>";
-		};
-		A1B2C3D4E5F60007000A0008 /* ViewModels */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = ViewModels;
 			sourceTree = "<group>";
 		};
 		A1B2C3D4E5F60007000A0009 /* SofterTests */ = {
@@ -427,7 +418,7 @@
 				A1B2C3D4E5F60001000A0003 /* Message.swift in Sources */,
 				A1B2C3D4E5F60001000A0005 /* Need.swift in Sources */,
 				A1B2C3D4E5F60001000A000B /* ZoneManager.swift in Sources */,
-				A1B2C3D4E5F60001000A000D /* AtomicClaim.swift in Sources */,
+
 				A1B2C3D4E5F60001000A000E /* LightwardAPIClient.swift in Sources */,
 				A1B2C3D4E5F60001000A0010 /* ChatLogBuilder.swift in Sources */,
 				A1B2C3D4E5F60001000A0011 /* WarmupMessages.swift in Sources */,
@@ -452,7 +443,7 @@
 				F4022F66975F462585B227C5 /* LightwardRoomEvaluator.swift in Sources */,
 				73DD665B00CFA41EC2794BA7 /* MessageStorage.swift in Sources */,
 				7F303E6B75FFF52FE441DA5B /* ConversationCoordinator.swift in Sources */,
-				8A1C3D5E7F2B4A6C9E0D1B3F /* CloudKitMessageStorage.swift in Sources */,
+
 				5968C4F91621004E261EF372 /* SyncStatus.swift in Sources */,
 				E2C6F3CDE7290B416D8509BC /* SofterStore.swift in Sources */,
 				A0FBE3C6173532AE05A5BFBA /* SyncCoordinator.swift in Sources */,

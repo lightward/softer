@@ -35,6 +35,9 @@ struct SofterApp: App {
 
         print("SofterApp: Handling CloudKit share URL: \(url)")
 
+        // Show spinner immediately — before any async work
+        appDelegate.acceptingShare = true
+
         let container = CKContainer(identifier: Constants.containerIdentifier)
 
         Task {
@@ -61,6 +64,7 @@ struct SofterApp: App {
 class AppDelegate: NSObject, UIApplicationDelegate, ObservableObject {
     static var shared: AppDelegate?
     @Published var pendingShareRoomID: String?
+    @Published var acceptingShare = false
 
     override init() {
         super.init()
@@ -110,6 +114,11 @@ class SceneDelegate: NSObject, UIWindowSceneDelegate {
         guard let appDelegate = AppDelegate.shared else {
             print("SceneDelegate: Could not get AppDelegate.shared")
             return
+        }
+
+        // Show spinner immediately — before any async work
+        Task { @MainActor in
+            appDelegate.acceptingShare = true
         }
 
         // Accept the share using the container

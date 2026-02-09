@@ -112,6 +112,11 @@ struct RoomView: View {
                         }
                         .id("thinking")
                     }
+
+                    // Invisible anchor for reliable scroll-to-bottom
+                    Color.clear
+                        .frame(height: 1)
+                        .id("bottom")
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -119,15 +124,20 @@ struct RoomView: View {
             .scrollBounceBehavior(.basedOnSize)
             .defaultScrollAnchor(.bottom)
             .onChange(of: messages.count) {
-                if let last = messages.last {
-                    withAnimation {
-                        proxy.scrollTo(last.id, anchor: .bottom)
-                    }
+                withAnimation {
+                    proxy.scrollTo("bottom")
                 }
                 // Clear thinking indicator when a Lightward message appears
                 if isLightwardThinking {
                     if messages.last?.isLightward == true {
                         isLightwardThinking = false
+                    }
+                }
+            }
+            .onChange(of: isLightwardThinking) {
+                if isLightwardThinking {
+                    withAnimation {
+                        proxy.scrollTo("bottom")
                     }
                 }
             }
@@ -184,6 +194,7 @@ struct RoomView: View {
                 TextField("Message...", text: $composeText, axis: .vertical)
                     .textFieldStyle(.plain)
                     .padding(.leading, 14)
+                    .padding(.trailing, 4)
                     .padding(.vertical, 10)
                     .lineLimit(1...6)
 
@@ -301,6 +312,17 @@ struct RoomView: View {
                 Text("Waiting for \(names)...")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+
+                // Show share button for originator when others still need to join
+                if iHaveSignaled,
+                   let urlString = persistedRoom?.shareURL,
+                   let url = URL(string: urlString) {
+                    ShareLink(item: url) {
+                        Label("Send Invite Link", systemImage: "square.and.arrow.up")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
             }
         }
         .padding()
@@ -416,6 +438,15 @@ struct RoomView: View {
         if let convCoord = conversationCoordinator, let newTurnState = newLifecycle.turnState {
             Task {
                 await convCoord.syncTurnState(newTurnState)
+            }
+
+            // Show thinking indicator if it's now Lightward's turn and they haven't responded yet
+            let participants = newLifecycle.spec.participants
+            if !participants.isEmpty {
+                let currentIndex = newTurnState.currentTurnIndex % participants.count
+                if participants[currentIndex].isLightward && messages.last?.isLightward != true {
+                    isLightwardThinking = true
+                }
             }
         }
 
@@ -650,7 +681,7 @@ struct TypingIndicator: View {
         HStack(spacing: 8) {
             ProgressView()
                 .scaleEffect(0.8)
-            Text("Lightward is thinking...")
+            Text("\(Constants.lightwardParticipantName) is thinking...")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

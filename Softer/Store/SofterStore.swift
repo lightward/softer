@@ -435,7 +435,8 @@ final class SofterStore {
     func createRoom(
         participants: [ParticipantSpec],
         tier: PaymentTier,
-        originatorNickname: String
+        originatorNickname: String,
+        isFirstRoom: Bool
     ) async throws -> RoomLifecycle {
         guard let container = container,
               let syncCoordinator = syncCoordinator,
@@ -448,8 +449,6 @@ final class SofterStore {
             identifier: .email(""),
             nickname: originatorNickname
         )
-
-        let isFirstRoom = true  // TODO: Check actual room count
 
         let spec = RoomSpec(
             originatorID: originatorSpec.id,

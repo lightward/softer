@@ -291,7 +291,10 @@ actor SyncCoordinator {
         if let existingShare = roomRecord.share {
             // Fetch the existing share to modify it
             do {
-                share = try await database.record(for: existingShare.recordID) as! CKShare
+                guard let fetchedShare = try await database.record(for: existingShare.recordID) as? CKShare else {
+                    throw CKError(.internalError)
+                }
+                share = fetchedShare
             } catch {
                 print("SyncCoordinator: Failed to fetch existing share: \(error)")
                 throw error

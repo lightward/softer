@@ -199,7 +199,8 @@ struct CreateRoomView: View {
             let lifecycle = try await store.createRoom(
                 participants: participants,
                 tier: selectedTier,
-                originatorNickname: myNickname
+                originatorNickname: myNickname,
+                isFirstRoom: cachedIsFirstRoom ?? isFirstRoom
             )
             isPresented = false
             onCreated?(lifecycle.spec.id)

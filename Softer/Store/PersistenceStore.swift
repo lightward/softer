@@ -103,13 +103,14 @@ final class PersistenceStore {
 
     func upsertRoom(from lifecycle: RoomLifecycle, remoteParticipantsJSON: String? = nil, remoteMessagesJSON: String? = nil) {
         if let existing = room(id: lifecycle.spec.id) {
+            // Capture local participants before apply() overwrites them
+            let localParticipants = existing.embeddedParticipants()
             // Update existing - merge turn state (higher wins)
             existing.apply(lifecycle, mergeStrategy: .higherTurnWins)
-            // Merge remote participants, preserving locally-populated userRecordIDs
+            // Merge remote participants, preserving locally-populated fields
             if let json = remoteParticipantsJSON {
                 if let data = json.data(using: .utf8),
                    let remoteParticipants = try? JSONDecoder().decode([EmbeddedParticipant].self, from: data) {
-                    let localParticipants = existing.embeddedParticipants()
                     let merged = ParticipantIdentity.preserveLocalUserRecordIDs(
                         remote: remoteParticipants,
                         local: localParticipants
