@@ -82,6 +82,12 @@ struct RoomView: View {
         .onChange(of: persistedRoom?.participantsJSON) {
             refreshLifecycle()
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            // Re-signal composing after foregrounding (clearAllComposing wiped it on background)
+            if isCurrentlyComposing, let lifecycle = lifecycle, let myID = myParticipantID(in: lifecycle) {
+                store.setComposing(roomID: roomID, participantID: myID)
+            }
+        }
     }
 
     @ViewBuilder
