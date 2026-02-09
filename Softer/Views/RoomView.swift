@@ -15,6 +15,7 @@ struct RoomView: View {
     @State private var showYieldConfirmation = false
     @State private var showLeaveConfirmation = false
     @State private var isCurrentlyComposing = false
+    @State private var composingCheckTimer: Timer?
 
     // Query room for observing messages (embedded in room)
     @Query private var persistedRooms: [PersistedRoom]
@@ -51,11 +52,25 @@ struct RoomView: View {
             store.startPolling(roomID: roomID)
             await loadRoom()
         }
+        .onAppear {
+            // Timer to expire stale composing indicators (the Date() check in
+            // messagesView only runs on render — this forces periodic re-evaluation)
+            composingCheckTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
+                Task { @MainActor in
+                    if let composing = store.composingByRoom[roomID],
+                       Date().timeIntervalSince(composing.timestamp) >= 30 {
+                        store.clearComposing(roomID: roomID)
+                    }
+                }
+            }
+        }
         .onDisappear {
+            composingCheckTimer?.invalidate()
+            composingCheckTimer = nil
             store.stopPolling()
             if isCurrentlyComposing {
                 isCurrentlyComposing = false
-                store.clearComposing(roomID: roomID)
+                store.clearComposing(roomID: roomID, sync: true)
             }
         }
         .onChange(of: persistedRoom?.stateType) {
@@ -155,7 +170,8 @@ struct RoomView: View {
                         .frame(height: 1)
                         .id("bottom")
                 }
-                .padding()
+                .padding([.horizontal, .top])
+                .padding(.bottom, 4)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollBounceBehavior(.basedOnSize)

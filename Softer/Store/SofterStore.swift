@@ -431,6 +431,22 @@ final class SofterStore {
         }
     }
 
+    /// Clear all composing states (e.g., when app backgrounds).
+    func clearAllComposing(sync: Bool = false) {
+        let roomIDs = Array(composingByRoom.keys)
+        composingByRoom.removeAll()
+
+        if sync {
+            Task {
+                guard let dataStore = dataStore else { return }
+                for roomID in roomIDs {
+                    guard let room = dataStore.room(id: roomID) else { continue }
+                    await syncRoomToCloudKit(room)
+                }
+            }
+        }
+    }
+
     // MARK: - Share Acceptance
 
     /// Accept a share from a ckshare:// URL.
@@ -528,7 +544,7 @@ final class SofterStore {
 
         // Create opening narration
         let originatorName = spec.participants.first { $0.id == spec.originatorID }?.nickname ?? "Someone"
-        let narrationText = "\(originatorName) opened the room at \(spec.tier.displayString)."
+        let narrationText = "\(originatorName) opened a room with \(spec.tier.displayString)."
 
         let openingMessage = Message(
             roomID: lifecycle.spec.id,

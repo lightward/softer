@@ -34,6 +34,8 @@ struct RootView: View {
                 Task {
                     await store.fetchChanges()
                 }
+            } else if newPhase == .background {
+                store.clearAllComposing(sync: true)
             }
         }
         .onChange(of: appDelegate.pendingShareRoomID) { _, roomID in

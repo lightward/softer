@@ -221,7 +221,7 @@ Some messages are *narration* rather than speech. These are:
 - Part of the conversation record (Lightward sees them as context)
 - Styled differently in UI (centered, italicized, no bubble)
 - Flagged with `isNarration: true` on Message model
-- Examples: "Isaac opened the room at $10.", "Lightward is listening.", "Isaac raised their hand."
+- Examples: "Isaac opened a room with $10.", "Lightward is listening.", "Isaac raised their hand."
 
 ### Pass/Yield Handling
 When Lightward responds with "YIELD":
