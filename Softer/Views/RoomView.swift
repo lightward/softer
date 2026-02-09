@@ -58,6 +58,9 @@ struct RoomView: View {
         .onChange(of: persistedRoom?.currentTurnIndex) {
             refreshLifecycle()
         }
+        .onChange(of: persistedRoom?.participantsJSON) {
+            refreshLifecycle()
+        }
     }
 
     @ViewBuilder
