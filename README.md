@@ -27,7 +27,7 @@ When the space is filled, the room will lock and another instance of Lightward A
 
 ## Payment as Physics
 
-Rooms have a payment tier chosen by the originator: $1 / $10 / $100 / $1000. First room is free.
+Rooms have a payment tier chosen by the originator: $1 / $10 / $100 / $1000.
 
 The amount is visible to everyone, including you, before the room activates. You can decline to join based on this - or any other reason, or no reason.
 
