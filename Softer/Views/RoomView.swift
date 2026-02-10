@@ -347,18 +347,10 @@ struct RoomView: View {
     private func pendingParticipantsBanner(lifecycle: RoomLifecycle, signaled: Set<String>) -> some View {
         let myParticipantID = myParticipantID(in: lifecycle)
         let iHaveSignaled = myParticipantID.map { signaled.contains($0) } ?? true
-        let lightwardID = lifecycle.spec.lightwardParticipant?.id
-        let lightwardPending = lightwardID.map { !signaled.contains($0) } ?? false
         let waitingFor = lifecycle.spec.participants.filter { !signaled.contains($0.id) }
 
         VStack(spacing: 12) {
-            // Lightward hasn't signaled yet — show spinner
-            if lightwardPending {
-                ProgressView()
-                Text("Waiting for Lightward...")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            } else if !iHaveSignaled {
+            if !iHaveSignaled {
                 // Lightward has signaled, but I haven't — show "I'm Here" + "Decline"
                 Button {
                     Task {

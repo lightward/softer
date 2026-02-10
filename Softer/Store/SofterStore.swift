@@ -675,6 +675,7 @@ final class SofterStore {
     /// Guards on pendingParticipants + Lightward not in signaled set.
     /// On accept: signals Lightward, saves narration, creates CKShare.
     /// On decline: applies participantDeclined, saves narration, syncs.
+    /// Prefetches CKShare participants concurrently with Lightward evaluation.
     func evaluateLightward(roomID: String) async {
         guard let dataStore = dataStore,
               let syncCoordinator = syncCoordinator,
@@ -686,7 +687,20 @@ final class SofterStore {
               let lightwardID = lifecycle.spec.lightwardParticipant?.id,
               !signaled.contains(lightwardID) else { return }
 
+        // Compute lookup infos upfront (no network, just JSON parsing)
+        let tempRecord = RoomLifecycleRecordConverter.record(
+            fromSystemFields: room.ckSystemFields,
+            recordName: room.id,
+            fallbackZoneID: zoneID
+        )
+        RoomLifecycleRecordConverter.apply(lifecycle, to: tempRecord, messages: room.messages())
+        tempRecord["participantsJSON"] = room.participantsJSON as NSString
+        let lookupInfos = RoomLifecycleRecordConverter.otherParticipantLookupInfos(from: tempRecord)
+
+        // Run Lightward evaluation and share participant prefetch concurrently
         let evaluator = LightwardRoomEvaluator()
+        async let prefetchTask: [CKShare.Participant]? = lookupInfos.isEmpty ? nil : try? await syncCoordinator.fetchShareParticipants(lookupInfos: lookupInfos)
+
         let decision = await evaluator.evaluate(
             roster: lifecycle.spec.participants,
             tier: lifecycle.spec.tier
@@ -696,7 +710,10 @@ final class SofterStore {
         guard let room = dataStore.room(id: roomID),
               var lifecycle = room.toRoomLifecycle(),
               case .pendingParticipants(let currentSignaled) = lifecycle.state,
-              !currentSignaled.contains(lightwardID) else { return }
+              !currentSignaled.contains(lightwardID) else {
+            _ = await prefetchTask  // Don't leak the task
+            return
+        }
 
         switch decision {
         case .accepted:
@@ -719,24 +736,24 @@ final class SofterStore {
             // Sync to CloudKit (empty resolvedParticipants preserves existing participantsJSON)
             await syncRoomToCloudKit(room)
 
-            // Share with other human participants
-            let roomRecord = RoomLifecycleRecordConverter.record(
-                fromSystemFields: room.ckSystemFields,
-                recordName: room.id,
-                fallbackZoneID: zoneID
-            )
-            let messages = room.messages()
-            RoomLifecycleRecordConverter.apply(
-                lifecycle,
-                to: roomRecord,
-                messages: messages
-            )
-            roomRecord["participantsJSON"] = room.participantsJSON as NSString
-
-            let lookupInfos = RoomLifecycleRecordConverter.otherParticipantLookupInfos(from: roomRecord)
+            // Share with other human participants using prefetched participants
             if !lookupInfos.isEmpty {
+                let prefetchedParticipants = await prefetchTask
+                let roomRecord = RoomLifecycleRecordConverter.record(
+                    fromSystemFields: room.ckSystemFields,
+                    recordName: room.id,
+                    fallbackZoneID: zoneID
+                )
+                let messages = room.messages()
+                RoomLifecycleRecordConverter.apply(
+                    lifecycle,
+                    to: roomRecord,
+                    messages: messages
+                )
+                roomRecord["participantsJSON"] = room.participantsJSON as NSString
+
                 do {
-                    let shareURL = try await syncCoordinator.shareRoom(roomRecord, withLookupInfos: lookupInfos)
+                    let shareURL = try await syncCoordinator.shareRoom(roomRecord, withLookupInfos: lookupInfos, prefetchedParticipants: prefetchedParticipants)
                     print("SofterStore: Shared room with \(lookupInfos.count) other participants")
 
                     if let shareURL = shareURL {
@@ -753,6 +770,7 @@ final class SofterStore {
             }
 
         case .declined:
+            _ = await prefetchTask  // Don't leak the task
             _ = lifecycle.apply(event: .participantDeclined(participantID: lightwardID))
             room.apply(lifecycle, mergeStrategy: .remoteWins)
             dataStore.updateRoom(room)

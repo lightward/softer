@@ -282,7 +282,7 @@ actor SyncCoordinator {
     /// Creates a CKShare if one doesn't exist, adds participants.
     /// Returns the share URL if successful.
     @discardableResult
-    func shareRoom(_ roomRecord: CKRecord, withLookupInfos lookupInfos: [CKUserIdentity.LookupInfo]) async throws -> URL? {
+    func shareRoom(_ roomRecord: CKRecord, withLookupInfos lookupInfos: [CKUserIdentity.LookupInfo], prefetchedParticipants: [CKShare.Participant]? = nil) async throws -> URL? {
         guard !lookupInfos.isEmpty else { return nil }
 
         print("SyncCoordinator: Sharing room \(roomRecord.recordID.recordName) with \(lookupInfos.count) participants")
@@ -321,8 +321,8 @@ actor SyncCoordinator {
             share.publicPermission = .none  // Only invited participants
         }
 
-        // Fetch share participants
-        let participants = try await fetchShareParticipants(lookupInfos: lookupInfos)
+        // Use prefetched participants or fetch them now
+        let participants = prefetchedParticipants ?? (try await fetchShareParticipants(lookupInfos: lookupInfos))
 
         // Add participants to share
         for participant in participants {
@@ -366,7 +366,8 @@ actor SyncCoordinator {
     }
 
     /// Fetch CKShare.Participant objects for the given lookup infos.
-    private func fetchShareParticipants(lookupInfos: [CKUserIdentity.LookupInfo]) async throws -> [CKShare.Participant] {
+    /// Can be called early to prefetch participants while other work proceeds concurrently.
+    func fetchShareParticipants(lookupInfos: [CKUserIdentity.LookupInfo]) async throws -> [CKShare.Participant] {
         try await withCheckedThrowingContinuation { continuation in
             var participants: [CKShare.Participant] = []
 
