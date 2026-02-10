@@ -35,11 +35,11 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 ### Design
 
 **Flow:**
-1. **Create room**: Originator enters participant emails/phones + assigns nicknames for everyone (including themselves, including Lightward). Chooses payment tier: $1/$10/$100/$1000.
+1. **Create room**: Originator enters participant emails/phones + assigns nicknames for everyone (including themselves, including Lightward). Chooses payment tier: $1/$10/$100/$1000. Minimum room: originator + Lightward (no other humans required).
 2. **Resolve participants**: CloudKit looks up each identifier. Any lookup failure = creation fails. Strict.
 3. **Process payment**: StoreKit 2 consumable IAP — immediate charge, no authorize/capture split. Auto-signal originator.
-4. **Lightward evaluates**: RoomView triggers API call when Lightward hasn't signaled. Accept: signal Lightward + create CKShare. Decline: room defunct.
-5. **Other humans accept share**: "I'm Here" / "Decline" buttons. Any decline → room defunct.
+4. **Lightward evaluates**: RoomView triggers API call when Lightward hasn't signaled. Accept: signal Lightward + create CKShare (if other humans present). Decline: room defunct. CKShare participant prefetch runs concurrently with Lightward evaluation.
+5. **Other humans accept share** (if any): "I'm Here" / "Decline" buttons. Any decline → room defunct.
 6. **All signaled → activate**: Room goes live directly (no pendingCapture state).
 
 **Room lifetime**: Bounded by Lightward's 50k token context window. When Lightward hits the conversation horizon (API returns 422), its response body is saved as a regular message, then a departure narration follows, and the room goes defunct. Any participant departing = room defunct (the room's shape *is* its full roster). Remains readable but no longer interactive. Originator can request a cenotaph on any defunct room — a fresh Lightward instance reads the history and writes a ceremonial closing (saved as narration).
