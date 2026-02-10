@@ -748,18 +748,18 @@ struct RoomView: View {
         guard let room = persistedRoom else { return nil }
         let embedded = room.embeddedParticipants()
 
-        print("RoomView.myParticipantID: localUserRecordID=\(localUserRecordID)")
-        for p in embedded {
-            print("  participant \(p.nickname): type=\(p.identifierType) userRecordID=\(p.userRecordID ?? "nil")")
-        }
-
         let result = ParticipantIdentity.findLocalParticipant(
             in: embedded,
             localUserRecordID: localUserRecordID,
             isSharedWithMe: room.isSharedWithMe
         )
 
-        print("RoomView.myParticipantID: result=\(result ?? "nil")")
+        if result == nil {
+            print("RoomView.myParticipantID: no match for \(localUserRecordID)")
+            for p in embedded {
+                print("  participant \(p.nickname): type=\(p.identifierType) userRecordID=\(p.userRecordID ?? "nil")")
+            }
+        }
         return result
     }
 
