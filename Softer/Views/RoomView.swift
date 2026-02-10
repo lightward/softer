@@ -440,10 +440,6 @@ struct RoomView: View {
     private func defunctBanner(lifecycle: RoomLifecycle) -> some View {
         if case .defunct(let reason) = lifecycle.state {
             VStack(spacing: 8) {
-                Image(systemName: defunctIcon(for: reason))
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-
                 switch reason {
                 case .participantDeclined(let participantID):
                     let name = lifecycle.spec.participants.first { $0.id == participantID }?.nickname ?? "Someone"
@@ -465,8 +461,8 @@ struct RoomView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                // Cenotaph button for originator
-                if isOriginator(lifecycle: lifecycle) {
+                // Cenotaph button for originator (hide after cenotaph delivered)
+                if isOriginator(lifecycle: lifecycle) && !hasCenotaph {
                     if isRequestingCenotaph {
                         ProgressView()
                     } else {
@@ -476,10 +472,10 @@ struct RoomView: View {
                             }
                         } label: {
                             Text("Request Cenotaph")
-                                .font(.subheadline)
+                                .font(.headline)
                                 .foregroundStyle(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
                                 .background(Color.accentColor)
                                 .clipShape(Capsule())
                         }
@@ -497,17 +493,14 @@ struct RoomView: View {
         return myID == lifecycle.spec.originatorID
     }
 
-    private func defunctIcon(for reason: DefunctReason) -> String {
-        switch reason {
-        case .participantLeft:
-            return "figure.walk.departure"
-        case .participantDeclined:
-            return "xmark.circle"
-        case .cancelled:
-            return "xmark.circle"
-        default:
-            return "exclamationmark.triangle"
-        }
+    /// A cenotaph has been delivered if the last narration isn't a standard departure/decline pattern.
+    private var hasCenotaph: Bool {
+        guard let lastNarration = messages.last(where: { $0.isNarration }) else { return false }
+        let text = lastNarration.text
+        return !text.hasSuffix("departed.") &&
+               !text.hasSuffix("declined to join.") &&
+               text != "Room was cancelled." &&
+               text != "Room is no longer available."
     }
 
     private func requestCenotaph() async {
