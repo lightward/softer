@@ -53,6 +53,8 @@ struct RoomView: View {
             await loadRoom()
         }
         .onAppear {
+            store.currentlyViewingRoomID = roomID
+
             // Timer to expire stale composing indicators (the Date() check in
             // messagesView only runs on render — this forces periodic re-evaluation)
             composingCheckTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
@@ -65,6 +67,8 @@ struct RoomView: View {
             }
         }
         .onDisappear {
+            store.currentlyViewingRoomID = nil
+
             composingCheckTimer?.invalidate()
             composingCheckTimer = nil
             store.stopPolling()

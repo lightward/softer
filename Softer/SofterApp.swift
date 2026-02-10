@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import CloudKit
+import UserNotifications
 
 @main
 struct SofterApp: App {
@@ -69,6 +70,15 @@ class AppDelegate: NSObject, UIApplicationDelegate, ObservableObject {
     override init() {
         super.init()
         AppDelegate.shared = self
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        UNUserNotificationCenter.current().delegate = NotificationHandler.shared
+        NotificationHandler.shared.registerForPushNotifications()
+        return true
     }
 
     func application(

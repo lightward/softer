@@ -25,6 +25,9 @@ final class SofterStore {
     /// Key: roomID, Value: (participantID, timestamp).
     private(set) var composingByRoom: [String: (participantID: String, timestamp: Date)] = [:]
 
+    /// Set by RoomView to suppress notifications for the room currently on screen.
+    var currentlyViewingRoomID: String?
+
     // MARK: - Private State
 
     private var dataStore: PersistenceStore?
@@ -151,9 +154,26 @@ final class SofterStore {
         case RoomLifecycleRecordConverter.roomRecordType:
             // Room3 with embedded participants and messages
             if let lifecycle = RoomLifecycleRecordConverter.lifecycle(from: record) {
+                let roomID = record.recordID.recordName
+
+                // Snapshot before upsert — for notification detection
+                let existingRoom = dataStore.room(id: roomID)
+                let existingMessageIDs = Set(existingRoom?.messages().map { $0.id } ?? [])
+                let isNewSharedRoom = existingRoom == nil && isShared
+
                 let participantsJSON = record["participantsJSON"] as? String
                 let messagesJSON = record["messagesJSON"] as? String
                 dataStore.upsertRoom(from: lifecycle, remoteParticipantsJSON: participantsJSON, remoteMessagesJSON: messagesJSON)
+
+                // Post notifications for new data (skip during initial load)
+                if initialLoadCompleted, let room = dataStore.room(id: roomID) {
+                    postNotificationsForChanges(
+                        roomID: roomID,
+                        room: room,
+                        existingMessageIDs: existingMessageIDs,
+                        isNewSharedRoom: isNewSharedRoom
+                    )
+                }
 
                 // Persist CKRecord system fields and shared flag
                 if let room = dataStore.room(id: record.recordID.recordName) {
@@ -244,6 +264,59 @@ final class SofterStore {
                 }
             }
             room.setParticipants(updated)
+        }
+    }
+
+    // MARK: - Notification Helpers
+
+    /// Post local notifications for new messages or room invites.
+    /// Called after upsertRoom with a snapshot of the previous message IDs.
+    private func postNotificationsForChanges(
+        roomID: String,
+        room: PersistedRoom,
+        existingMessageIDs: Set<String>,
+        isNewSharedRoom: Bool
+    ) {
+        let participantNames = room.embeddedParticipants().map { $0.nickname }
+
+        if isNewSharedRoom {
+            NotificationHandler.shared.postNotification(
+                roomID: roomID,
+                currentlyViewingRoomID: currentlyViewingRoomID,
+                title: "New Room",
+                body: participantNames.joined(separator: ", ")
+            )
+        }
+
+        let newMessages = room.messages().filter { !existingMessageIDs.contains($0.id) }
+        guard !newMessages.isEmpty else { return }
+
+        let myParticipantID: String? = localUserRecordID.flatMap { localID in
+            ParticipantIdentity.findLocalParticipant(
+                in: room.embeddedParticipants(),
+                localUserRecordID: localID,
+                isSharedWithMe: room.isSharedWithMe
+            )
+        }
+
+        for message in newMessages {
+            guard message.authorID != myParticipantID else { continue }
+
+            if message.isNarration {
+                NotificationHandler.shared.postNotification(
+                    roomID: roomID,
+                    currentlyViewingRoomID: currentlyViewingRoomID,
+                    title: participantNames.joined(separator: ", "),
+                    body: message.text
+                )
+            } else {
+                NotificationHandler.shared.postNotification(
+                    roomID: roomID,
+                    currentlyViewingRoomID: currentlyViewingRoomID,
+                    title: message.authorName,
+                    body: message.text
+                )
+            }
         }
     }
 
