@@ -378,36 +378,40 @@ struct RoomView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
-                // I've signaled, waiting for others — narration above, action below
+                // I've signaled, waiting for others
                 let shareURL = persistedRoom?.shareURL.flatMap { URL(string: $0) }
                 let names = waitingFor.map { $0.nickname }.joined(separator: ", ")
+                // Share invite only needed when there are other humans to invite
+                let hasOtherHumans = lifecycle.spec.participants.contains { !$0.isLightward && $0.id != lifecycle.spec.originatorID }
 
                 Text("Waiting for \(names)...")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
-                if let url = shareURL {
-                    ShareLink(item: url) {
-                        Label("Share Invite", systemImage: "square.and.arrow.up")
-                            .font(.headline)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 12)
-                            .background(Color.accentColor)
-                            .clipShape(Capsule())
+                if hasOtherHumans {
+                    if let url = shareURL {
+                        ShareLink(item: url) {
+                            Label("Share Invite", systemImage: "square.and.arrow.up")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
+                                .background(Color.accentColor)
+                                .clipShape(Capsule())
+                        }
+                    } else {
+                        Label {
+                            Text("Share Invite")
+                                .font(.headline)
+                        } icon: {
+                            ProgressView()
+                        }
+                        .foregroundStyle(.white.opacity(0.6))
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(Color.accentColor.opacity(0.5))
+                        .clipShape(Capsule())
                     }
-                } else {
-                    Label {
-                        Text("Share Invite")
-                            .font(.headline)
-                    } icon: {
-                        ProgressView()
-                    }
-                    .foregroundStyle(.white.opacity(0.6))
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(Color.accentColor.opacity(0.5))
-                    .clipShape(Capsule())
                 }
             }
         }
