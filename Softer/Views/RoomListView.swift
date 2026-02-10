@@ -31,7 +31,7 @@ struct RoomListView: View {
         NavigationStack(path: $navigationPath) {
             Group {
                 if !store.initialLoadCompleted || acceptingShare {
-                    ProgressView(acceptingShare ? "Joining room..." : "")
+                    ProgressView(acceptingShare ? "Locating room..." : "")
                 } else if rooms.isEmpty {
                     ContentUnavailableView {
                         Label("No Rooms", systemImage: "bubble.left.and.bubble.right")
