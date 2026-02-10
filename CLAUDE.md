@@ -24,7 +24,9 @@ Also index any fields you query on (e.g., `stateType` on Room3).
 
 **Note**: Room3 embeds both participants and messages as JSON (`participantsJSON` and `messagesJSON` fields) — single record type for the entire room. This eliminates sync ordering issues and simplifies conflict resolution.
 
-**Environment**: Development CloudKit for all builds (local and TestFlight). This allows testers to see the same data as local development. When ready for real users, uncomment the Production switch in `fastlane/Fastfile`.
+**Environment**: Development CloudKit container for all builds (local and TestFlight). This allows testers to see the same data as local development. When ready for real users, uncomment the Production switch in `fastlane/Fastfile`.
+
+**Important**: The shared database enforces the **deployed (production) schema** even in the Development container. The private database auto-creates new fields, but shared participants will get "Cannot create or modify field" errors if you add a CKRecord field without deploying the schema in CloudKit Console. Any new field on Room3 must be deployed before testing shared rooms.
 
 ## Room Creation Model
 

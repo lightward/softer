@@ -16,6 +16,7 @@ struct RoomView: View {
     @State private var showLeaveConfirmation = false
     @State private var isCurrentlyComposing = false
     @State private var composingCheckTimer: Timer?
+    @Environment(\.dismiss) private var dismiss
 
     // Query room for observing messages (embedded in room)
     @Query private var persistedRooms: [PersistedRoom]
@@ -784,7 +785,7 @@ struct RoomView: View {
         }
 
         await store.declineRoom(roomID: roomID, participantID: participantID)
-        self.lifecycle = store.room(id: roomID)
+        dismiss()
     }
 
     private func leaveRoom(lifecycle: RoomLifecycle) async {
@@ -794,7 +795,7 @@ struct RoomView: View {
         }
 
         await store.leaveRoom(roomID: roomID, participantID: participantID)
-        self.lifecycle = store.room(id: roomID)
+        dismiss()
     }
 }
 
