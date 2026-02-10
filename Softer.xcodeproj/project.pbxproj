@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00221ED9EDB38544C1AB5C43 /* MessageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D95DB6DC89B5C63DBADE8AD6 /* MessageTests.swift */; };
 		0026756D8A23D54D210F10F4 /* ConversationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7279B13D892A2E56D34AF8 /* ConversationCoordinatorTests.swift */; };
 		03D1B0D10C7E7223102AB321 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 0009F7848120B6FC39C1D83B /* README.md */; };
 		03D1B0D10C7E7223102AB322 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 0009F7848120B6FC39C1D83B /* README.md */; };
@@ -122,6 +123,7 @@
 		CC38359FE0404435F413B4A0 /* SyncCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
 		D018F12715007C2C67015AA4 /* ConversationCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConversationCoordinator.swift; path = ConversationCoordinator.swift; sourceTree = "<group>"; };
 		D72C76AE2160EE3B72FB8420 /* Configuration.storekit */ = {isa = PBXFileReference; includeInIndex = 1; path = Configuration.storekit; sourceTree = "<group>"; };
+		D95DB6DC89B5C63DBADE8AD6 /* MessageTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MessageTests.swift; sourceTree = "<group>"; };
 		E67CC0BB96684CE58F2B1990 /* ParticipantSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantSpec.swift; sourceTree = "<group>"; };
 		EBD42E62B74C4A27966E2A5F /* ParticipantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantResolver.swift; sourceTree = "<group>"; };
 		F2E332572B0B4F77A0F526FA /* RoomLifecycleCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleCoordinatorTests.swift; sourceTree = "<group>"; };
@@ -266,6 +268,7 @@
 				FA7279B13D892A2E56D34AF8 /* ConversationCoordinatorTests.swift */,
 				3EBF7A5B844B07826B5E5565 /* SofterStoreTests.swift */,
 				5FBF5BB47BBE8B5BEBEDDD1A /* ParticipantIdentityTests.swift */,
+				D95DB6DC89B5C63DBADE8AD6 /* MessageTests.swift */,
 			);
 			path = SofterTests;
 			sourceTree = "<group>";
@@ -467,6 +470,7 @@
 				0026756D8A23D54D210F10F4 /* ConversationCoordinatorTests.swift in Sources */,
 				2136E9EBE1CC51222EE3C5D3 /* SofterStoreTests.swift in Sources */,
 				98B45ECA978100D2E179DAF9 /* ParticipantIdentityTests.swift in Sources */,
+				00221ED9EDB38544C1AB5C43 /* MessageTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

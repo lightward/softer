@@ -187,9 +187,9 @@ SofterStore (actions) → SyncCoordinator → CKSyncEngine → CloudKit
 | Messages | Union by ID | Merge local + remote, sort by createdAt |
 | Signaled flag | True wins | Once signaled, stays signaled |
 
-### Known Technical Debt
+### Intentional Debug Logging
 
-- **Debug logging**: PersistenceStore has print statements for turn state debugging.
+PersistenceStore and other layers have print statements for turn state and sync diagnostics. These are intentional — Isaac debugs via `--console` on physical devices. Keep them, but log at appropriate granularity (e.g., only on failure or state change, not on every view recomputation).
 
 ### Pattern Notes
 

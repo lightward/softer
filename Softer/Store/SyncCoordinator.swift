@@ -322,7 +322,12 @@ actor SyncCoordinator {
         }
 
         // Use prefetched participants or fetch them now
-        let participants = prefetchedParticipants ?? (try await fetchShareParticipants(lookupInfos: lookupInfos))
+        let participants: [CKShare.Participant]
+        if let prefetched = prefetchedParticipants {
+            participants = prefetched
+        } else {
+            participants = try await fetchShareParticipants(lookupInfos: lookupInfos)
+        }
 
         // Add participants to share
         for participant in participants {

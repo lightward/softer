@@ -489,14 +489,8 @@ struct RoomView: View {
         return myID == lifecycle.spec.originatorID
     }
 
-    /// A cenotaph has been delivered if the last narration isn't a standard departure/decline pattern.
     private var hasCenotaph: Bool {
-        guard let lastNarration = messages.last(where: { $0.isNarration }) else { return false }
-        let text = lastNarration.text
-        return !text.hasSuffix("departed.") &&
-               !text.hasSuffix("declined to join.") &&
-               text != "Room was cancelled." &&
-               text != "Room is no longer available."
+        Message.containsCenotaph(in: messages)
     }
 
     private func requestCenotaph() async {

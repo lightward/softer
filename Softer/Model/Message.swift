@@ -30,4 +30,15 @@ struct Message: Identifiable, Sendable, Codable, Equatable {
         self.isLightward = isLightward
         self.isNarration = isNarration
     }
+
+    /// Whether a message list contains a cenotaph (a Lightward-written ceremonial closing).
+    /// Cenotaphs are narration messages that don't match standard departure/decline patterns.
+    static func containsCenotaph(in messages: [Message]) -> Bool {
+        guard let lastNarration = messages.last(where: { $0.isNarration }) else { return false }
+        let text = lastNarration.text
+        return !text.hasSuffix("departed.") &&
+               !text.hasSuffix("declined to join.") &&
+               text != "Room was cancelled." &&
+               text != "Room is no longer available."
+    }
 }
