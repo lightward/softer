@@ -15,6 +15,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check CloudKit Schema
+        run: ./scripts/check-cloudkit-schema.sh
+
       - name: Select Xcode 26
         run: sudo xcode-select -s /Applications/Xcode_26.2.app/Contents/Developer
 

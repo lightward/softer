@@ -1,0 +1,36 @@
+# CloudKit Schema Manifest
+#
+# Lists all CKRecord fields written by the app. The shared database enforces
+# the deployed (production) schema — any field written to a CKRecord must exist
+# in the deployed schema or shared participants will get save errors.
+#
+# When adding a new field:
+#   1. Add it to this file
+#   2. Deploy the schema in CloudKit Console
+#   3. CI will fail if a record["..."] write references a field not listed here
+
+Room3:
+  # RoomSpec
+  - originatorID        # String
+  - tier                # Int64
+  - createdAtDate       # Date/Time
+  - modifiedAtDate      # Date/Time
+
+  # Embedded data (JSON strings)
+  - participantsJSON    # String
+  - messagesJSON        # String
+
+  # RoomState
+  - stateType           # String (draft, pendingParticipants, active, defunct)
+  - defunctReason       # String (optional)
+
+  # TurnState
+  - currentTurnIndex    # Int64 (optional)
+  - needID              # String (optional)
+  - needType            # String (optional)
+  - needClaimedBy       # String (optional)
+  - needClaimedAt       # Date/Time (optional)
+
+  # Transient (composing indicator)
+  - composingParticipantID  # String (optional)
+  - composingTimestamp      # Date/Time (optional)
