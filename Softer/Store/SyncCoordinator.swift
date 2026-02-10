@@ -478,6 +478,7 @@ actor SyncCoordinator {
     }
 
     /// Send pending changes to the server (both private and shared engines).
+    /// Send failures are logged but don't block the app — CKSyncEngine retries automatically.
     func sendChanges() async {
         await updateStatus(.syncing)
 
@@ -486,12 +487,9 @@ actor SyncCoordinator {
             do {
                 try await engine.sendChanges()
             } catch let error as CKError {
-                await handleSendError(error)
-                return
+                handleSendError(error)
             } catch {
                 print("SyncCoordinator: Non-CK error (private): \(error)")
-                await updateStatus(.error("Sync failed"))
-                return
             }
         }
 
@@ -500,43 +498,26 @@ actor SyncCoordinator {
             do {
                 try await sharedEngine.sendChanges()
             } catch let error as CKError {
-                await handleSendError(error)
-                return
+                handleSendError(error)
             } catch {
                 print("SyncCoordinator: Non-CK error (shared): \(error)")
-                await updateStatus(.error("Sync failed"))
-                return
             }
         }
 
         await updateStatus(.synced)
     }
 
-    private func handleSendError(_ error: CKError) async {
+    /// Log send errors for diagnostics. Send failures are transient — CKSyncEngine handles retries
+    /// through its delegate events. Only setup failures and sign-out are truly blocking.
+    private func handleSendError(_ error: CKError) {
         print("SyncCoordinator: CKError \(error.code.rawValue): \(error.localizedDescription)")
         if let underlying = error.userInfo[NSUnderlyingErrorKey] as? Error {
             print("SyncCoordinator: Underlying error: \(underlying)")
         }
-        // Log partial failure details
         if error.code == .partialFailure, let partialErrors = error.partialErrorsByItemID {
             for (itemID, itemError) in partialErrors {
                 print("SyncCoordinator: Partial error for \(itemID): \(itemError)")
             }
-            // Check if all failures are just serverRecordChanged - these are handled automatically
-            let hasRealErrors = partialErrors.values.contains { itemError in
-                guard let ckError = itemError as? CKError else { return true }
-                return ckError.code != .serverRecordChanged
-            }
-            if !hasRealErrors {
-                print("SyncCoordinator: All errors are serverRecordChanged conflicts, will retry automatically")
-                await updateStatus(.syncing)
-                return
-            }
-        }
-        if error.code == .networkUnavailable || error.code == .networkFailure {
-            await updateStatus(.offline)
-        } else {
-            await updateStatus(.error("Sync failed: \(error.code.rawValue)"))
         }
     }
 

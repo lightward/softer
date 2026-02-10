@@ -14,10 +14,17 @@ struct RootView: View {
                 ProgressView("Connecting to iCloud...")
 
             case .error(let message):
-                ContentUnavailableView {
-                    Label("iCloud Required", systemImage: "icloud.slash")
-                } description: {
-                    Text(message)
+                // Only truly blocking errors (setup failure, sign-out) should reach here.
+                // Show the app UI anyway — local data is still usable.
+                if let container = store.modelContainer {
+                    RoomListView(store: store, pendingRoomID: $pendingRoomID, acceptingShare: appDelegate.acceptingShare)
+                        .modelContainer(container)
+                } else {
+                    ContentUnavailableView {
+                        Label("iCloud Required", systemImage: "icloud.slash")
+                    } description: {
+                        Text(message)
+                    }
                 }
 
             case .syncing, .synced, .offline:
