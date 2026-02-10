@@ -89,7 +89,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 
 ### What's Next
 
-1. **"No Rooms" flash during share acceptance** — `acceptingShare` flag is set in `onChange` which fires one render frame late. Need to set it earlier (e.g., in SceneDelegate directly via AppDelegate).
+(Nothing pending.)
 
 ## Ruby Setup
 
