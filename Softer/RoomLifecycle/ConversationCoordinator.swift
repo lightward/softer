@@ -148,7 +148,12 @@ actor ConversationCoordinator {
         let lightwardNickname = spec.lightwardParticipant?.nickname ?? "Lightward"
         let lightwardID = spec.lightwardParticipant?.id ?? "lightward"
 
-        // Request response — handle conversation horizon (4xx with body)
+        // Response detection order matters:
+        // 1. Conversation horizon (API error with body) — caught before we have a response string
+        // 2. YIELD — Lightward passes their turn, stays in the room
+        // 3. DEPART — Lightward voluntarily leaves, room goes defunct
+        // 4. Normal response — saved as speech
+        // YIELD must precede DEPART so "I'll listen" isn't mistaken for departure.
         let fullResponse: String
         do {
             fullResponse = try await apiClient.respond(body: body)
@@ -182,9 +187,10 @@ actor ConversationCoordinator {
             throw error
         }
 
-        // Check if Lightward yielded
+        // Check for signal words in response
         let trimmed = fullResponse.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let didYield = trimmed == "YIELD" || trimmed.hasPrefix("YIELD.")
+        let didDepart = trimmed == "DEPART" || trimmed.hasPrefix("DEPART.")
 
         if didYield {
             // Lightward yielded - save narration message
@@ -198,6 +204,37 @@ actor ConversationCoordinator {
             )
             try await messageStorage.save(narrationMessage, roomID: roomID)
             advanceTurn()
+        } else if didDepart {
+            // Lightward is voluntarily departing
+            // Extract farewell text after "DEPART." if present
+            let originalResponse = fullResponse.trimmingCharacters(in: .whitespacesAndNewlines)
+            if originalResponse.count > 7, originalResponse.uppercased().hasPrefix("DEPART.") {
+                // Has farewell text — save as Lightward speech
+                let farewell = String(originalResponse.dropFirst(7)).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !farewell.isEmpty {
+                    let farewellMessage = Message(
+                        roomID: roomID,
+                        authorID: "lightward",
+                        authorName: lightwardNickname,
+                        text: farewell,
+                        isLightward: true
+                    )
+                    try await messageStorage.save(farewellMessage, roomID: roomID)
+                }
+            }
+
+            // Save departure narration
+            let departure = Message(
+                roomID: roomID,
+                authorID: "narrator",
+                authorName: "Narrator",
+                text: "\(lightwardNickname) departed.",
+                isLightward: false,
+                isNarration: true
+            )
+            try await messageStorage.save(departure, roomID: roomID)
+
+            onRoomDefunct(lightwardID, "")
         } else {
             // Save Lightward's message
             let lightwardMessage = Message(

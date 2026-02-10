@@ -746,7 +746,19 @@ final class SofterStore {
         }
     }
 
+    /// Find the local user's participant ID in a room.
+    private func findLocalParticipantID(in lifecycle: RoomLifecycle, room: PersistedRoom) -> String? {
+        guard let localUserRecordID = localUserRecordID else { return nil }
+        let embedded = room.embeddedParticipants()
+        return ParticipantIdentity.findLocalParticipant(
+            in: embedded,
+            localUserRecordID: localUserRecordID,
+            isSharedWithMe: room.isSharedWithMe
+        )
+    }
+
     /// Deletes a room and all its associated data.
+    /// For shared rooms, departs first (leave active / decline pending) so other participants are notified.
     func deleteRoom(id: String) async throws {
         guard let syncCoordinator = syncCoordinator,
               let zoneID = zoneID,
@@ -756,6 +768,23 @@ final class SofterStore {
 
         let room = dataStore.room(id: id)
         let isShared = room?.isSharedWithMe ?? false
+
+        // For shared rooms, depart before deleting locally.
+        // leaveRoom/declineRoom save the defunct transition locally, then await
+        // syncRoomToCloudKit which enqueues the change in CKSyncEngine before
+        // returning. The local delete below removes it from SwiftData, but the
+        // enqueued CKSyncEngine save still goes out — so other participants
+        // learn of the departure even though we've already cleaned up locally.
+        if isShared, let room = room, let lifecycle = room.toRoomLifecycle() {
+            if let myID = findLocalParticipantID(in: lifecycle, room: room) {
+                if lifecycle.isActive {
+                    await leaveRoom(roomID: id, participantID: myID)
+                } else if case .pendingParticipants = lifecycle.state {
+                    await declineRoom(roomID: id, participantID: myID)
+                }
+                // defunct: just delete locally (below)
+            }
+        }
 
         // Delete from local DB
         dataStore.deleteRoom(id: id)

@@ -127,16 +127,32 @@ struct RoomListView: View {
                 }
             } message: {
                 if let room = roomToDelete {
-                    let names = room.spec.participants
-                        .filter { !$0.isLightward }
-                        .map { $0.nickname }
-                        .joined(separator: ", ")
-                    Text("This will permanently delete your conversation with \(names).")
+                    Text(deleteConfirmationMessage(for: room))
                 }
             }
         }
     }
 
+    private func deleteConfirmationMessage(for room: RoomLifecycle) -> String {
+        let isSharedWithMe = persistedRooms.first(where: { $0.id == room.spec.id })?.isSharedWithMe ?? false
+
+        if !isSharedWithMe {
+            // Originator — deletion removes the record for everyone
+            return "This will permanently remove the room for everyone."
+        }
+
+        // Participant (shared-with-me)
+        switch room.state {
+        case .active:
+            return "You'll leave this room — it will end for everyone."
+        case .pendingParticipants:
+            return "You'll decline to join this room."
+        case .defunct:
+            return "This will remove the room from your device."
+        default:
+            return "This will remove the room from your device."
+        }
+    }
 }
 
 struct RoomRow: View {
