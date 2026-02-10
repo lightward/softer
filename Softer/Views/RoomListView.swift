@@ -13,18 +13,8 @@ struct RoomListView: View {
     @Query(sort: \PersistedRoom.createdAt, order: .reverse)
     private var persistedRooms: [PersistedRoom]
 
-    /// Transform persisted rooms to domain models.
-    /// Defunct rooms only shown if they have conversation history worth revisiting.
     private var rooms: [RoomLifecycle] {
-        persistedRooms.compactMap { persisted -> RoomLifecycle? in
-            guard let lifecycle = persisted.toRoomLifecycle() else { return nil }
-            if lifecycle.isDefunct {
-                // Only show defunct rooms that had actual conversation (more than just opening narration)
-                let messageCount = persisted.embeddedMessages().filter { !$0.isNarration }.count
-                return messageCount > 0 ? lifecycle : nil
-            }
-            return lifecycle
-        }
+        persistedRooms.compactMap { $0.toRoomLifecycle() }
     }
 
     var body: some View {

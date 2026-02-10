@@ -44,7 +44,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 
 **Room lifetime**: Bounded by Lightward's 50k token context window. When Lightward hits the conversation horizon (API returns 422), its response body is saved as a regular message, then a departure narration follows, and the room goes defunct. Any participant departing = room defunct (the room's shape *is* its full roster). Remains readable but no longer interactive. Originator can request a cenotaph on any defunct room — a fresh Lightward instance reads the history and writes a ceremonial closing (saved as narration).
 
-**Room display**: No room names. Just participant list + depth + last speaker. "Jax, Eve, Art (15, Eve)". Blue dot next to current speaker in room list. Defunct rooms only shown in list if they have conversation messages (creation failures stay hidden).
+**Room display**: No room names. Just participant list. Blue dot next to current speaker in room list. All rooms shown in list (users can delete unwanted ones).
 
 **Key principles**:
 - Roster locked at creation (eigenstate commitment)
