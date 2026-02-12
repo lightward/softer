@@ -3,7 +3,7 @@ import Foundation
 
 /// Persisted room data. Single source of truth for room state.
 /// Participants and messages are embedded as JSON (single record type).
-@available(iOS 18, *)
+@available(iOS 18, macOS 15, *)
 @Model
 final class PersistedRoom {
     @Attribute(.unique) var id: String

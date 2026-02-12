@@ -1,6 +1,10 @@
 import Foundation
 import CloudKit
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 import UserNotifications
 
 /// Handles push notifications for CloudKit sync and local notifications for new messages/rooms.
@@ -12,7 +16,11 @@ final class NotificationHandler: NSObject, @unchecked Sendable {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
             if granted {
                 DispatchQueue.main.async {
+                    #if os(iOS)
                     UIApplication.shared.registerForRemoteNotifications()
+                    #elseif os(macOS)
+                    NSApplication.shared.registerForRemoteNotifications()
+                    #endif
                 }
             }
         }

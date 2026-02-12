@@ -7,8 +7,8 @@ on:
     branches: ["**"]
 
 jobs:
-  test:
-    name: Run Tests
+  test-ios:
+    name: Run Tests (iOS)
     runs-on: macos-15
 
     steps:
@@ -35,5 +35,34 @@ jobs:
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: test-results
+          name: test-results-ios
           path: TestResults
+
+  test-macos:
+    name: Run Tests (macOS)
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app/Contents/Developer
+
+      - name: Run Tests
+        run: |
+          xcodebuild -project Softer.xcodeproj -scheme Softer \
+            -destination 'platform=macOS' \
+            -resultBundlePath TestResults-macOS \
+            test \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            ENABLE_HARDENED_RUNTIME=NO
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results-macos
+          path: TestResults-macOS

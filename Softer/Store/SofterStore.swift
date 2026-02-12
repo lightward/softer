@@ -57,6 +57,8 @@ final class SofterStore {
         } catch {
             print("SofterStore: Failed to initialize PersistenceStore: \(error)")
         }
+        // Skip CloudKit when running as test host — tests inject their own dependencies
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         Task {
             await setupCloudKit()
         }

@@ -1,11 +1,19 @@
 import SwiftUI
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 import CloudKit
 import UserNotifications
 
 @main
 struct SofterApp: App {
+    #if os(iOS)
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    #elseif os(macOS)
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    #endif
 
     var body: some Scene {
         WindowGroup {
@@ -61,6 +69,8 @@ struct SofterApp: App {
 }
 
 // MARK: - App Delegate
+
+#if os(iOS)
 
 class AppDelegate: NSObject, UIApplicationDelegate, ObservableObject {
     static var shared: AppDelegate?
@@ -148,3 +158,53 @@ class SceneDelegate: NSObject, UIWindowSceneDelegate {
         }
     }
 }
+
+#elseif os(macOS)
+
+class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
+    static var shared: AppDelegate?
+    @Published var pendingShareRoomID: String?
+    @Published var acceptingShare = false
+
+    override init() {
+        super.init()
+        AppDelegate.shared = self
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        UNUserNotificationCenter.current().delegate = NotificationHandler.shared
+        NotificationHandler.shared.registerForPushNotifications()
+    }
+
+    func application(_ application: NSApplication, userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata) {
+        print("AppDelegate: userDidAcceptCloudKitShareWith called")
+        handleShareMetadata(cloudKitShareMetadata)
+    }
+
+    private func handleShareMetadata(_ metadata: CKShare.Metadata) {
+        let roomID = metadata.hierarchicalRootRecordID?.recordName
+            ?? metadata.rootRecordID.recordName
+        print("AppDelegate: Root record ID: \(roomID)")
+
+        Task { @MainActor in
+            acceptingShare = true
+        }
+
+        let container = CKContainer(identifier: Constants.containerIdentifier)
+
+        Task {
+            do {
+                try await container.accept(metadata)
+                print("AppDelegate: Share accepted successfully, navigating to room: \(roomID)")
+
+                await MainActor.run {
+                    pendingShareRoomID = roomID
+                }
+            } catch {
+                print("AppDelegate: Failed to accept share: \(error)")
+            }
+        }
+    }
+}
+
+#endif

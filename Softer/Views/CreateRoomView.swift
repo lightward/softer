@@ -1,5 +1,7 @@
 import SwiftUI
+#if os(iOS)
 import ContactsUI
+#endif
 
 struct CreateRoomView: View {
     let store: SofterStore
@@ -16,7 +18,9 @@ struct CreateRoomView: View {
     @State private var errorMessage: String?
 
     // Contact picker
+    #if os(iOS)
     @State private var showContactPicker = false
+    #endif
 
     // Focus state
     @FocusState private var nicknameFieldFocused: Bool
@@ -41,7 +45,7 @@ struct CreateRoomView: View {
                     HStack(spacing: 12) {
                         ZStack {
                             Circle()
-                                .fill(Color(.systemGray5))
+                                .fill(Color.softerGray5)
                                 .frame(width: 36, height: 36)
                             Image(systemName: "sparkles")
                                 .font(.system(size: 16))
@@ -59,11 +63,23 @@ struct CreateRoomView: View {
                         .focused($focusedParticipantID, equals: entry.id)
                     }
 
+                    #if os(iOS)
                     Button {
                         showContactPicker = true
                     } label: {
                         Label("Add someone else", systemImage: "plus")
                     }
+                    #else
+                    Button {
+                        let entry = ParticipantEntry()
+                        otherParticipants.append(entry)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            focusedParticipantID = entry.id
+                        }
+                    } label: {
+                        Label("Add someone else", systemImage: "plus")
+                    }
+                    #endif
                 } header: {
                     Text("Participants")
                 }
@@ -83,10 +99,13 @@ struct CreateRoomView: View {
 
             }
             .navigationTitle("New Room")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .onAppear {
                 nicknameFieldFocused = true
             }
+            #if os(iOS)
             .sheet(isPresented: $showContactPicker) {
                 ContactPicker { contact in
                     // Add participant with contact info
@@ -104,6 +123,7 @@ struct CreateRoomView: View {
                     }
                 }
             }
+            #endif
             .alert("Error", isPresented: .init(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
@@ -226,24 +246,37 @@ struct ParticipantEntry: Identifiable {
     let id: UUID
     var identifier: String  // email or phone
     var nickname: String
+    #if os(iOS)
     var contact: CNContact?  // Original contact for thumbnail and verification
+    #endif
 
+    #if os(iOS)
     init(id: UUID = UUID(), identifier: String = "", nickname: String = "", contact: CNContact? = nil) {
         self.id = id
         self.identifier = identifier
         self.nickname = nickname
         self.contact = contact
     }
+    #else
+    init(id: UUID = UUID(), identifier: String = "", nickname: String = "") {
+        self.id = id
+        self.identifier = identifier
+        self.nickname = nickname
+    }
+    #endif
 }
 
 struct ParticipantEntryRow: View {
     @Binding var entry: ParticipantEntry
     var onFocus: () -> Void = {}
     let onDelete: () -> Void
+    #if os(iOS)
     @State private var showContactCard = false
+    #endif
 
     var body: some View {
         HStack(spacing: 12) {
+            #if os(iOS)
             // Contact thumbnail (tappable to view contact card)
             Button {
                 showContactCard = true
@@ -251,6 +284,16 @@ struct ParticipantEntryRow: View {
                 contactThumbnail
             }
             .buttonStyle(.plain)
+            #else
+            // Person icon + identifier field on macOS
+            Image(systemName: "person.circle.fill")
+                .resizable()
+                .frame(width: 36, height: 36)
+                .foregroundStyle(.secondary)
+
+            TextField("Email or phone", text: $entry.identifier)
+                .textContentType(.emailAddress)
+            #endif
 
             // Nickname field (primary control)
             TextField("Nickname", text: $entry.nickname)
@@ -263,14 +306,17 @@ struct ParticipantEntryRow: View {
             }
             .buttonStyle(.plain)
         }
+        #if os(iOS)
         .sheet(isPresented: $showContactCard) {
             if let contact = entry.contact {
                 ContactCardView(contact: contact)
                     .ignoresSafeArea(edges: .bottom)
             }
         }
+        #endif
     }
 
+    #if os(iOS)
     @ViewBuilder
     private var contactThumbnail: some View {
         if let contact = entry.contact,
@@ -289,6 +335,7 @@ struct ParticipantEntryRow: View {
                 .foregroundStyle(.secondary)
         }
     }
+    #endif
 }
 
 struct SuggestionChip: View {
@@ -306,7 +353,7 @@ struct SuggestionChip: View {
                 .font(.subheadline)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(Color(.systemGray5))
+                .background(Color.softerGray5)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -314,6 +361,8 @@ struct SuggestionChip: View {
 }
 
 // MARK: - Contact Card View
+
+#if os(iOS)
 
 struct ContactCardView: UIViewControllerRepresentable {
     let contact: CNContact
@@ -385,3 +434,5 @@ struct ContactPicker: UIViewControllerRepresentable {
         }
     }
 }
+
+#endif

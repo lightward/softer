@@ -3,7 +3,7 @@ import Foundation
 
 /// Single source of truth for app data. Wraps SwiftData ModelContext.
 /// All reads and writes go through here - this is the local-first foundation.
-@available(iOS 18, *)
+@available(iOS 18, macOS 15, *)
 @MainActor
 final class PersistenceStore {
     let modelContainer: ModelContainer

@@ -1,5 +1,10 @@
 import SwiftUI
 import SwiftData
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 struct RoomView: View {
     let store: SofterStore
@@ -87,12 +92,20 @@ struct RoomView: View {
         .onChange(of: persistedRoom?.participantsJSON) {
             refreshLifecycle()
         }
+        #if os(iOS)
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             // Re-signal composing after foregrounding (clearAllComposing wiped it on background)
             if isCurrentlyComposing, let lifecycle = lifecycle, let myID = myParticipantID(in: lifecycle) {
                 store.setComposing(roomID: roomID, participantID: myID)
             }
         }
+        #elseif os(macOS)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            if isCurrentlyComposing, let lifecycle = lifecycle, let myID = myParticipantID(in: lifecycle) {
+                store.setComposing(roomID: roomID, participantID: myID)
+            }
+        }
+        #endif
     }
 
     @ViewBuilder
@@ -120,7 +133,7 @@ struct RoomView: View {
                 navigationTitleView(lifecycle: lifecycle)
             }
             if lifecycle.isActive {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .automatic) {
                     Menu {
                         Button(role: .destructive) {
                             showLeaveConfirmation = true
@@ -248,7 +261,7 @@ struct RoomView: View {
             } label: {
                 Image(systemName: "hand.raised")
                     .font(.system(size: 20))
-                    .foregroundStyle(myTurn ? Color(.systemGray4) : .secondary)
+                    .foregroundStyle(myTurn ? Color.softerGray4 : .secondary)
                     .frame(width: 36, height: 36)
             }
             .disabled(myTurn || isSending)
@@ -275,7 +288,7 @@ struct RoomView: View {
                             .foregroundStyle(Color.accentColor)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(Color(.systemGray5))
+                            .background(Color.softerGray5)
                             .clipShape(Capsule())
                     }
                     .padding(.trailing, 8)
@@ -292,7 +305,7 @@ struct RoomView: View {
                             .foregroundStyle(.white)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(canSend(myTurn: myTurn) ? Color.accentColor : Color(.systemGray4))
+                            .background(canSend(myTurn: myTurn) ? Color.accentColor : Color.softerGray4)
                             .clipShape(Capsule())
                     }
                     .disabled(!canSend(myTurn: myTurn))
@@ -300,7 +313,7 @@ struct RoomView: View {
                     .padding(.bottom, 4)
                 }
             }
-            .background(Color(.systemGray6))
+            .background(Color.softerGray6)
             .clipShape(RoundedRectangle(cornerRadius: 22))
         }
         .padding(.horizontal, 12)
@@ -834,12 +847,17 @@ struct MessageBubble: View {
                 Text(text)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(isLightward ? Color(.systemGray5) : Color.accentColor)
+                    .background(isLightward ? Color.softerGray5 : Color.accentColor)
                     .foregroundColor(isLightward ? .primary : .white)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .contextMenu {
                         Button {
+                            #if os(iOS)
                             UIPasteboard.general.string = text
+                            #elseif os(macOS)
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(text, forType: .string)
+                            #endif
                         } label: {
                             Label("Copy", systemImage: "doc.on.doc")
                         }
@@ -865,7 +883,7 @@ struct TypingIndicator: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color(.systemGray5))
+        .background(Color.softerGray5)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
@@ -885,7 +903,7 @@ struct ComposingIndicator: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color(.systemGray5))
+        .background(Color.softerGray5)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }

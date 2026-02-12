@@ -1,6 +1,10 @@
 import Foundation
 import CloudKit
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 /// Wraps CKSyncEngine for automatic sync orchestration.
 /// Handles batching, retries, conflict resolution, and push notifications.
@@ -313,10 +317,19 @@ actor SyncCoordinator {
             }
 
             // App icon as share thumbnail
+            #if os(iOS)
             if let icon = UIImage(named: "AppIcon"),
                let data = icon.pngData() {
                 share[CKShare.SystemFieldKey.thumbnailImageData] = data as CKRecordValue
             }
+            #elseif os(macOS)
+            if let icon = NSImage(named: "AppIcon"),
+               let tiff = icon.tiffRepresentation,
+               let bitmap = NSBitmapImageRep(data: tiff),
+               let data = bitmap.representation(using: .png, properties: [:]) {
+                share[CKShare.SystemFieldKey.thumbnailImageData] = data as CKRecordValue
+            }
+            #endif
 
             share.publicPermission = .none  // Only invited participants
         }
