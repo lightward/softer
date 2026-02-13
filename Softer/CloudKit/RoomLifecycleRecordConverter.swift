@@ -165,7 +165,6 @@ enum RoomLifecycleRecordConverter {
 
         // RoomSpec fields
         record["originatorID"] = spec.originatorID as NSString
-        record["tier"] = spec.tier.rawValue as NSNumber
         record["createdAtDate"] = spec.createdAt as NSDate
         record["modifiedAtDate"] = lifecycle.modifiedAt as NSDate
 
@@ -221,8 +220,6 @@ enum RoomLifecycleRecordConverter {
     /// Reconstructs a RoomLifecycle from a Room3 record (participants embedded).
     static func lifecycle(from record: CKRecord) -> RoomLifecycle? {
         guard let originatorID = record["originatorID"] as? String,
-              let tierRaw = record["tier"] as? Int,
-              let tier = PaymentTier(rawValue: tierRaw),
               let stateType = record["stateType"] as? String,
               let participantsJSON = record["participantsJSON"] as? String,
               let jsonData = participantsJSON.data(using: .utf8),
@@ -234,6 +231,9 @@ enum RoomLifecycleRecordConverter {
         let sortedParticipants = embeddedParticipants.sorted { $0.orderIndex < $1.orderIndex }
         let participantSpecs = sortedParticipants.map { $0.toParticipantSpec() }
         let signaledIDs = Set(sortedParticipants.filter { $0.hasSignaledHere }.map { $0.id })
+
+        // Tier is not persisted — it's a speech act captured in opening narration
+        let tier = (record["tier"] as? Int).flatMap(PaymentTier.init(rawValue:)) ?? .one
 
         let spec = RoomSpec(
             id: record.recordID.recordName,

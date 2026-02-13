@@ -11,7 +11,7 @@ struct CreateRoomView: View {
     // Form state
     @State private var myNickname = ""
     @State private var otherParticipants: [ParticipantEntry] = []
-    @State private var selectedTier: PaymentTier = .ten
+    @State private var selectedTier: PaymentTier = Self.lastUsedTier
 
     // Creation state
     @State private var isCreating = false
@@ -92,9 +92,9 @@ struct CreateRoomView: View {
                     }
                     .pickerStyle(.segmented)
                 } header: {
-                    Text("How much do you weigh, financially?")
+                    Text("How much does \"new\" cost for you?")
                 } footer: {
-                    Text("Every room is the same product. For a payment-neutral experience, choose the amount that matches your scale. Your choice will be visible to all participants.")
+                    Text("Your choice will be visible to all participants.")
                 }
 
             }
@@ -202,6 +202,7 @@ struct CreateRoomView: View {
                 tier: selectedTier,
                 originatorNickname: myNickname
             )
+            UserDefaults.standard.set(selectedTier.rawValue, forKey: Self.lastTierKey)
             isPresented = false
             onCreated?(lifecycle.spec.id)
             // Don't reset isCreating on success — sheet is dismissing
@@ -213,6 +214,13 @@ struct CreateRoomView: View {
         }
 
         isCreating = false
+    }
+
+    private static let lastTierKey = "lastSelectedPaymentTier"
+
+    private static var lastUsedTier: PaymentTier {
+        let raw = UserDefaults.standard.integer(forKey: lastTierKey)
+        return PaymentTier(rawValue: raw) ?? .ten
     }
 
     private func describeError(_ error: RoomLifecycleError) -> String {

@@ -169,7 +169,6 @@ extension PersistedRoom {
         let room = PersistedRoom(
             id: lifecycle.spec.id,
             originatorID: lifecycle.spec.originatorID,
-            tierRawValue: lifecycle.spec.tier.rawValue,
             participantsJSON: participantsJSON
         )
         room.createdAt = lifecycle.spec.createdAt
@@ -241,7 +240,7 @@ extension PersistedRoom {
             id: id,
             originatorID: originatorID,
             participants: specs,
-            tier: PaymentTier(rawValue: tierRawValue) ?? .one,
+            tier: .one,  // Tier is not persisted — it's a speech act captured in narration
             createdAt: createdAt
         )
 

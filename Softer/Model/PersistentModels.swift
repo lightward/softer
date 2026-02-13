@@ -8,7 +8,6 @@ import Foundation
 final class PersistedRoom {
     @Attribute(.unique) var id: String
     var originatorID: String
-    var tierRawValue: Int
 
     // State
     var stateType: String  // "draft", "pendingParticipants", "active", "defunct"
@@ -35,13 +34,11 @@ final class PersistedRoom {
     init(
         id: String = UUID().uuidString,
         originatorID: String,
-        tierRawValue: Int,
         participantsJSON: String = "[]",
         messagesJSON: String = "[]"
     ) {
         self.id = id
         self.originatorID = originatorID
-        self.tierRawValue = tierRawValue
         self.participantsJSON = participantsJSON
         self.messagesJSON = messagesJSON
         self.stateType = "draft"
