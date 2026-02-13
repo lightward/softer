@@ -92,9 +92,9 @@ struct CreateRoomView: View {
                     }
                     .pickerStyle(.segmented)
                 } header: {
-                    Text("Payment")
+                    Text("How much do you weigh, financially?")
                 } footer: {
-                    Text("Every room is the same product. [Pay what feels good.](https://lightward.inc/pricing) Your choice is visible to all participants.")
+                    Text("Every room is the same product. For a payment-neutral experience, choose the amount that matches your scale. Your choice will be visible to all participants.")
                 }
 
             }
