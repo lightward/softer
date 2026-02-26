@@ -22,10 +22,8 @@ struct RoomView: View {
     @State private var isCurrentlyComposing = false
     @State private var composingCheckTimer: Timer?
     @State private var participantPhotos: [String: Image] = [:]
-    #if os(iOS)
     @State private var speechRecognizer = SpeechRecognizer()
     @State private var showSpeechPermissionDenied = false
-    #endif
     @Environment(\.dismiss) private var dismiss
 
     // Query room for observing messages (embedded in room)
@@ -274,7 +272,6 @@ struct RoomView: View {
 
             // Text field with embedded buttons
             HStack(alignment: .bottom, spacing: 0) {
-                #if os(iOS)
                 // Dictation button
                 Button {
                     if speechRecognizer.isRecording {
@@ -292,7 +289,6 @@ struct RoomView: View {
                 .disabled(!myTurn || isSending)
                 .padding(.leading, 4)
                 .padding(.bottom, 1)
-                #endif
 
                 TextField("Message...", text: $composeText, axis: .vertical)
                     .textFieldStyle(.plain)
@@ -368,7 +364,6 @@ struct RoomView: View {
         } message: {
             Text("Skip your turn. Others will see that you're listening.")
         }
-        #if os(iOS)
         .onChange(of: speechRecognizer.transcript) { _, newValue in
             if speechRecognizer.isRecording {
                 composeText = newValue
@@ -382,15 +377,20 @@ struct RoomView: View {
         }
         .alert("Microphone Access Required", isPresented: $showSpeechPermissionDenied) {
             Button("Open Settings") {
+                #if os(iOS)
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)
                 }
+                #elseif os(macOS)
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
+                    NSWorkspace.shared.open(url)
+                }
+                #endif
             }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Enable microphone and speech recognition access in Settings to use voice input.")
         }
-        #endif
     }
 
     private func currentTurnParticipant(lifecycle: RoomLifecycle) -> ParticipantSpec? {

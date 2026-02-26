@@ -1,4 +1,3 @@
-#if os(iOS)
 import Foundation
 import Speech
 import AVFoundation
@@ -54,6 +53,7 @@ final class SpeechRecognizer {
         guard speechStatus == .authorized else { return false }
 
         // Microphone permission
+        #if os(iOS)
         let micGranted: Bool
         if AVAudioApplication.shared.recordPermission == .granted {
             micGranted = true
@@ -61,6 +61,15 @@ final class SpeechRecognizer {
             micGranted = await AVAudioApplication.requestRecordPermission()
         }
         return micGranted
+        #elseif os(macOS)
+        let micGranted: Bool
+        if AVCaptureDevice.authorizationStatus(for: .audio) == .authorized {
+            micGranted = true
+        } else {
+            micGranted = await AVCaptureDevice.requestAccess(for: .audio)
+        }
+        return micGranted
+        #endif
     }
 
     private func beginRecognition() {
@@ -84,9 +93,11 @@ final class SpeechRecognizer {
         }
 
         do {
+            #if os(iOS)
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.record, mode: .measurement, options: .duckOthers)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
+            #endif
 
             engine.prepare()
             try engine.start()
@@ -114,4 +125,3 @@ final class SpeechRecognizer {
         }
     }
 }
-#endif
