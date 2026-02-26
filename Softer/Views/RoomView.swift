@@ -118,8 +118,6 @@ struct RoomView: View {
         VStack(spacing: 0) {
             // Messages - observing room's embedded messages via @Query
             messagesView(lifecycle: lifecycle)
-                .frame(maxWidth: 700)
-                .frame(maxWidth: .infinity)
 
             Divider()
 
@@ -127,16 +125,10 @@ struct RoomView: View {
             switch lifecycle.state {
             case .pendingParticipants(let signaled):
                 pendingParticipantsBanner(lifecycle: lifecycle, signaled: signaled)
-                    .frame(maxWidth: 700)
-                    .frame(maxWidth: .infinity)
             case .active:
                 composeArea(lifecycle: lifecycle)
-                    .frame(maxWidth: 700)
-                    .frame(maxWidth: .infinity)
             case .defunct:
                 defunctBanner(lifecycle: lifecycle)
-                    .frame(maxWidth: 700)
-                    .frame(maxWidth: .infinity)
             default:
                 EmptyView()
             }

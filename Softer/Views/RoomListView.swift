@@ -124,6 +124,9 @@ struct RoomListView: View {
                 ContentUnavailableView("Select a Room", systemImage: "bubble.left.and.bubble.right")
             }
         }
+        #if os(macOS)
+        .toolbar(removing: .title)
+        #endif
     }
 
     private func deleteConfirmationMessage(for room: RoomLifecycle) -> String {

@@ -33,6 +33,9 @@ struct SofterApp: App {
                     handleShareURL(url)
                 }
         }
+        #if os(macOS)
+        .windowToolbarStyle(.unifiedCompact)
+        #endif
     }
 
     private func handleShareURL(_ url: URL) {
