@@ -33,7 +33,7 @@ jobs:
           echo "Host github.com" >> ~/.ssh/config
           echo "  IdentityFile ~/.ssh/match_key" >> ~/.ssh/config
 
-      - name: Build and Deploy to TestFlight
+      - name: Build and Deploy iOS to TestFlight
         env:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -42,3 +42,13 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
           bundle exec fastlane deploy
+
+      - name: Build and Deploy macOS to TestFlight
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          bundle exec fastlane mac deploy

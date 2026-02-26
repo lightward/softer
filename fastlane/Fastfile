@@ -62,3 +62,56 @@ platform :ios do
     )
   end
 end
+
+platform :mac do
+  desc "Build and deploy macOS to TestFlight"
+  lane :deploy do
+    setup_ci
+
+    app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_content: ENV["ASC_KEY_CONTENT"],
+      is_key_content_base64: true
+    )
+
+    match(type: "appstore", platform: "macos", readonly: true)
+
+    if ENV["BUILD_NUMBER"]
+      increment_build_number(
+        build_number: ENV["BUILD_NUMBER"],
+        xcodeproj: "Softer.xcodeproj"
+      )
+    end
+
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "Softer.xcodeproj",
+      team_id: "49Q5LC84AR",
+      profile_name: "match AppStore com.lightward.softer macos",
+      code_sign_identity: "Apple Distribution"
+    )
+
+    # Switch TestFlight to Production CloudKit (required for CKShare to work)
+    update_plist(
+      plist_path: "Softer/Softer.entitlements",
+      block: proc do |plist|
+        plist["com.apple.developer.icloud-container-environment"] = "Production"
+      end
+    )
+
+    build_app(
+      project: "Softer.xcodeproj",
+      scheme: "Softer",
+      destination: "generic/platform=macOS",
+      export_method: "app-store",
+      export_options: {
+        provisioningProfiles: {
+          "com.lightward.softer" => "match AppStore com.lightward.softer macos"
+        }
+      }
+    )
+
+    upload_to_testflight(skip_waiting_for_build_processing: true)
+  end
+end
