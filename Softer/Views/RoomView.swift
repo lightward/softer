@@ -344,17 +344,21 @@ struct RoomView: View {
                             await raiseHand(lifecycle: lifecycle)
                         }
                     } label: {
-                        Image(systemName: "hand.raised")
-                            .font(.system(size: 17))
+                        Text("Raise hand")
+                            .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(.secondary)
-                            .frame(width: 36, height: 36)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
                     }
                     .disabled(isSending)
-                    .padding(.trailing, 4)
+                    .padding(.trailing, 8)
+                    .padding(.bottom, 4)
                 }
                 .frame(minHeight: 44)
-                .background(Color.softerGray6)
-                .clipShape(RoundedRectangle(cornerRadius: 22))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22)
+                        .stroke(Color.softerGray4, lineWidth: 1)
+                )
             }
         }
         .padding(.horizontal, 12)
