@@ -79,6 +79,7 @@ struct CreateRoomView: View {
                     } label: {
                         Label("Add someone else", systemImage: "plus")
                     }
+                    .buttonStyle(.borderless)
                     #endif
                 } header: {
                     Text("Participants")
