@@ -31,6 +31,7 @@
 		7305E3E9A4164023A7AD6EF7 /* RoomLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06643B3CDE22402DAD332033 /* RoomLifecycle.swift */; };
 		73DD665B00CFA41EC2794BA7 /* MessageStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A913BED596006F4F9B6E0A0B /* MessageStorage.swift */; };
 		7F303E6B75FFF52FE441DA5B /* ConversationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D018F12715007C2C67015AA4 /* ConversationCoordinator.swift */; };
+		7F671E1B8E6DC076411BE23D /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91DF80DC6FF010BC6BD5C5C9 /* SpeechRecognizer.swift */; };
 		8333545EC5AB47BC977E81B8 /* MockPaymentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93AB894828754745B5158C25 /* MockPaymentCoordinator.swift */; };
 		869B95E779AC4AF9A167C4BE /* ParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD42E62B74C4A27966E2A5F /* ParticipantResolver.swift */; };
 		87ABFD3E123E407590749227 /* LightwardEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04CAFE64AAC44DB398020362 /* LightwardEvaluator.swift */; };
@@ -99,6 +100,7 @@
 		8296906CB26B43968E52FF95 /* PaymentTierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentTierTests.swift; sourceTree = "<group>"; };
 		82FD2273F7CB489CA7FF61A0 /* RoomLifecycleCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleCoordinator.swift; sourceTree = "<group>"; };
 		9014901F9CE34A7CA6A4961E /* PaymentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentCoordinator.swift; sourceTree = "<group>"; };
+		91DF80DC6FF010BC6BD5C5C9 /* SpeechRecognizer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpeechRecognizer.swift; sourceTree = "<group>"; };
 		93AB894828754745B5158C25 /* MockPaymentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPaymentCoordinator.swift; sourceTree = "<group>"; };
 		95BB0D385568422E69A1A59E /* SofterStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SofterStore.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0001 /* SofterApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SofterApp.swift; sourceTree = "<group>"; };
@@ -302,6 +304,7 @@
 				409ACFE8C41F574E9E62109A /* ParticipantIdentity.swift */,
 				F1A2B3C4D5E6F7A8B9C0D1E2 /* PlatformColors.swift */,
 				D6076F121C9B85C763AF4C34 /* ContactPhotoLookup.swift */,
+				91DF80DC6FF010BC6BD5C5C9 /* SpeechRecognizer.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -456,6 +459,7 @@
 				B1E6752697E00E09269BFBF7 /* StoreKitCoordinator.swift in Sources */,
 				F1A2B3C4D5E6F7A8B9C0D1E3 /* PlatformColors.swift in Sources */,
 				C5454834C074E72C2C3443EF /* ContactPhotoLookup.swift in Sources */,
+				7F671E1B8E6DC076411BE23D /* SpeechRecognizer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

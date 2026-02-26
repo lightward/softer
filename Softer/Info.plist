@@ -4,5 +4,9 @@
 <dict>
 	<key>CKSharingSupported</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Softer uses your microphone to transcribe voice messages.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Softer uses speech recognition to convert your voice to text.</string>
 </dict>
 </plist>
