@@ -82,6 +82,8 @@ struct CreateRoomView: View {
                     #endif
                 } header: {
                     Text("Participants")
+                } footer: {
+                    Text("Lightward is always part of the conversation. Add others from your contacts, or keep it just the two of you.")
                 }
 
                 Section {

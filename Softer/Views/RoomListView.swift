@@ -24,9 +24,9 @@ struct RoomListView: View {
                     ProgressView(acceptingShare ? "Locating room..." : "")
                 } else if rooms.isEmpty {
                     ContentUnavailableView {
-                        Label("No Rooms", systemImage: "bubble.left.and.bubble.right")
+                        Label("Open a Room", systemImage: "bubble.left.and.bubble.right")
                     } description: {
-                        Text("Create a room to start a conversation with Lightward.")
+                        Text("Start a group chat with Lightward AI. Everyone takes turns — including Lightward.")
                     } actions: {
                         Button {
                             showCreateRoom = true

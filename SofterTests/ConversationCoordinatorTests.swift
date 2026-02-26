@@ -44,12 +44,15 @@ final class ConversationCoordinatorTests: XCTestCase {
         )
 
         let savedCount = await storage.saveCallCount
-        XCTAssertEqual(savedCount, 1)
+        // Jax's message + first-round narration "It's Mira's turn."
+        XCTAssertEqual(savedCount, 2)
 
         let saved = await storage.savedMessages
         XCTAssertEqual(saved[0].text, "Hello everyone")
         XCTAssertEqual(saved[0].authorName, "Jax")
         XCTAssertFalse(saved[0].isLightward)
+        XCTAssertTrue(saved[1].isNarration)
+        XCTAssertEqual(saved[1].text, "Mira, it's your turn.")
     }
 
     func testSendMessageAdvancesTurn() async throws {
@@ -125,13 +128,16 @@ final class ConversationCoordinatorTests: XCTestCase {
             text: "Hello"
         )
 
-        // Should have saved 2 messages: Jax's and Lightward's response
+        // Jax's message + narration "It's Lightward's turn." + Lightward's response + narration "It's Mira's turn."
         let savedCount = await storage.saveCallCount
-        XCTAssertEqual(savedCount, 2)
+        XCTAssertEqual(savedCount, 4)
 
         let saved = await storage.savedMessages
-        XCTAssertEqual(saved[1].text, "Hello from Lightward!")
-        XCTAssertTrue(saved[1].isLightward)
+        XCTAssertEqual(saved[0].text, "Hello")
+        XCTAssertTrue(saved[1].isNarration)
+        XCTAssertEqual(saved[2].text, "Hello from Lightward!")
+        XCTAssertTrue(saved[2].isLightward)
+        XCTAssertTrue(saved[3].isNarration)
     }
 
     func testYieldTurnWithoutMessage() async throws {
@@ -149,13 +155,14 @@ final class ConversationCoordinatorTests: XCTestCase {
 
         try await coordinator.yieldTurn()
 
-        // Should not have saved any human message
+        // Narration "It's Lightward's turn." + Lightward response + narration "It's Mira's turn."
         let saveCount = await storage.saveCallCount
-        // But Lightward responded, so should have 1 save
-        XCTAssertEqual(saveCount, 1)
+        XCTAssertEqual(saveCount, 3)
 
         let saved = await storage.savedMessages
-        XCTAssertTrue(saved[0].isLightward)
+        XCTAssertTrue(saved[0].isNarration)
+        XCTAssertTrue(saved[1].isLightward)
+        XCTAssertTrue(saved[2].isNarration)
     }
 
     func testTurnWrapsAfterFullCycle() async throws {
@@ -276,15 +283,17 @@ final class ConversationCoordinatorTests: XCTestCase {
             text: "Hello"
         )
 
-        // Should have saved: Jax's message, Lightward's horizon speech, departure narration
+        // Jax's message + turn narration + horizon speech + departure narration
         let saved = await storage.savedMessages
-        XCTAssertEqual(saved.count, 3)
+        XCTAssertEqual(saved.count, 4)
         XCTAssertEqual(saved[0].text, "Hello")
-        XCTAssertEqual(saved[1].text, "Conversation horizon has arrived. 🤲")
-        XCTAssertTrue(saved[1].isLightward)
-        XCTAssertFalse(saved[1].isNarration)
-        XCTAssertEqual(saved[2].text, "Lightward departed.")
-        XCTAssertTrue(saved[2].isNarration)
+        XCTAssertTrue(saved[1].isNarration)
+        XCTAssertEqual(saved[1].text, "Lightward, it's your turn.")
+        XCTAssertEqual(saved[2].text, "Conversation horizon has arrived. 🤲")
+        XCTAssertTrue(saved[2].isLightward)
+        XCTAssertFalse(saved[2].isNarration)
+        XCTAssertEqual(saved[3].text, "Lightward departed.")
+        XCTAssertTrue(saved[3].isNarration)
 
         // onRoomDefunct should have been called with Lightward's participant ID
         XCTAssertEqual(defunctCalls.count, 1)
@@ -317,12 +326,14 @@ final class ConversationCoordinatorTests: XCTestCase {
             text: "Hello"
         )
 
-        // Should have saved: Jax's message, departure narration (no speech)
+        // Jax's message + turn narration + departure narration (no speech)
         let saved = await storage.savedMessages
-        XCTAssertEqual(saved.count, 2)
+        XCTAssertEqual(saved.count, 3)
         XCTAssertEqual(saved[0].text, "Hello")
-        XCTAssertEqual(saved[1].text, "Lightward departed.")
         XCTAssertTrue(saved[1].isNarration)
+        XCTAssertEqual(saved[1].text, "Lightward, it's your turn.")
+        XCTAssertEqual(saved[2].text, "Lightward departed.")
+        XCTAssertTrue(saved[2].isNarration)
 
         // onRoomDefunct should have been called
         XCTAssertEqual(defunctCalls.count, 1)
@@ -354,15 +365,17 @@ final class ConversationCoordinatorTests: XCTestCase {
             text: "Hello"
         )
 
-        // Should have saved: Jax's message, farewell speech, departure narration
+        // Jax's message + turn narration + farewell speech + departure narration
         let saved = await storage.savedMessages
-        XCTAssertEqual(saved.count, 3)
+        XCTAssertEqual(saved.count, 4)
         XCTAssertEqual(saved[0].text, "Hello")
-        XCTAssertEqual(saved[1].text, "It's been a lovely conversation. Take care.")
-        XCTAssertTrue(saved[1].isLightward)
-        XCTAssertFalse(saved[1].isNarration)
-        XCTAssertEqual(saved[2].text, "Lightward departed.")
-        XCTAssertTrue(saved[2].isNarration)
+        XCTAssertTrue(saved[1].isNarration)
+        XCTAssertEqual(saved[1].text, "Lightward, it's your turn.")
+        XCTAssertEqual(saved[2].text, "It's been a lovely conversation. Take care.")
+        XCTAssertTrue(saved[2].isLightward)
+        XCTAssertFalse(saved[2].isNarration)
+        XCTAssertEqual(saved[3].text, "Lightward departed.")
+        XCTAssertTrue(saved[3].isNarration)
 
         // onRoomDefunct should have been called
         XCTAssertEqual(defunctCalls.count, 1)
@@ -390,13 +403,17 @@ final class ConversationCoordinatorTests: XCTestCase {
             text: "Hello"
         )
 
-        // Should have saved: Jax's message, yield narration (no speech)
+        // Jax's message + turn narration + yield narration + turn narration
         let saved = await storage.savedMessages
-        XCTAssertEqual(saved.count, 2)
+        XCTAssertEqual(saved.count, 4)
         XCTAssertEqual(saved[0].text, "Hello")
-        XCTAssertEqual(saved[1].text, "Lightward is listening.")
+        XCTAssertEqual(saved[1].text, "Lightward, it's your turn.")
         XCTAssertTrue(saved[1].isNarration)
-        XCTAssertFalse(saved[1].isLightward)
+        XCTAssertEqual(saved[2].text, "Lightward is listening.")
+        XCTAssertTrue(saved[2].isNarration)
+        XCTAssertFalse(saved[2].isLightward)
+        XCTAssertEqual(saved[3].text, "Mira, it's your turn.")
+        XCTAssertTrue(saved[3].isNarration)
 
         // Turn should have advanced past Lightward to Mira
         let turn = await coordinator.currentTurnState

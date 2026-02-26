@@ -56,7 +56,7 @@ actor ConversationCoordinator {
         try await messageStorage.save(message, roomID: roomID)
 
         // Advance turn
-        advanceTurn()
+        try await advanceTurn()
 
         // If it's now Lightward's turn, generate response
         if isLightwardTurn {
@@ -66,7 +66,7 @@ actor ConversationCoordinator {
 
     /// Yield turn without sending a message (for programmatic use).
     func yieldTurn() async throws {
-        advanceTurn()
+        try await advanceTurn()
 
         if isLightwardTurn {
             try await generateLightwardResponse()
@@ -86,7 +86,7 @@ actor ConversationCoordinator {
         )
         try await messageStorage.save(narrationMessage, roomID: roomID)
 
-        advanceTurn()
+        try await advanceTurn()
 
         if isLightwardTurn {
             try await generateLightwardResponse()
@@ -117,7 +117,7 @@ actor ConversationCoordinator {
         if let lastMessage = messages.last, lastMessage.isLightward {
             // Turn state is stale — Lightward already responded, just advance
             print("Turn state repair: last message is from Lightward, advancing turn")
-            advanceTurn()
+            try await advanceTurn()
             return
         }
 
@@ -126,9 +126,24 @@ actor ConversationCoordinator {
 
     // MARK: - Private
 
-    private func advanceTurn() {
+    private func advanceTurn() async throws {
         turnState.advanceTurn(participantCount: spec.participants.count)
         onTurnChange(turnState)
+
+        // During first round, narrate turn changes to orient participants
+        let newIndex = turnState.currentTurnIndex
+        if newIndex > 0 && newIndex < spec.participants.count {
+            let nextParticipant = spec.participants[newIndex % spec.participants.count]
+            let narration = Message(
+                roomID: roomID,
+                authorID: "narrator",
+                authorName: "Narrator",
+                text: "\(nextParticipant.nickname), it's your turn.",
+                isLightward: false,
+                isNarration: true
+            )
+            try await messageStorage.save(narration, roomID: roomID)
+        }
     }
 
     private func generateLightwardResponse() async throws {
@@ -203,7 +218,7 @@ actor ConversationCoordinator {
                 isNarration: true
             )
             try await messageStorage.save(narrationMessage, roomID: roomID)
-            advanceTurn()
+            try await advanceTurn()
         } else if didDepart {
             // Lightward is voluntarily departing
             // Extract farewell text after "DEPART." if present
@@ -247,7 +262,7 @@ actor ConversationCoordinator {
             try await messageStorage.save(lightwardMessage, roomID: roomID)
 
             // Advance turn past Lightward
-            advanceTurn()
+            try await advanceTurn()
         }
     }
 }
