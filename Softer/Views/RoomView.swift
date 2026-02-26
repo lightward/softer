@@ -265,87 +265,105 @@ struct RoomView: View {
     private func composeArea(lifecycle: RoomLifecycle) -> some View {
         let myTurn = isMyTurn(lifecycle: lifecycle)
 
-        HStack(alignment: .bottom, spacing: 8) {
-            // Hand raise button (one-shot: press → saves narration)
-            Button {
-                Task {
-                    await raiseHand(lifecycle: lifecycle)
-                }
-            } label: {
-                Image(systemName: "hand.raised")
-                    .font(.system(size: 20))
-                    .foregroundStyle(myTurn ? Color.softerGray4 : .secondary)
-                    .frame(width: 36, height: 36)
-            }
-            .disabled(myTurn || isSending)
-
-            // Text field with embedded buttons
-            HStack(alignment: .bottom, spacing: 0) {
-                // Dictation button
-                Button {
-                    if speechRecognizer.isRecording {
-                        speechRecognizer.stopRecording()
-                    } else {
-                        speechRecognizer.transcript = composeText
-                        speechRecognizer.startRecording()
-                    }
-                } label: {
-                    Image(systemName: speechRecognizer.isRecording ? "mic.fill" : "mic")
-                        .font(.system(size: 17))
-                        .foregroundStyle(speechRecognizer.isRecording ? Color.accentColor : .secondary)
-                        .frame(width: 36, height: 36)
-                }
-                .disabled(!myTurn || isSending)
-                .padding(.leading, 4)
-                .padding(.bottom, 1)
-
-                TextField("Message...", text: $composeText, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .padding(.leading, 10)
-                    .padding(.trailing, 4)
-                    .padding(.vertical, 10)
-                    .lineLimit(1...6)
-
-                // Action button inside the pill (Pass or Send, never both)
-                let hasText = !composeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-
-                if myTurn && !hasText && !isSending {
-                    // Pass button (only when it's your turn and field is empty)
+        Group {
+            if myTurn {
+                // My turn: full compose area
+                HStack(alignment: .bottom, spacing: 0) {
+                    // Dictation button
                     Button {
-                        showYieldConfirmation = true
-                    } label: {
-                        Text("Pass")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(Color.accentColor)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.softerGray5)
-                            .clipShape(Capsule())
-                    }
-                    .padding(.trailing, 8)
-                    .padding(.bottom, 4)
-                } else {
-                    // Send button (when there's text to send)
-                    Button {
-                        Task {
-                            await sendMessage(lifecycle: lifecycle)
+                        if speechRecognizer.isRecording {
+                            speechRecognizer.stopRecording()
+                        } else {
+                            speechRecognizer.transcript = composeText
+                            speechRecognizer.startRecording()
                         }
                     } label: {
-                        Text(isSending ? "..." : "Send")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(canSend(myTurn: myTurn) ? Color.accentColor : Color.softerGray4)
-                            .clipShape(Capsule())
+                        Image(systemName: speechRecognizer.isRecording ? "mic.fill" : "mic")
+                            .font(.system(size: 17))
+                            .foregroundStyle(speechRecognizer.isRecording ? Color.accentColor : .secondary)
+                            .frame(width: 36, height: 36)
                     }
-                    .disabled(!canSend(myTurn: myTurn))
-                    .padding(.trailing, 8)
-                    .padding(.bottom, 4)
+                    .disabled(isSending)
+                    .padding(.leading, 4)
+                    .padding(.bottom, 1)
+
+                    TextField("Message...", text: $composeText, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .padding(.leading, 10)
+                        .padding(.trailing, 4)
+                        .padding(.vertical, 10)
+                        .lineLimit(1...6)
+
+                    let hasText = !composeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+                    if !hasText && !isSending {
+                        // Pass button (field is empty)
+                        Button {
+                            showYieldConfirmation = true
+                        } label: {
+                            Text("Pass")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(Color.accentColor)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.softerGray5)
+                                .clipShape(Capsule())
+                        }
+                        .padding(.trailing, 8)
+                        .padding(.bottom, 4)
+                    } else {
+                        // Send button
+                        Button {
+                            Task {
+                                await sendMessage(lifecycle: lifecycle)
+                            }
+                        } label: {
+                            Text(isSending ? "..." : "Send")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(canSend(myTurn: true) ? Color.accentColor : Color.softerGray4)
+                                .clipShape(Capsule())
+                        }
+                        .disabled(!canSend(myTurn: true))
+                        .padding(.trailing, 8)
+                        .padding(.bottom, 4)
+                    }
                 }
+                .background(Color.softerGray6)
+                .clipShape(RoundedRectangle(cornerRadius: 22))
+            } else {
+                // Not my turn: whose turn it is + hand raise
+                let currentIndex = turnState?.currentTurnIndex ?? 0
+                let participants = lifecycle.spec.participants
+                let currentName = participants.isEmpty ? "" : participants[currentIndex % participants.count].nickname
+
+                HStack {
+                    Text("\(currentName)'s turn")
+                        .font(.system(size: 15))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 16)
+
+                    Spacer()
+
+                    Button {
+                        Task {
+                            await raiseHand(lifecycle: lifecycle)
+                        }
+                    } label: {
+                        Image(systemName: "hand.raised")
+                            .font(.system(size: 17))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 36, height: 36)
+                    }
+                    .disabled(isSending)
+                    .padding(.trailing, 4)
+                }
+                .frame(minHeight: 44)
+                .background(Color.softerGray6)
+                .clipShape(RoundedRectangle(cornerRadius: 22))
             }
-            .background(Color.softerGray6)
-            .clipShape(RoundedRectangle(cornerRadius: 22))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
