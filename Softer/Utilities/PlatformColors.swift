@@ -33,4 +33,18 @@ extension Color {
         Color(nsColor: .controlBackgroundColor)
         #endif
     }
+
+    /// Muted palette for distinguishing other participants' message bubbles.
+    /// Assigned by participant orderIndex. Warm, soft tones that work in light and dark mode.
+    static let participantColors: [Color] = [
+        Color(.systemTeal).opacity(0.25),
+        Color(.systemOrange).opacity(0.25),
+        Color(.systemPurple).opacity(0.25),
+        Color(.systemPink).opacity(0.25),
+        Color(.systemGreen).opacity(0.25),
+    ]
+
+    static func participantColor(orderIndex: Int) -> Color {
+        participantColors[orderIndex % participantColors.count]
+    }
 }

@@ -54,14 +54,15 @@
 		A3787B3FC54B433783802661 /* MockParticipantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8234E08A4114A86A9050D03 /* MockParticipantResolver.swift */; };
 		A60E9B623FFC4464AF1CC593 /* PaymentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9014901F9CE34A7CA6A4961E /* PaymentCoordinator.swift */; };
 		B1E6752697E00E09269BFBF7 /* StoreKitCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB2D0965B96A26FC35465E5 /* StoreKitCoordinator.swift */; };
+		C5454834C074E72C2C3443EF /* ContactPhotoLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6076F121C9B85C763AF4C34 /* ContactPhotoLookup.swift */; };
 		C620D63F20724F28A2F831BA /* PaymentTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747396D5996F4EC99BA754F8 /* PaymentTier.swift */; };
 		D96BE5066F0C4748B42EAC17 /* RoomSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C689E9D510743E99AABCCDA /* RoomSpec.swift */; };
 		DCE065A7397DFEA9B4952462 /* MockLightwardAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEC4B3E65D36133048B1C215 /* MockLightwardAPIClient.swift */; };
 		E2C6F3CDE7290B416D8509BC /* SofterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95BB0D385568422E69A1A59E /* SofterStore.swift */; };
+		F1A2B3C4D5E6F7A8B9C0D1E3 /* PlatformColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6F7A8B9C0D1E2 /* PlatformColors.swift */; };
 		F4022F66975F462585B227C5 /* LightwardRoomEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7849235FF4804E9197625236 /* LightwardRoomEvaluator.swift */; };
 		FA36BEA72E614196B95B1E5C /* MockLightwardEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B0FD0A47B8A4CE093A55C51 /* MockLightwardEvaluator.swift */; };
 		FBE471D8915CD8321CD8A682 /* MessageStorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F987120DCC0AF8607E32CBC0 /* MessageStorageTests.swift */; };
-		F1A2B3C4D5E6F7A8B9C0D1E3 /* PlatformColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6F7A8B9C0D1E2 /* PlatformColors.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -123,16 +124,17 @@
 		C22228C8697C4D5C81FDB537 /* CloudKitParticipantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitParticipantResolver.swift; sourceTree = "<group>"; };
 		CC38359FE0404435F413B4A0 /* SyncCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
 		D018F12715007C2C67015AA4 /* ConversationCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConversationCoordinator.swift; path = ConversationCoordinator.swift; sourceTree = "<group>"; };
+		D6076F121C9B85C763AF4C34 /* ContactPhotoLookup.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContactPhotoLookup.swift; sourceTree = "<group>"; };
 		D72C76AE2160EE3B72FB8420 /* Configuration.storekit */ = {isa = PBXFileReference; includeInIndex = 1; path = Configuration.storekit; sourceTree = "<group>"; };
 		D95DB6DC89B5C63DBADE8AD6 /* MessageTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MessageTests.swift; sourceTree = "<group>"; };
 		E67CC0BB96684CE58F2B1990 /* ParticipantSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantSpec.swift; sourceTree = "<group>"; };
 		EBD42E62B74C4A27966E2A5F /* ParticipantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantResolver.swift; sourceTree = "<group>"; };
+		F1A2B3C4D5E6F7A8B9C0D1E2 /* PlatformColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformColors.swift; sourceTree = "<group>"; };
 		F2E332572B0B4F77A0F526FA /* RoomLifecycleCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLifecycleCoordinatorTests.swift; sourceTree = "<group>"; };
 		F8B522ADF02547D3851ACC11 /* ParticipantSpecTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantSpecTests.swift; sourceTree = "<group>"; };
 		F987120DCC0AF8607E32CBC0 /* MessageStorageTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MessageStorageTests.swift; path = MessageStorageTests.swift; sourceTree = "<group>"; };
 		FA7279B13D892A2E56D34AF8 /* ConversationCoordinatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ConversationCoordinatorTests.swift; path = ConversationCoordinatorTests.swift; sourceTree = "<group>"; };
 		FEC4B3E65D36133048B1C215 /* MockLightwardAPIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MockLightwardAPIClient.swift; path = MockLightwardAPIClient.swift; sourceTree = "<group>"; };
-		F1A2B3C4D5E6F7A8B9C0D1E2 /* PlatformColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformColors.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -299,6 +301,7 @@
 				A1B2C3D4E5F60002000A0022 /* NotificationHandler.swift */,
 				409ACFE8C41F574E9E62109A /* ParticipantIdentity.swift */,
 				F1A2B3C4D5E6F7A8B9C0D1E2 /* PlatformColors.swift */,
+				D6076F121C9B85C763AF4C34 /* ContactPhotoLookup.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -452,6 +455,7 @@
 				2CBE05DF0E9789546ACB99BB /* ParticipantIdentity.swift in Sources */,
 				B1E6752697E00E09269BFBF7 /* StoreKitCoordinator.swift in Sources */,
 				F1A2B3C4D5E6F7A8B9C0D1E3 /* PlatformColors.swift in Sources */,
+				C5454834C074E72C2C3443EF /* ContactPhotoLookup.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

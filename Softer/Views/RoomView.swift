@@ -21,6 +21,7 @@ struct RoomView: View {
     @State private var showLeaveConfirmation = false
     @State private var isCurrentlyComposing = false
     @State private var composingCheckTimer: Timer?
+    @State private var participantPhotos: [String: Image] = [:]
     @Environment(\.dismiss) private var dismiss
 
     // Query room for observing messages (embedded in room)
@@ -57,6 +58,7 @@ struct RoomView: View {
         .task {
             store.startPolling(roomID: roomID)
             await loadRoom()
+            loadParticipantPhotos()
         }
         .onAppear {
             store.currentlyViewingRoomID = roomID
@@ -166,7 +168,7 @@ struct RoomView: View {
                     ForEach(messages) { message in
                         MessageBubble(
                             message: message,
-                            isLightward: message.authorName == Constants.lightwardParticipantName
+                            style: messageStyle(for: message, in: lifecycle)
                         )
                         .id(message.id)
                     }
@@ -176,17 +178,17 @@ struct RoomView: View {
                        composing.participantID != myParticipantID(in: lifecycle),
                        Date().timeIntervalSince(composing.timestamp) < 30 {
                         let name = lifecycle.spec.participants.first { $0.id == composing.participantID }?.nickname ?? "Someone"
-                        ComposingIndicator(name: name)
+                        let embedded = persistedRoom?.embeddedParticipants() ?? []
+                        let participant = embedded.first { $0.id == composing.participantID }
+                        let color = Color.participantColor(orderIndex: participant?.orderIndex ?? 0)
+                        ComposingIndicator(name: name, color: color, photo: participantPhotos[composing.participantID])
                             .id("composing")
                     }
 
                     // Typing indicator while waiting for Lightward
                     if isLightwardThinking {
-                        HStack {
-                            TypingIndicator()
-                            Spacer()
-                        }
-                        .id("thinking")
+                        TypingIndicator()
+                            .id("thinking")
                     }
 
                     // Invisible anchor for reliable scroll-to-bottom
@@ -720,6 +722,33 @@ struct RoomView: View {
         UserDefaults.standard.removeObject(forKey: draftKey)
     }
 
+    // MARK: - Message Styling
+
+    private func messageStyle(for message: Message, in lifecycle: RoomLifecycle) -> MessageBubble.MessageStyle {
+        if message.authorID == myParticipantID(in: lifecycle) {
+            return .localUser
+        }
+        if message.isLightward {
+            return .lightward
+        }
+        let embedded = persistedRoom?.embeddedParticipants() ?? []
+        let participant = embedded.first { $0.id == message.authorID }
+        let color = Color.participantColor(orderIndex: participant?.orderIndex ?? 0)
+        return .otherParticipant(color: color, photo: participantPhotos[message.authorID])
+    }
+
+    private func loadParticipantPhotos() {
+        #if os(iOS)
+        guard let room = persistedRoom else { return }
+        let embedded = room.embeddedParticipants()
+        for participant in embedded where participant.identifierType == "email" || participant.identifierType == "phone" {
+            if let photo = ContactPhotoLookup.shared.photo(for: participant.identifierValue, type: participant.identifierType) {
+                participantPhotos[participant.id] = Image(uiImage: photo)
+            }
+        }
+        #endif
+    }
+
     // MARK: - Participant Identification
 
     /// Find the current user's participant ID by matching store.localUserRecordID
@@ -800,20 +829,26 @@ struct RoomView: View {
 struct MessageBubble: View {
     let text: String
     let authorName: String
-    let isLightward: Bool
+    let style: MessageStyle
     let isNarration: Bool
 
-    init(message: Message, isLightward: Bool) {
+    enum MessageStyle {
+        case localUser
+        case lightward
+        case otherParticipant(color: Color, photo: Image?)
+    }
+
+    init(message: Message, style: MessageStyle) {
         self.text = message.text
         self.authorName = message.authorName
-        self.isLightward = isLightward
+        self.style = style
         self.isNarration = message.isNarration
     }
 
-    init(text: String, authorName: String, isLightward: Bool, isNarration: Bool = false) {
+    init(text: String, authorName: String, style: MessageStyle, isNarration: Bool = false) {
         self.text = text
         self.authorName = authorName
-        self.isLightward = isLightward
+        self.style = style
         self.isNarration = isNarration
     }
 
@@ -822,6 +857,28 @@ struct MessageBubble: View {
             narrationView
         } else {
             bubbleView
+        }
+    }
+
+    private var isLeftAligned: Bool {
+        switch style {
+        case .localUser: false
+        case .lightward, .otherParticipant: true
+        }
+    }
+
+    private var bubbleColor: Color {
+        switch style {
+        case .localUser: .accentColor
+        case .lightward: .softerGray5
+        case .otherParticipant(let color, _): color
+        }
+    }
+
+    private var textColor: Color {
+        switch style {
+        case .localUser: .white
+        case .lightward, .otherParticipant: .primary
         }
     }
 
@@ -836,19 +893,25 @@ struct MessageBubble: View {
     }
 
     private var bubbleView: some View {
-        HStack {
-            if !isLightward { Spacer(minLength: 40) }
+        HStack(alignment: .bottom, spacing: 8) {
+            if !isLeftAligned { Spacer(minLength: 40) }
 
-            VStack(alignment: isLightward ? .leading : .trailing, spacing: 4) {
-                Text(authorName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if isLeftAligned {
+                avatarView
+            }
+
+            VStack(alignment: isLeftAligned ? .leading : .trailing, spacing: 4) {
+                if isLeftAligned {
+                    Text(authorName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 Text(text)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(isLightward ? Color.softerGray5 : Color.accentColor)
-                    .foregroundColor(isLightward ? .primary : .white)
+                    .background(bubbleColor)
+                    .foregroundColor(textColor)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .contextMenu {
                         Button {
@@ -862,10 +925,39 @@ struct MessageBubble: View {
                             Label("Copy", systemImage: "doc.on.doc")
                         }
                     }
-
             }
 
-            if isLightward { Spacer(minLength: 40) }
+            if isLeftAligned { Spacer(minLength: 40) }
+        }
+    }
+
+    @ViewBuilder
+    private var avatarView: some View {
+        switch style {
+        case .lightward:
+            ZStack {
+                Circle()
+                    .fill(Color.softerGray5)
+                    .frame(width: 28, height: 28)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
+        case .otherParticipant(let color, let photo):
+            if let photo {
+                photo
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 28, height: 28)
+                    .clipShape(Circle())
+            } else {
+                Image(systemName: "person.circle.fill")
+                    .resizable()
+                    .frame(width: 28, height: 28)
+                    .foregroundStyle(color)
+            }
+        case .localUser:
+            EmptyView()
         }
     }
 }
@@ -874,17 +966,30 @@ struct MessageBubble: View {
 
 struct TypingIndicator: View {
     var body: some View {
-        HStack(spacing: 8) {
-            ProgressView()
-                .scaleEffect(0.8)
-            Text("\(Constants.lightwardParticipantName) is thinking...")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        HStack(alignment: .bottom, spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(Color.softerGray5)
+                    .frame(width: 28, height: 28)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 8) {
+                ProgressView()
+                    .scaleEffect(0.8)
+                Text("\(Constants.lightwardParticipantName) is thinking...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.softerGray5)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+
+            Spacer()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.softerGray5)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 
@@ -892,18 +997,37 @@ struct TypingIndicator: View {
 
 struct ComposingIndicator: View {
     let name: String
+    let color: Color
+    let photo: Image?
 
     var body: some View {
-        HStack(spacing: 8) {
-            ProgressView()
-                .scaleEffect(0.8)
-            Text("\(name) is typing...")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        HStack(alignment: .bottom, spacing: 8) {
+            if let photo {
+                photo
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 28, height: 28)
+                    .clipShape(Circle())
+            } else {
+                Image(systemName: "person.circle.fill")
+                    .resizable()
+                    .frame(width: 28, height: 28)
+                    .foregroundStyle(color)
+            }
+
+            HStack(spacing: 8) {
+                ProgressView()
+                    .scaleEffect(0.8)
+                Text("\(name) is typing...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.softerGray5)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+
+            Spacer()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.softerGray5)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
