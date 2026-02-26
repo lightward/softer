@@ -6,7 +6,7 @@ struct RoomListView: View {
     @Binding var pendingRoomID: String?
     var acceptingShare: Bool = false
     @State private var showCreateRoom = false
-    @State private var navigationPath = NavigationPath()
+    @State private var selectedRoomID: String?
     @State private var roomToDelete: RoomLifecycle?
 
     // SwiftUI's @Query observes SwiftData directly — no manual reactivity needed
@@ -18,7 +18,7 @@ struct RoomListView: View {
     }
 
     var body: some View {
-        NavigationStack(path: $navigationPath) {
+        NavigationSplitView {
             Group {
                 if !store.initialLoadCompleted || acceptingShare {
                     ProgressView(acceptingShare ? "Locating room..." : "")
@@ -41,7 +41,7 @@ struct RoomListView: View {
                         }
                     }
                 } else {
-                    List {
+                    List(selection: $selectedRoomID) {
                         ForEach(rooms, id: \.spec.id) { lifecycle in
                             NavigationLink(value: lifecycle.spec.id) {
                                 RoomRow(lifecycle: lifecycle)
@@ -80,11 +80,8 @@ struct RoomListView: View {
             }
             .sheet(isPresented: $showCreateRoom) {
                 CreateRoomView(store: store, isPresented: $showCreateRoom) { roomID in
-                    navigationPath.append(roomID)
+                    selectedRoomID = roomID
                 }
-            }
-            .navigationDestination(for: String.self) { roomID in
-                RoomView(store: store, roomID: roomID)
             }
             .refreshable {
                 await store.refreshRooms()
@@ -98,7 +95,7 @@ struct RoomListView: View {
                 guard let roomID = roomID else { return }
                 // Clear pending and navigate
                 pendingRoomID = nil
-                navigationPath.append(roomID)
+                selectedRoomID = roomID
             }
             .alert("Delete Room?", isPresented: Binding(
                 get: { roomToDelete != nil },
@@ -119,6 +116,12 @@ struct RoomListView: View {
                 if let room = roomToDelete {
                     Text(deleteConfirmationMessage(for: room))
                 }
+            }
+        } detail: {
+            if let selectedRoomID {
+                RoomView(store: store, roomID: selectedRoomID, selectedRoomID: $selectedRoomID)
+            } else {
+                ContentUnavailableView("Select a Room", systemImage: "bubble.left.and.bubble.right")
             }
         }
     }

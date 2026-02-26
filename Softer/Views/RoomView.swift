@@ -9,6 +9,7 @@ import AppKit
 struct RoomView: View {
     let store: SofterStore
     let roomID: String
+    @Binding var selectedRoomID: String?
 
     @State private var lifecycle: RoomLifecycle?
     @State private var composeText = ""
@@ -24,14 +25,14 @@ struct RoomView: View {
     @State private var participantPhotos: [String: Image] = [:]
     @State private var speechRecognizer = SpeechRecognizer()
     @State private var showSpeechPermissionDenied = false
-    @Environment(\.dismiss) private var dismiss
 
     // Query room for observing messages (embedded in room)
     @Query private var persistedRooms: [PersistedRoom]
 
-    init(store: SofterStore, roomID: String) {
+    init(store: SofterStore, roomID: String, selectedRoomID: Binding<String?>) {
         self.store = store
         self.roomID = roomID
+        _selectedRoomID = selectedRoomID
         _persistedRooms = Query(
             filter: #Predicate<PersistedRoom> { room in
                 room.id == roomID
@@ -117,6 +118,8 @@ struct RoomView: View {
         VStack(spacing: 0) {
             // Messages - observing room's embedded messages via @Query
             messagesView(lifecycle: lifecycle)
+                .frame(maxWidth: 700)
+                .frame(maxWidth: .infinity)
 
             Divider()
 
@@ -124,10 +127,16 @@ struct RoomView: View {
             switch lifecycle.state {
             case .pendingParticipants(let signaled):
                 pendingParticipantsBanner(lifecycle: lifecycle, signaled: signaled)
+                    .frame(maxWidth: 700)
+                    .frame(maxWidth: .infinity)
             case .active:
                 composeArea(lifecycle: lifecycle)
+                    .frame(maxWidth: 700)
+                    .frame(maxWidth: .infinity)
             case .defunct:
                 defunctBanner(lifecycle: lifecycle)
+                    .frame(maxWidth: 700)
+                    .frame(maxWidth: .infinity)
             default:
                 EmptyView()
             }
@@ -857,7 +866,7 @@ struct RoomView: View {
         }
 
         await store.declineRoom(roomID: roomID, participantID: participantID)
-        dismiss()
+        selectedRoomID = nil
     }
 
     private func leaveRoom(lifecycle: RoomLifecycle) async {
@@ -867,7 +876,7 @@ struct RoomView: View {
         }
 
         await store.leaveRoom(roomID: roomID, participantID: participantID)
-        dismiss()
+        selectedRoomID = nil
     }
 }
 
