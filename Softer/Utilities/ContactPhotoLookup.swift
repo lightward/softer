@@ -13,6 +13,7 @@ final class ContactPhotoLookup {
 
     func photo(for identifierValue: String?, type: String) -> UIImage? {
         guard let value = identifierValue, type == "email" || type == "phone" else { return nil }
+        guard CNContactStore.authorizationStatus(for: .contacts) == .authorized else { return nil }
 
         if let cached = cache[value] {
             return cached

@@ -4,6 +4,8 @@
 <dict>
 	<key>CKSharingSupported</key>
 	<true/>
+	<key>NSContactsUsageDescription</key>
+	<string>Softer shows contact photos next to messages from people in your contacts.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Softer uses your microphone to transcribe voice messages.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
