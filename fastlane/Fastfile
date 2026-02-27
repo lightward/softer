@@ -101,11 +101,12 @@ platform :mac do
     )
 
     # gym doesn't handle macOS pkg builds — use xcodebuild directly
-    archive_path = "../build/Softer.xcarchive"
-    export_path = "../build/export"
+    project_dir = File.expand_path("..", __dir__)
+    archive_path = "#{project_dir}/build/Softer.xcarchive"
+    export_path = "#{project_dir}/build/export"
 
     sh("xcodebuild archive " \
-       "-project ../Softer.xcodeproj " \
+       "-project '#{project_dir}/Softer.xcodeproj' " \
        "-scheme Softer " \
        "-destination 'generic/platform=macOS' " \
        "-archivePath '#{archive_path}'")
