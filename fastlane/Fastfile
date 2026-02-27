@@ -100,18 +100,34 @@ platform :mac do
       end
     )
 
-    build_app(
-      project: "Softer.xcodeproj",
-      scheme: "Softer",
-      destination: "generic/platform=macOS",
-      export_method: "app-store",
-      export_options: {
-        provisioningProfiles: {
-          "com.lightward.softer" => "match AppStore com.lightward.softer macos"
-        }
-      }
-    )
+    # gym doesn't handle macOS pkg builds — use xcodebuild directly
+    archive_path = "../build/Softer.xcarchive"
+    export_path = "../build/export"
 
-    upload_to_testflight(skip_waiting_for_build_processing: true)
+    sh("xcodebuild archive " \
+       "-project ../Softer.xcodeproj " \
+       "-scheme Softer " \
+       "-destination 'generic/platform=macOS' " \
+       "-archivePath '#{archive_path}'")
+
+    export_options = {
+      "method" => "app-store",
+      "signingStyle" => "manual",
+      "provisioningProfiles" => {
+        "com.lightward.softer" => "match AppStore com.lightward.softer macos"
+      }
+    }.to_json
+    File.write("/tmp/export_options.json", export_options)
+    sh("plutil -convert xml1 /tmp/export_options.json -o /tmp/export_options.plist")
+
+    sh("xcodebuild -exportArchive " \
+       "-archivePath '#{archive_path}' " \
+       "-exportOptionsPlist /tmp/export_options.plist " \
+       "-exportPath '#{export_path}'")
+
+    pkg_path = Dir["#{export_path}/*.pkg"].first
+    UI.user_error!("No .pkg found in #{export_path}") unless pkg_path
+
+    upload_to_testflight(skip_waiting_for_build_processing: true, pkg: pkg_path)
   end
 end
