@@ -39,7 +39,7 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
-          BUILD_NUMBER: ${{ github.run_number * 2 - 1 }}
+          BUILD_NUMBER: "${{ github.run_number * 2 - 1 }}"
         run: |
           bundle exec fastlane deploy
 
@@ -77,6 +77,6 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
-          BUILD_NUMBER: ${{ github.run_number * 2 }}
+          BUILD_NUMBER: "${{ github.run_number * 2 }}"
         run: |
           bundle exec fastlane mac deploy
