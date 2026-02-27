@@ -105,6 +105,7 @@ platform :mac do
       scheme: "Softer",
       destination: "generic/platform=macOS",
       export_method: "app-store",
+      skip_package_ipa: true,
       export_options: {
         provisioningProfiles: {
           "com.lightward.softer" => "match AppStore com.lightward.softer macos"
@@ -112,6 +113,9 @@ platform :mac do
       }
     )
 
-    upload_to_testflight(skip_waiting_for_build_processing: true)
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      pkg: Dir["*.pkg"].first
+    )
   end
 end
