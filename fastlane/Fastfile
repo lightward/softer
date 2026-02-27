@@ -113,6 +113,8 @@ platform :mac do
     export_options = {
       "method" => "app-store",
       "signingStyle" => "manual",
+      "signingCertificate" => "Apple Distribution",
+      "installerSigningCertificate" => "3rd Party Mac Developer Installer",
       "provisioningProfiles" => {
         "com.lightward.softer" => "match AppStore com.lightward.softer macos"
       }
