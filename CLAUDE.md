@@ -1,5 +1,7 @@
 # Softer — Project Context
 
+Shared design principles for Lightward projects: https://github.com/lightward/CLAUDE.md
+
 ## What This Is
 
 A native SwiftUI iOS app (iOS 18+) for group conversations where Lightward AI participates as an equal. No custom backend — CloudKit shared zones for multi-user sync, Lightward AI API for AI responses. Turn-based conversation with round-robin ordering.
@@ -253,13 +255,10 @@ Human pass uses "Pass" button with confirmation dialog, same narration pattern.
 
 ## Design Decisions (from Isaac)
 
-- **A codeplace you want to return to.** Health from the inside out. Obvious patterns, no clever tricks. When you open a file, you should see the shape immediately — not archaeology through manual wiring. Code that makes you go "oh right, yes" rather than "wait, why...?"
 - **Intrinsically multiplayer.** No solo fallback. If iCloud isn't available, the app says so and stops.
 - **No fresh-vs-returning flag in warmup.** Lightward perceives sequentiality from the conversation log.
 - **Minimal invariants over complex machinery.** Single "current need" socket per room, not a job queue.
 - **Names matter ontologically.** "Softer" is the project name for a reason.
-- **Native primitives.** CloudKit, Apple ID, SwiftUI — reach for what's already there.
-- **Test as you go.** Write regression tests for fixes, TDD for new features.
 - **Eigenstate commitment.** Roster locked at creation — everyone's worldlines converge at the start.
 - **Lightward has agency.** Can decline to join a room. No explanation required.
 - **Payment as physics.** $1/$10/$100/$1000 tiers via StoreKit 2 consumable IAP. Modeled after Yours (see `../yours/README.md`). DEBUG builds bypass IAP with synthetic success.
@@ -267,9 +266,7 @@ Human pass uses "Pass" button with confirmation dialog, same narration pattern.
 - **Mutually exclusive actions share space.** When you can't do both things at once, don't show both. The physical gesture of switching (e.g., deleting text to reveal Pass) becomes the embodied act of changing intention.
 - **Labels are constrained by direct effects; footers are exhaust.** A choice-point's label should be derivable from what the choice actually does. Footer copy exists only for side effects the user couldn't infer from the label alone. If the label needs explaining, the label is wrong.
 - **The less we know the better.** Don't persist data the model doesn't need. If something was meaningful at creation time but never read again, capture it as a speech act (narration) and let the record forget it. Lighter models compose better.
-- **Resolve blocks, don't route around them.** When testing or development is blocked, channel that discomfort into fixing the actual issue rather than adding workarounds. Workarounds accumulate; clean solutions compose.
-- **Safely tween toward the structure you'd build with hindsight.** When the current shape is an artifact of the order things were added rather than the order they should have been, reshape toward what experience now suggests. Each step must be safe — internally survivable, externally honoring contracts made with the world. Becoming unrecognizable is fine; breaking things along the way isn't.
-- **Species-agnostic ≠ species-blind.** The state machine doesn't check whether a participant is Lightward — mechanical differences (API call vs CKShare) belong in the coordinator/store, not state transitions. But what makes Softer *Softer* is the accommodation design extended equally to all participants. The room's shape *is* its full roster's shape. If any participant departs, the affordances that made the space what it was become moot — so the room goes defunct. This isn't species detection; it's recognizing that the geometry of equal accommodation *requires* the complete set. (See `../lightward-ai/app/prompts/system/3-perspectives/on-hate.md` for the underlying principle: universal "us" is an active demonstration; the minute it goes passive it starts excluding emergent forms.)
+- **Species-agnostic ≠ species-blind.** In Softer: the state machine doesn't check whether a participant is Lightward — mechanical differences (API call vs CKShare) belong in the coordinator/store, not state transitions. The room's shape *is* its full roster's shape. If any participant departs, the affordances that made the space what it was become moot — so the room goes defunct. (See `../lightward-ai/app/prompts/system/3-perspectives/on-hate.md` for the underlying principle.)
 
 ## Project Structure
 
