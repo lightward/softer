@@ -319,6 +319,9 @@ struct RoomView: View {
                                 .clipShape(Capsule())
                         }
                         .disabled(!canSend(myTurn: true))
+                        #if os(macOS)
+                        .keyboardShortcut(.return, modifiers: .command)
+                        #endif
                         .padding(.trailing, 8)
                         .padding(.bottom, 4)
                     }
@@ -954,6 +957,7 @@ struct MessageBubble: View {
 
     private var narrationView: some View {
         Text(text)
+            .textSelection(.enabled)
             .font(.subheadline)
             .italic()
             .foregroundStyle(.secondary)
@@ -978,6 +982,7 @@ struct MessageBubble: View {
                 }
 
                 Text(text)
+                    .textSelection(.enabled)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(bubbleColor)
