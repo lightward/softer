@@ -36,6 +36,9 @@ struct RootView: View {
                 }
             }
         }
+        .onAppear {
+            appDelegate.store = store
+        }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 Task {

@@ -80,6 +80,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, ObservableObject {
     @Published var pendingShareRoomID: String?
     @Published var acceptingShare = false
 
+    /// Set by RootView so we can forward push notifications to the sync engine.
+    var store: SofterStore?
+
     override init() {
         super.init()
         AppDelegate.shared = self
@@ -92,6 +95,19 @@ class AppDelegate: NSObject, UIApplicationDelegate, ObservableObject {
         UNUserNotificationCenter.current().delegate = NotificationHandler.shared
         NotificationHandler.shared.registerForPushNotifications()
         return true
+    }
+
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        // CKSyncEngine auto-processes CloudKit pushes when the app is woken,
+        // but an explicit fetch ensures we pick up changes reliably.
+        Task { @MainActor in
+            await store?.fetchChanges()
+            completionHandler(.newData)
+        }
     }
 
     func application(
@@ -169,6 +185,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     @Published var pendingShareRoomID: String?
     @Published var acceptingShare = false
 
+    /// Set by RootView so we can forward push notifications to the sync engine.
+    var store: SofterStore?
+
     override init() {
         super.init()
         AppDelegate.shared = self
@@ -177,6 +196,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = NotificationHandler.shared
         NotificationHandler.shared.registerForPushNotifications()
+    }
+
+    func application(_ application: NSApplication, didReceiveRemoteNotification userInfo: [String: Any]) {
+        Task { @MainActor in
+            await store?.fetchChanges()
+        }
     }
 
     func application(_ application: NSApplication, userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata) {
