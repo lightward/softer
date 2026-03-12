@@ -157,39 +157,55 @@ final class SofterStore {
             // Room3 with embedded participants and messages
             if let lifecycle = RoomLifecycleRecordConverter.lifecycle(from: record) {
                 let roomID = record.recordID.recordName
-
-                // Snapshot before upsert — for notification detection
-                let existingRoom = dataStore.room(id: roomID)
-                let existingMessageIDs = Set(existingRoom?.messages().map { $0.id } ?? [])
-                let isNewSharedRoom = existingRoom == nil && isShared
-
                 let participantsJSON = record["participantsJSON"] as? String
                 let messagesJSON = record["messagesJSON"] as? String
-                dataStore.upsertRoom(from: lifecycle, remoteParticipantsJSON: participantsJSON, remoteMessagesJSON: messagesJSON)
 
-                // Post notifications for new data (skip during initial load)
-                if initialLoadCompleted, let room = dataStore.room(id: roomID) {
-                    postNotificationsForChanges(
-                        roomID: roomID,
-                        room: room,
-                        existingMessageIDs: existingMessageIDs,
-                        isNewSharedRoom: isNewSharedRoom
-                    )
+                // Always update composing state (in-memory only, no SwiftData write)
+                if let composingID = record["composingParticipantID"] as? String,
+                   let composingTime = record["composingTimestamp"] as? Date {
+                    composingByRoom[roomID] = (participantID: composingID, timestamp: composingTime)
+                } else {
+                    composingByRoom.removeValue(forKey: roomID)
                 }
 
-                // Persist CKRecord system fields and shared flag
-                if let room = dataStore.room(id: record.recordID.recordName) {
-                    room.ckSystemFields = RoomLifecycleRecordConverter.encodeSystemFields(of: record)
-                    room.isSharedWithMe = isShared
+                // Check if meaningful room data changed (skip SwiftData writes for composing-only changes)
+                let existingRoom = dataStore.room(id: roomID)
+                let meaningfulChange: Bool
+                if let existing = existingRoom {
+                    let remoteStateType = record["stateType"] as? String
+                    let stateChanged = remoteStateType != nil && remoteStateType != existing.stateType
+                    let turnChanged = existing.currentTurnIndex != lifecycle.turnState?.currentTurnIndex
+                    let participantsChanged = participantsJSON != nil && participantsJSON != existing.participantsJSON
+                    let messagesChanged = messagesJSON != nil && messagesJSON != existing.messagesJSON
+                    let sharedChanged = existing.isSharedWithMe != isShared
+                    meaningfulChange = stateChanged || turnChanged || participantsChanged || messagesChanged || sharedChanged
+                } else {
+                    meaningfulChange = true // New room — always process
+                }
 
-                    // Read composing state from remote record
-                    let roomID = record.recordID.recordName
-                    if let composingID = record["composingParticipantID"] as? String,
-                       let composingTime = record["composingTimestamp"] as? Date {
-                        composingByRoom[roomID] = (participantID: composingID, timestamp: composingTime)
-                    } else {
-                        composingByRoom.removeValue(forKey: roomID)
+                if meaningfulChange {
+                    let existingMessageIDs = Set(existingRoom?.messages().map { $0.id } ?? [])
+                    let isNewSharedRoom = existingRoom == nil && isShared
+
+                    dataStore.upsertRoom(from: lifecycle, remoteParticipantsJSON: participantsJSON, remoteMessagesJSON: messagesJSON)
+
+                    // Post notifications for new data (skip during initial load)
+                    if initialLoadCompleted, let room = dataStore.room(id: roomID) {
+                        postNotificationsForChanges(
+                            roomID: roomID,
+                            room: room,
+                            existingMessageIDs: existingMessageIDs,
+                            isNewSharedRoom: isNewSharedRoom
+                        )
                     }
+                }
+
+                // Always persist CKRecord system fields (change tag must stay current)
+                if let room = dataStore.room(id: roomID) {
+                    let newSystemFields = RoomLifecycleRecordConverter.encodeSystemFields(of: record)
+                    let systemFieldsChanged = room.ckSystemFields != newSystemFields
+                    room.ckSystemFields = newSystemFields
+                    room.isSharedWithMe = isShared
 
                     // For shared rooms, populate local user's identity from the CKShare
                     if isShared, let syncCoordinator = syncCoordinator {
@@ -199,10 +215,13 @@ final class SofterStore {
                     // Check if room needs state transition (e.g., all humans signaled → active)
                     checkAndTransitionRoom(room)
 
-                    dataStore.updateRoom(room)
+                    // Only save if something actually changed (avoid needless @Query invalidation)
+                    if meaningfulChange || systemFieldsChanged {
+                        dataStore.updateRoom(room)
+                    }
                 }
 
-                print("SofterStore: Room \(record.recordID.recordName) synced from CloudKit (shared=\(isShared))")
+                print("SofterStore: Room \(roomID) synced from CloudKit (shared=\(isShared) meaningful=\(meaningfulChange))")
             }
 
         default:
