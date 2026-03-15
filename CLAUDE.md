@@ -113,7 +113,7 @@ The Gemfile includes:
 
 ## CI/CD Pipeline
 
-GitHub Actions with Fastlane. Certificates stored in `github.com/lightward/softer-certificates` (encrypted via Match).
+GitHub Actions with Fastlane. Certificates stored in `github.com/lightward/apple-signing` (encrypted via Match).
 
 - **test.yml** — Runs on every push/PR, uses iPhone 17 simulator
 - **deploy.yml** — Runs on push to main, builds and uploads to TestFlight
