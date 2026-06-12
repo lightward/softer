@@ -212,11 +212,11 @@ final class RoomLifecycleTests: XCTestCase {
         let participantCount = 2
 
         // Local state: just advanced from 1 to 2
-        var localTurn = TurnState(currentTurnIndex: 1, currentNeed: nil)
+        var localTurn = TurnState(currentTurnIndex: 1)
         localTurn.advanceTurn(participantCount: participantCount)
 
         // Remote state: still at 1 (hasn't synced yet)
-        let remoteTurn = TurnState(currentTurnIndex: 1, currentNeed: nil)
+        let remoteTurn = TurnState(currentTurnIndex: 1)
 
         // higherTurnWins merge
         let mergedIndex = max(localTurn.currentTurnIndex, remoteTurn.currentTurnIndex)

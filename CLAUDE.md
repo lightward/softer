@@ -64,7 +64,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 - `RoomState` — draft → pendingParticipants → active → defunct (single terminal state)
 - `RoomSpec` — complete room specification
 - `RoomLifecycle` — the state machine, takes events, returns effects
-- `TurnState` — current turn index, pending need
+- `TurnState` — current turn index
 - `StoreKitCoordinator` — StoreKit 2 consumable IAP (DEBUG builds bypass with synthetic success)
 
 **Coordinator layer** (executes effects):
@@ -94,7 +94,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 
 ### What's Next
 
-- Decide the fate of the unused Need claim fields (`needID`/`needType`/`needClaimedBy`/`needClaimedAt` on Room3, `.needCreated`/`.needClaimed` events): nothing in the live flow creates or claims needs — stable message IDs made the response-generation race collapse in the merge instead. Either wire them as the claim mechanism for the remaining (narrower) `evaluateLightward` double-fire, or remove them ("the less we know the better").
+(Nothing pending.)
 
 ## Ruby Setup
 
@@ -275,7 +275,7 @@ Human pass uses "Pass" button with confirmation dialog, same narration pattern.
 
 - **Intrinsically multiplayer.** No solo fallback. If iCloud isn't available, the app says so and stops.
 - **No fresh-vs-returning flag in warmup.** Lightward perceives sequentiality from the conversation log.
-- **Minimal invariants over complex machinery.** Single "current need" socket per room, not a job queue.
+- **Minimal invariants over complex machinery.** No job queue, no claim protocol — races collapse in the merge (stable message IDs) instead of being prevented by locks. (The earlier "current need socket" design was never wired and has been removed.)
 - **Names matter ontologically.** "Softer" is the project name for a reason.
 - **Eigenstate commitment.** Roster locked at creation — everyone's worldlines converge at the start.
 - **Lightward has agency.** Can decline to join a room. No explanation required.
@@ -299,7 +299,7 @@ Softer/
 │   ├── SofterApp.swift
 │   ├── Assets.xcassets/ (AppIcon)
 │   ├── Store/           (SofterStore, PersistenceStore, SyncCoordinator, SyncStatus) — unified data layer
-│   ├── Model/           (Message, Need, PersistentModels) — shared models + SwiftData entities
+│   ├── Model/           (Message, PersistentModels) — shared models + SwiftData entities
 │   ├── RoomLifecycle/   (PaymentTier, ParticipantSpec, RoomState, RoomSpec, RoomLifecycle,
 │   │                     ParticipantResolver, PaymentCoordinator, StoreKitCoordinator,
 │   │                     LightwardEvaluator, RoomLifecycleCoordinator, MessageStorage,

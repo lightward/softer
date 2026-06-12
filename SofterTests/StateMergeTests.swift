@@ -121,7 +121,7 @@ final class StateMergeTests: XCTestCase {
         XCTAssertEqual(room.stateType, "defunct")
 
         // ...then a stale "active" arrives from a device that hadn't synced yet.
-        let stale = makeLifecycle(state: .active(turn: TurnState(currentTurnIndex: 5, currentNeed: nil)))
+        let stale = makeLifecycle(state: .active(turn: TurnState(currentTurnIndex: 5)))
         room.apply(stale, mergeStrategy: .higherTurnWins)
 
         // Defunct is absorbing: the join keeps the higher state.
@@ -133,7 +133,7 @@ final class StateMergeTests: XCTestCase {
     func testApplyStillMovesForward() {
         let room = PersistedRoom.from(makeLifecycle(state: .pendingParticipants(signaled: ["p1"])))
 
-        let active = makeLifecycle(state: .active(turn: TurnState(currentTurnIndex: 0, currentNeed: nil)))
+        let active = makeLifecycle(state: .active(turn: TurnState(currentTurnIndex: 0)))
         room.apply(active, mergeStrategy: .higherTurnWins)
 
         XCTAssertEqual(room.stateType, "active")
@@ -172,7 +172,7 @@ final class StateMergeTests: XCTestCase {
             [Message(roomID: "room-1", authorID: "jax-id", authorName: "Jax", text: "Hello")],
             roomID: "room-1"
         )
-        let turnState = TurnState(currentTurnIndex: 1, currentNeed: nil)
+        let turnState = TurnState(currentTurnIndex: 1)
 
         let deviceA = ConversationCoordinator(
             roomID: "room-1", spec: spec, initialTurnState: turnState,

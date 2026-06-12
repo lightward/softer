@@ -3,9 +3,8 @@ import Foundation
 /// Turn state for an active room conversation.
 struct TurnState: Sendable, Codable, Equatable {
     var currentTurnIndex: Int
-    var currentNeed: Need?
 
-    static let initial = TurnState(currentTurnIndex: 0, currentNeed: nil)
+    static let initial = TurnState(currentTurnIndex: 0)
 
     mutating func advanceTurn(participantCount: Int) {
         guard participantCount > 0 else { return }
@@ -55,9 +54,6 @@ enum RoomEvent: Sendable, Equatable {
 
     // Active room events
     case messageSent  // Advances turn
-    case needCreated(Need)
-    case needClaimed(deviceID: String)
-    case needCompleted
     case participantLeft(participantID: String)
 }
 

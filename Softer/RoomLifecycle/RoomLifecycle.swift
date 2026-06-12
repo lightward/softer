@@ -74,25 +74,6 @@ struct RoomLifecycle: Sendable {
             state = .active(turn: turn)
             return []
 
-        case (.active(var turn), .needCreated(let need)):
-            turn.currentNeed = need
-            state = .active(turn: turn)
-            return []
-
-        case (.active(var turn), .needClaimed(let deviceID)):
-            if var need = turn.currentNeed {
-                need.claimedBy = deviceID
-                need.claimedAt = Date()
-                turn.currentNeed = need
-                state = .active(turn: turn)
-            }
-            return []
-
-        case (.active(var turn), .needCompleted):
-            turn.currentNeed = nil
-            state = .active(turn: turn)
-            return []
-
         case (.active, .participantLeft(let participantID)):
             state = .defunct(reason: .participantLeft(participantID: participantID))
             return []
@@ -167,10 +148,5 @@ struct RoomLifecycle: Sendable {
     /// Whether it's currently Lightward's turn.
     var isLightwardTurn: Bool {
         currentTurnParticipant?.isLightward ?? false
-    }
-
-    /// The current need, if any.
-    var currentNeed: Need? {
-        turnState?.currentNeed
     }
 }

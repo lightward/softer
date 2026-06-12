@@ -64,7 +64,7 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0),
             messageStorage: storage,
             apiClient: api,
             onTurnChange: { turn in
@@ -93,7 +93,7 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0),
             messageStorage: storage,
             apiClient: api
         )
@@ -117,7 +117,7 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0),
             messageStorage: storage,
             apiClient: api
         )
@@ -148,7 +148,7 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0),
             messageStorage: storage,
             apiClient: api
         )
@@ -175,7 +175,7 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0),
             messageStorage: storage,
             apiClient: api,
             onTurnChange: { turn in
@@ -216,13 +216,13 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0),
             messageStorage: storage,
             apiClient: api
         )
 
         // Simulate remote sync: another device advanced to turn 2 (Mira)
-        await coordinator.syncTurnState(TurnState(currentTurnIndex: 2, currentNeed: nil))
+        await coordinator.syncTurnState(TurnState(currentTurnIndex: 2))
 
         // Mira sends → should advance from 2 to 3 (Jax), NOT from 0 to 1 (Lightward)
         try await coordinator.sendMessage(authorID: "mira-id", authorName: "Mira", text: "Hi from Mira")
@@ -244,13 +244,13 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 5, currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 5),
             messageStorage: storage,
             apiClient: api
         )
 
         // Stale remote data with lower turn index should be ignored
-        await coordinator.syncTurnState(TurnState(currentTurnIndex: 2, currentNeed: nil))
+        await coordinator.syncTurnState(TurnState(currentTurnIndex: 2))
 
         let turn = await coordinator.currentTurnState
         XCTAssertEqual(turn.currentTurnIndex, 5, "Should not go backward")
@@ -268,7 +268,7 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0),
             messageStorage: storage,
             apiClient: api,
             onRoomDefunct: { participantID, message in
@@ -311,7 +311,7 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0),
             messageStorage: storage,
             apiClient: api,
             onRoomDefunct: { participantID, message in
@@ -351,7 +351,7 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0),
             messageStorage: storage,
             apiClient: api,
             onRoomDefunct: { participantID, message in
@@ -391,7 +391,7 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0),
             messageStorage: storage,
             apiClient: api
         )
@@ -438,7 +438,7 @@ final class ConversationCoordinatorTests: XCTestCase {
         let coordinator = ConversationCoordinator(
             roomID: "room-1",
             spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0, currentNeed: nil),
+            initialTurnState: TurnState(currentTurnIndex: 0),
             messageStorage: storage,
             apiClient: api
         )

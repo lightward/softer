@@ -40,7 +40,6 @@
 		A0FBE3C6173532AE05A5BFBA /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC38359FE0404435F413B4A0 /* SyncCoordinator.swift */; };
 		A1B2C3D4E5F60001000A0001 /* SofterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0001 /* SofterApp.swift */; };
 		A1B2C3D4E5F60001000A0003 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0003 /* Message.swift */; };
-		A1B2C3D4E5F60001000A0005 /* Need.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0005 /* Need.swift */; };
 		A1B2C3D4E5F60001000A000B /* ZoneManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A000B /* ZoneManager.swift */; };
 		A1B2C3D4E5F60001000A000E /* LightwardAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A000E /* LightwardAPIClient.swift */; };
 		A1B2C3D4E5F60001000A0010 /* ChatLogBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60002000A0010 /* ChatLogBuilder.swift */; };
@@ -107,7 +106,6 @@
 		95BB0D385568422E69A1A59E /* SofterStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SofterStore.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0001 /* SofterApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SofterApp.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0003 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60002000A0005 /* Need.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Need.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A000B /* ZoneManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneManager.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A000E /* LightwardAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightwardAPIClient.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60002000A0010 /* ChatLogBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatLogBuilder.swift; sourceTree = "<group>"; };
@@ -226,7 +224,6 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D4E5F60002000A0003 /* Message.swift */,
-				A1B2C3D4E5F60002000A0005 /* Need.swift */,
 				479C528F372C163688F94F75 /* PersistentModels.swift */,
 			);
 			path = Model;
@@ -428,7 +425,6 @@
 			files = (
 				A1B2C3D4E5F60001000A0001 /* SofterApp.swift in Sources */,
 				A1B2C3D4E5F60001000A0003 /* Message.swift in Sources */,
-				A1B2C3D4E5F60001000A0005 /* Need.swift in Sources */,
 				A1B2C3D4E5F60001000A000B /* ZoneManager.swift in Sources */,
 				A1B2C3D4E5F60001000A000E /* LightwardAPIClient.swift in Sources */,
 				A1B2C3D4E5F60001000A0010 /* ChatLogBuilder.swift in Sources */,

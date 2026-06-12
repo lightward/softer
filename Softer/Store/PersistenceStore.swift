@@ -273,11 +273,7 @@ extension PersistedRoom {
         case "pendingParticipants":
             return .pendingParticipants(signaled: signaledIDs)
         case "active":
-            let turn = TurnState(
-                currentTurnIndex: currentTurnIndex ?? 0,
-                currentNeed: nil
-            )
-            return .active(turn: turn)
+            return .active(turn: TurnState(currentTurnIndex: currentTurnIndex ?? 0))
         case "locked":
             // Legacy compat: locked rooms become defunct
             return .defunct(reason: .cancelled)

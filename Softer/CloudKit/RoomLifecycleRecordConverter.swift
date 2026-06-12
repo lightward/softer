@@ -195,25 +195,8 @@ enum RoomLifecycleRecordConverter {
         // TurnState fields (for active state)
         if let turn = encoded.turnState {
             record["currentTurnIndex"] = turn.currentTurnIndex as NSNumber
-
-            // Need state
-            if let need = turn.currentNeed {
-                record["needID"] = need.id as NSString
-                record["needType"] = need.type.rawValue as NSString
-                record["needClaimedBy"] = need.claimedBy as NSString?
-                record["needClaimedAt"] = need.claimedAt as NSDate?
-            } else {
-                record["needID"] = nil
-                record["needType"] = nil
-                record["needClaimedBy"] = nil
-                record["needClaimedAt"] = nil
-            }
         } else {
             record["currentTurnIndex"] = nil
-            record["needID"] = nil
-            record["needType"] = nil
-            record["needClaimedBy"] = nil
-            record["needClaimedAt"] = nil
         }
     }
 
@@ -330,23 +313,7 @@ enum RoomLifecycleRecordConverter {
         guard let turnIndex = record["currentTurnIndex"] as? Int else {
             return nil
         }
-
-        var currentNeed: Need?
-        if let needID = record["needID"] as? String,
-           let needTypeRaw = record["needType"] as? String,
-           let needType = NeedType(rawValue: needTypeRaw) {
-            currentNeed = Need(
-                id: needID,
-                type: needType,
-                claimedBy: record["needClaimedBy"] as? String,
-                claimedAt: record["needClaimedAt"] as? Date
-            )
-        }
-
-        return TurnState(
-            currentTurnIndex: turnIndex,
-            currentNeed: currentNeed
-        )
+        return TurnState(currentTurnIndex: turnIndex)
     }
 
     private static func decodeDefunctReason(_ encoded: String?) -> DefunctReason {
