@@ -398,15 +398,68 @@ enum RoomLifecycleRecordConverter {
     }
 
     /// Merge local and remote messages by union on ID, sorted by createdAt.
+    /// When both sides carry the same ID (racing devices minting the same
+    /// stable ID — see `Message.StableID`), the earliest-created wins, with
+    /// text as tiebreak — deterministic on both devices, so the merge
+    /// converges regardless of direction.
     static func mergeMessages(local: [Message], remote: [Message]) -> [Message] {
         var byID: [String: Message] = [:]
-        for message in local {
+        for message in local + remote {
+            if let existing = byID[message.id],
+               (existing.createdAt, existing.text) <= (message.createdAt, message.text) {
+                continue
+            }
             byID[message.id] = message
         }
-        for message in remote {
-            byID[message.id] = message
+        return byID.values.sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+    }
+
+    // MARK: - State Merge (the join)
+
+    /// Rank of a persisted state in the room lifecycle's monotone order:
+    /// draft < pendingParticipants < active < defunct. The state machine has
+    /// no backward edges, so the lawful merge of two observed states is the
+    /// higher rank — a join, never a collapse. Defunct is absorbing.
+    /// ("locked" is a legacy encoding of defunct.)
+    static func stateRank(_ stateType: String) -> Int {
+        switch stateType {
+        case "draft": return 0
+        case "pendingParticipants": return 1
+        case "active": return 2
+        case "defunct", "locked": return 3
+        default: return 0
         }
-        return byID.values.sorted { $0.createdAt < $1.createdAt }
+    }
+
+    /// Merge two participant rosters: signaled flags are a grow-only set, so
+    /// they union; any non-nil userRecordID either side has resolved is kept.
+    /// Everything else takes the server copy. Falls back to the server JSON
+    /// if either side fails to decode.
+    static func mergeParticipantsJSON(local: String, server: String) -> String {
+        guard let localData = local.data(using: .utf8),
+              let serverData = server.data(using: .utf8),
+              let localParticipants = try? JSONDecoder().decode([EmbeddedParticipant].self, from: localData),
+              let serverParticipants = try? JSONDecoder().decode([EmbeddedParticipant].self, from: serverData) else {
+            return server
+        }
+        let localByID = Dictionary(localParticipants.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let merged = serverParticipants.map { participant -> EmbeddedParticipant in
+            guard let localCopy = localByID[participant.id] else { return participant }
+            return EmbeddedParticipant(
+                id: participant.id,
+                nickname: participant.nickname,
+                identifierType: participant.identifierType,
+                identifierValue: participant.identifierValue,
+                orderIndex: participant.orderIndex,
+                hasSignaledHere: participant.hasSignaledHere || localCopy.hasSignaledHere,
+                userRecordID: participant.userRecordID ?? localCopy.userRecordID
+            )
+        }
+        guard let mergedData = try? JSONEncoder().encode(merged),
+              let mergedJSON = String(data: mergedData, encoding: .utf8) else {
+            return server
+        }
+        return mergedJSON
     }
 
     // MARK: - Sharing Helpers

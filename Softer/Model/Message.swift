@@ -31,6 +31,62 @@ struct Message: Identifiable, Sendable, Codable, Equatable {
         self.isNarration = isNarration
     }
 
+    /// Deterministic IDs for machine-generated messages, keyed by causal position.
+    ///
+    /// Two devices racing to generate the same event (a Lightward response, a
+    /// narration) mint the same ID, so the union-by-ID message merge collapses
+    /// the duplicates to a single survivor — firings are idempotent and the
+    /// merge itself is the brake. Human speech keeps random UUIDs: duplicate
+    /// human messages are visible and attributed, but machine firings must
+    /// collapse.
+    enum StableID {
+        /// Lightward's speech occupying a turn slot (normal response, horizon
+        /// speech, or DEPART farewell — exactly one outcome per slot survives).
+        static func lightwardSpeech(roomID: String, turnIndex: Int) -> String {
+            "\(roomID):turn:\(turnIndex):lightward"
+        }
+
+        /// "X is listening." — the holder of a turn slot yielded it.
+        static func yieldNarration(roomID: String, turnIndex: Int) -> String {
+            "\(roomID):turn:\(turnIndex):yield"
+        }
+
+        /// "X, it's your turn." — first-round orientation for a turn slot.
+        static func turnIntro(roomID: String, turnIndex: Int) -> String {
+            "\(roomID):turn:\(turnIndex):intro"
+        }
+
+        /// "X raised a hand." — at most one per participant per turn slot.
+        static func handRaise(roomID: String, participantID: String, turnIndex: Int) -> String {
+            "\(roomID):turn:\(turnIndex):hand:\(participantID)"
+        }
+
+        /// "X opened a room with $N." — one per room.
+        static func opening(roomID: String) -> String {
+            "\(roomID):opening"
+        }
+
+        /// "X arrived." — one per participant per room.
+        static func arrival(roomID: String, participantID: String) -> String {
+            "\(roomID):arrival:\(participantID)"
+        }
+
+        /// "X declined." — one per participant per room.
+        static func declined(roomID: String, participantID: String) -> String {
+            "\(roomID):declined:\(participantID)"
+        }
+
+        /// "X departed." — one per participant per room (departure is terminal).
+        static func departure(roomID: String, participantID: String) -> String {
+            "\(roomID):departed:\(participantID)"
+        }
+
+        /// The ceremonial closing — one per room.
+        static func cenotaph(roomID: String) -> String {
+            "\(roomID):cenotaph"
+        }
+    }
+
     /// Whether a message list contains a cenotaph (a Lightward-written ceremonial closing).
     /// Cenotaphs are narration messages that don't match standard departure/decline patterns.
     static func containsCenotaph(in messages: [Message]) -> Bool {

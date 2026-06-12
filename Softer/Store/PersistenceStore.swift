@@ -184,35 +184,47 @@ extension PersistedRoom {
         return []
     }
 
-    /// Update this room from a RoomLifecycle with merge strategy
+    /// Update this room from a RoomLifecycle with merge strategy.
+    /// State is monotone (draft < pendingParticipants < active < defunct, no
+    /// backward edges), so an incoming state below the stored rank never
+    /// regresses it — the merge is the join. Signaled flags union (grow-only).
     func apply(_ lifecycle: RoomLifecycle, mergeStrategy: MergeStrategy) {
-        // Preserve existing userRecordIDs (lifecycle doesn't carry them)
+        // Preserve existing userRecordIDs and signaled flags (lifecycle doesn't
+        // carry recordIDs, and a roster built from a stale lifecycle must not
+        // un-signal anyone)
+        let localParticipants = embeddedParticipants()
         let existingRecordIDs = Dictionary(
-            uniqueKeysWithValues: embeddedParticipants().compactMap { p -> (String, String)? in
+            uniqueKeysWithValues: localParticipants.compactMap { p -> (String, String)? in
                 guard let recordID = p.userRecordID else { return nil }
                 return (p.id, recordID)
             }
         )
+        let locallySignaled = Set(localParticipants.filter { $0.hasSignaledHere }.map { $0.id })
 
-        // Update participants JSON, preserving userRecordIDs
+        // Update participants JSON: union signaled flags, preserve userRecordIDs
         let embedded = lifecycle.spec.participants.enumerated().map { index, spec in
             let hasSignaled = Self.signaledIDs(from: lifecycle.state).contains(spec.id)
+                || locallySignaled.contains(spec.id)
             return EmbeddedParticipant(from: spec, orderIndex: index, hasSignaledHere: hasSignaled, userRecordID: existingRecordIDs[spec.id])
         }
         setParticipants(embedded)
 
+        let incomingStateType = Self.stateTypeString(for: lifecycle.state)
+        guard RoomLifecycleRecordConverter.stateRank(incomingStateType)
+                >= RoomLifecycleRecordConverter.stateRank(self.stateType) else {
+            // Incoming state is behind ours (e.g., a stale "active" arriving
+            // after we went defunct) — keep the stored state.
+            return
+        }
+
         // Update state fields
+        self.stateType = incomingStateType
         self.defunctReason = encodeDefunctReason(lifecycle.state)
 
         switch lifecycle.state {
-        case .draft:
-            self.stateType = "draft"
-            self.currentTurnIndex = nil
-        case .pendingParticipants:
-            self.stateType = "pendingParticipants"
+        case .draft, .pendingParticipants, .defunct:
             self.currentTurnIndex = nil
         case .active(let turn):
-            self.stateType = "active"
             switch mergeStrategy {
             case .higherTurnWins:
                 let localTurn = self.currentTurnIndex ?? 0
@@ -220,12 +232,18 @@ extension PersistedRoom {
             case .remoteWins:
                 self.currentTurnIndex = turn.currentTurnIndex
             }
-        case .defunct:
-            self.stateType = "defunct"
-            self.currentTurnIndex = nil
         }
 
         self.modifiedAt = lifecycle.modifiedAt
+    }
+
+    private static func stateTypeString(for state: RoomState) -> String {
+        switch state {
+        case .draft: return "draft"
+        case .pendingParticipants: return "pendingParticipants"
+        case .active: return "active"
+        case .defunct: return "defunct"
+        }
     }
 
     /// Convert to domain model

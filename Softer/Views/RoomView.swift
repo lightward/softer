@@ -762,9 +762,14 @@ struct RoomView: View {
     }
 
     private func raiseHand(lifecycle: RoomLifecycle) async {
-        let (_, authorName) = myAuthor(in: lifecycle)
+        let (myID, authorName) = myAuthor(in: lifecycle)
 
         let narration = Message(
+            id: Message.StableID.handRaise(
+                roomID: roomID,
+                participantID: myID,
+                turnIndex: turnState?.currentTurnIndex ?? 0
+            ),
             roomID: roomID,
             authorID: "narrator",
             authorName: "Narrator",

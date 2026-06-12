@@ -89,11 +89,12 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 - MessageStorageTests — 7 tests for message storage
 - ParticipantIdentityTests — 14 tests for participant matching and identity population
 - ChatLogBuilderTests — 7 tests for plaintext body building
+- StateMergeTests — merge-as-join layer: state rank, signaled-flag union, stable-ID collapse, racing Lightward triggers
 - PaymentTierTests, ParticipantSpecTests, RoomSpecTests
 
 ### What's Next
 
-(Nothing pending.)
+- Decide the fate of the unused Need claim fields (`needID`/`needType`/`needClaimedBy`/`needClaimedAt` on Room3, `.needCreated`/`.needClaimed` events): nothing in the live flow creates or claims needs — stable message IDs made the response-generation race collapse in the merge instead. Either wire them as the claim mechanism for the remaining (narrower) `evaluateLightward` double-fire, or remove them ("the less we know the better").
 
 ## Ruby Setup
 
@@ -182,12 +183,29 @@ SofterStore (actions) → SyncCoordinator → CKSyncEngine → CloudKit
 - **Legacy compat**: `"locked"` state in CloudKit/SwiftData decodes as `defunct(.cancelled)` for older records.
 
 ### Conflict Resolution Policies
-| Data | Strategy | Reason |
-|------|----------|--------|
-| Room state | Server wins | State transitions are authoritative |
+
+Every merge is a join — built, never collapsed. Each field carries a monotone
+order and conflict resolution takes the maximum; no write can regress another
+device's progress.
+
+| Data | Join | Reason |
+|------|------|--------|
+| Room state | Rank max (draft < pendingParticipants < active < defunct) | State machine has no backward edges; defunct is absorbing. `stateRank` in RoomLifecycleRecordConverter, applied in both `SyncCoordinator.mergeRecords` and `PersistedRoom.apply` |
 | Turn index | Higher wins | Turns only advance (index grows, never wraps) |
-| Messages | Union by ID | Merge local + remote, sort by createdAt |
-| Signaled flag | True wins | Once signaled, stays signaled |
+| Messages | Union by ID; same ID → earliest createdAt wins | Append-only ledger. Earliest-wins is deterministic in both merge directions, so racing devices converge |
+| Signaled flags | Union (grow-only set) | Once signaled, stays signaled — merged inside participantsJSON, preserving resolved userRecordIDs |
+
+### Stable Message IDs (idempotent firings)
+
+Machine-generated messages (Lightward speech, all narrations) get deterministic
+IDs keyed by causal position — `Message.StableID`: Lightward speech and yield
+narrations by `(roomID, turnIndex)`, arrivals/departures/declines by
+`(roomID, participantID)`, opening/cenotaph by `roomID`. Two devices racing to
+generate the same event (e.g., both triggering Lightward's response for the
+same turn slot) mint the same ID, and the union-by-ID merge collapses the
+duplicates to one survivor — the merge itself is the brake, with no lock and no
+server. Human speech keeps random UUIDs: duplicate human messages are visible
+and attributed; machine firings must collapse.
 
 ### Intentional Debug Logging
 
@@ -286,7 +304,7 @@ Softer/
 │   │                     ParticipantResolver, PaymentCoordinator, StoreKitCoordinator,
 │   │                     LightwardEvaluator, RoomLifecycleCoordinator, MessageStorage,
 │   │                     ConversationCoordinator)
-│   ├── CloudKit/        (RoomLifecycleRecordConverter, ZoneManager, AtomicClaim, CloudKitMessageStorage)
+│   ├── CloudKit/        (RoomLifecycleRecordConverter, ZoneManager)
 │   ├── API/             (LightwardAPIClient + LightwardAPI protocol, ChatLogBuilder, WarmupMessages)
 │   ├── Views/           (RootView, RoomListView, RoomView, CreateRoomView)
 │   └── Utilities/       (Constants, NotificationHandler, ParticipantIdentity)

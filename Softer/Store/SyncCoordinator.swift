@@ -703,10 +703,31 @@ actor SyncCoordinator {
 
         switch local.recordType {
         case "Room3":
+            // Room state: the lifecycle is monotone (draft < pending < active < defunct,
+            // no backward edges), so the merge is the join — higher rank wins.
+            // Without this, a local defunct transition losing the save race would
+            // silently revert to active.
+            if let localState = local["stateType"] as? String,
+               let serverState = server["stateType"] as? String,
+               RoomLifecycleRecordConverter.stateRank(localState) > RoomLifecycleRecordConverter.stateRank(serverState) {
+                merged["stateType"] = localState as NSString
+                merged["defunctReason"] = local["defunctReason"] as? String as NSString?
+            }
+
             // Turn index: higher wins
             if let localTurn = local["currentTurnIndex"] as? Int,
                let serverTurn = server["currentTurnIndex"] as? Int {
                 merged["currentTurnIndex"] = max(localTurn, serverTurn) as NSNumber
+            }
+
+            // Participants: signaled flags are a grow-only set — union them,
+            // and keep any userRecordID either side has resolved.
+            if let localPJSON = local["participantsJSON"] as? String,
+               let serverPJSON = server["participantsJSON"] as? String {
+                merged["participantsJSON"] = RoomLifecycleRecordConverter.mergeParticipantsJSON(
+                    local: localPJSON,
+                    server: serverPJSON
+                ) as NSString
             }
 
             // Messages: union by ID, sorted by createdAt

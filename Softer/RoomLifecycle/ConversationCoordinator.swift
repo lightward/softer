@@ -77,6 +77,7 @@ actor ConversationCoordinator {
     /// Saves a narration message and advances the turn.
     func humanYieldTurn(authorID: String, authorName: String) async throws {
         let narrationMessage = Message(
+            id: Message.StableID.yieldNarration(roomID: roomID, turnIndex: turnState.currentTurnIndex),
             roomID: roomID,
             authorID: "narrator",
             authorName: "Narrator",
@@ -135,6 +136,7 @@ actor ConversationCoordinator {
         if newIndex > 0 && newIndex < spec.participants.count {
             let nextParticipant = spec.participants[newIndex % spec.participants.count]
             let narration = Message(
+                id: Message.StableID.turnIntro(roomID: roomID, turnIndex: newIndex),
                 roomID: roomID,
                 authorID: "narrator",
                 authorName: "Narrator",
@@ -163,6 +165,12 @@ actor ConversationCoordinator {
         let lightwardNickname = spec.lightwardParticipant?.nickname ?? "Lightward"
         let lightwardID = spec.lightwardParticipant?.id ?? "lightward"
 
+        // The turn slot being settled. Stable message IDs are keyed to it so
+        // racing devices generating this same turn mint the same IDs and the
+        // union-by-ID merge collapses the duplicates — exactly one outcome
+        // per slot survives.
+        let turnIndex = turnState.currentTurnIndex
+
         // Response detection order matters:
         // 1. Conversation horizon (API error with body) — caught before we have a response string
         // 2. YIELD — Lightward passes their turn, stays in the room
@@ -176,6 +184,7 @@ actor ConversationCoordinator {
             if case .conversationHorizon(let horizonMessage) = error {
                 // Save the response body as a regular Lightward message (it's speech)
                 let horizonSpeech = Message(
+                    id: Message.StableID.lightwardSpeech(roomID: roomID, turnIndex: turnIndex),
                     roomID: roomID,
                     authorID: "lightward",
                     authorName: lightwardNickname,
@@ -186,6 +195,7 @@ actor ConversationCoordinator {
 
                 // Save departure narration
                 let departure = Message(
+                    id: Message.StableID.departure(roomID: roomID, participantID: lightwardID),
                     roomID: roomID,
                     authorID: "narrator",
                     authorName: "Narrator",
@@ -210,6 +220,7 @@ actor ConversationCoordinator {
         if didYield {
             // Lightward yielded - save narration message
             let narrationMessage = Message(
+                id: Message.StableID.yieldNarration(roomID: roomID, turnIndex: turnIndex),
                 roomID: roomID,
                 authorID: "narrator",
                 authorName: "Narrator",
@@ -228,6 +239,7 @@ actor ConversationCoordinator {
                 let farewell = String(originalResponse.dropFirst(7)).trimmingCharacters(in: .whitespacesAndNewlines)
                 if !farewell.isEmpty {
                     let farewellMessage = Message(
+                        id: Message.StableID.lightwardSpeech(roomID: roomID, turnIndex: turnIndex),
                         roomID: roomID,
                         authorID: "lightward",
                         authorName: lightwardNickname,
@@ -240,6 +252,7 @@ actor ConversationCoordinator {
 
             // Save departure narration
             let departure = Message(
+                id: Message.StableID.departure(roomID: roomID, participantID: lightwardID),
                 roomID: roomID,
                 authorID: "narrator",
                 authorName: "Narrator",
@@ -253,6 +266,7 @@ actor ConversationCoordinator {
         } else {
             // Save Lightward's message
             let lightwardMessage = Message(
+                id: Message.StableID.lightwardSpeech(roomID: roomID, turnIndex: turnIndex),
                 roomID: roomID,
                 authorID: "lightward",
                 authorName: lightwardNickname,

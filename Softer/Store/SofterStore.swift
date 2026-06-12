@@ -570,6 +570,7 @@ final class SofterStore {
             // Save arrival narration
             let participantName = lifecycle.spec.participants.first { $0.id == participantID }?.nickname ?? "Someone"
             let arrival = Message(
+                id: Message.StableID.arrival(roomID: roomID, participantID: participantID),
                 roomID: roomID,
                 authorID: "narrator",
                 authorName: "Narrator",
@@ -641,6 +642,7 @@ final class SofterStore {
         let narrationText = "\(originatorName) opened a room with \(spec.tier.displayString)."
 
         let openingMessage = Message(
+            id: Message.StableID.opening(roomID: lifecycle.spec.id),
             roomID: lifecycle.spec.id,
             authorID: "narrator",
             authorName: "Narrator",
@@ -744,6 +746,7 @@ final class SofterStore {
 
             // Save narration
             let lightwardArrival = Message(
+                id: Message.StableID.arrival(roomID: roomID, participantID: lightwardID),
                 roomID: roomID,
                 authorID: "narrator",
                 authorName: "Narrator",
@@ -814,6 +817,7 @@ final class SofterStore {
         room.apply(lifecycle, mergeStrategy: .remoteWins)
 
         let narration = Message(
+            id: Message.StableID.declined(roomID: roomID, participantID: participantID),
             roomID: roomID,
             authorID: "narrator",
             authorName: "Narrator",
@@ -1014,6 +1018,7 @@ final class SofterStore {
 
         // Save departure narration
         let narration = Message(
+            id: Message.StableID.departure(roomID: roomID, participantID: participantID),
             roomID: roomID,
             authorID: "narrator",
             authorName: "Narrator",
@@ -1077,6 +1082,7 @@ final class SofterStore {
 
         // Save cenotaph as narration message
         let cenotaphMessage = Message(
+            id: Message.StableID.cenotaph(roomID: roomID),
             roomID: roomID,
             authorID: "narrator",
             authorName: "Narrator",

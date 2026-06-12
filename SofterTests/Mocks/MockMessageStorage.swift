@@ -26,7 +26,11 @@ actor MockMessageStorage: MessageStorage {
         }
 
         var roomMessages = messages[roomID] ?? []
-        roomMessages.append(message)
+        // Union by ID, mirroring production (PersistedRoom.addMessage):
+        // a second save with the same stable ID collapses into the first.
+        if !roomMessages.contains(where: { $0.id == message.id }) {
+            roomMessages.append(message)
+        }
         messages[roomID] = roomMessages
 
         // Notify observers
