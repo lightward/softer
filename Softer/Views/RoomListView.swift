@@ -32,13 +32,8 @@ struct RoomListView: View {
                             showCreateRoom = true
                         } label: {
                             Text("Create Room")
-                                .font(.headline)
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 12)
-                                .background(Color.accentColor)
-                                .clipShape(Capsule())
                         }
+                        .softerProminent()
                     }
                 } else {
                     List(selection: $selectedRoomID) {

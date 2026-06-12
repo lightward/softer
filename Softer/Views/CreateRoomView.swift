@@ -95,12 +95,16 @@ struct CreateRoomView: View {
                     }
                     .pickerStyle(.segmented)
                 } header: {
-                    Text("How much does \"new\" cost for you?")
+                    Text("How much does this room cost for you?")
                 } footer: {
                     Text("Your choice will be visible to all participants.")
                 }
 
             }
+            #if os(macOS)
+            .formStyle(.grouped)
+            .frame(minWidth: 460, minHeight: 440)
+            #endif
             .navigationTitle("New Room")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

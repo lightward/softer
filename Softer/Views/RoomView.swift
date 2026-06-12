@@ -239,7 +239,8 @@ struct RoomView: View {
                     Text(", ")
                         .foregroundStyle(.secondary)
                 }
-                let isCurrent = index == currentIndex % participants.count
+                // No current speaker unless the room is live
+                let isCurrent = lifecycle.isActive && index == currentIndex % participants.count
                 HStack(spacing: 3) {
                     if isCurrent {
                         Circle()
@@ -439,13 +440,8 @@ struct RoomView: View {
                     }
                 } label: {
                     Text("I'm Here")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color.accentColor)
-                        .clipShape(Capsule())
                 }
+                .softerProminent()
 
                 Button {
                     showDeclineConfirmation = true
@@ -473,25 +469,19 @@ struct RoomView: View {
                     if let url = shareURL {
                         ShareLink(item: url) {
                             Label("Share Invite", systemImage: "square.and.arrow.up")
-                                .font(.headline)
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 12)
-                                .background(Color.accentColor)
-                                .clipShape(Capsule())
                         }
+                        .softerProminent()
                     } else {
-                        Label {
-                            Text("Share Invite")
-                                .font(.headline)
-                        } icon: {
-                            ProgressView()
+                        Button {} label: {
+                            Label {
+                                Text("Share Invite")
+                            } icon: {
+                                ProgressView()
+                                    .controlSize(.small)
+                            }
                         }
-                        .foregroundStyle(.white.opacity(0.6))
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color.accentColor.opacity(0.5))
-                        .clipShape(Capsule())
+                        .softerProminent()
+                        .disabled(true)
                     }
                 }
             }
@@ -549,13 +539,8 @@ struct RoomView: View {
                             }
                         } label: {
                             Text("Request Cenotaph")
-                                .font(.headline)
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 12)
-                                .background(Color.accentColor)
-                                .clipShape(Capsule())
                         }
+                        .softerProminent()
                     }
                 }
             }

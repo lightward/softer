@@ -48,3 +48,29 @@ extension Color {
         participantColors[orderIndex % participantColors.count]
     }
 }
+
+/// iOS capsule call-to-action, replicating the app's banner button look.
+struct SofterCapsuleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+            .background(Color.accentColor.opacity(configuration.isPressed ? 0.8 : 1))
+            .clipShape(Capsule())
+    }
+}
+
+extension View {
+    /// Prominent call-to-action: capsule on iOS (touch-sized, chat-adjacent),
+    /// native prominent button on macOS (pointer-sized, system idiom).
+    @ViewBuilder
+    func softerProminent() -> some View {
+        #if os(macOS)
+        self.buttonStyle(.borderedProminent).controlSize(.large)
+        #else
+        self.buttonStyle(SofterCapsuleButtonStyle())
+        #endif
+    }
+}
