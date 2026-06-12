@@ -505,43 +505,22 @@ struct RoomView: View {
 
     @ViewBuilder
     private func defunctBanner(lifecycle: RoomLifecycle) -> some View {
-        if case .defunct(let reason) = lifecycle.state {
+        // How the room ended is already the ledger's trailing narration —
+        // repeating it here would say the same words twice in a row. The
+        // banner carries only the remaining action, when there is one.
+        if isOriginator(lifecycle: lifecycle) && !hasCenotaph {
             VStack(spacing: 8) {
-                switch reason {
-                case .participantDeclined(let participantID):
-                    let name = lifecycle.spec.participants.first { $0.id == participantID }?.nickname ?? "Someone"
-                    Text("\(name) declined to join.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                case .participantLeft(let participantID):
-                    let name = lifecycle.spec.participants.first { $0.id == participantID }?.nickname ?? "Someone"
-                    Text("\(name) departed.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                case .cancelled:
-                    Text("Room was cancelled.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                default:
-                    Text("Room is no longer available.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                // Cenotaph button for originator (hide after cenotaph delivered)
-                if isOriginator(lifecycle: lifecycle) && !hasCenotaph {
-                    if isRequestingCenotaph {
-                        ProgressView()
-                    } else {
-                        Button {
-                            Task {
-                                await requestCenotaph()
-                            }
-                        } label: {
-                            Text("Request Cenotaph")
+                if isRequestingCenotaph {
+                    ProgressView()
+                } else {
+                    Button {
+                        Task {
+                            await requestCenotaph()
                         }
-                        .softerProminent()
+                    } label: {
+                        Text("Request Cenotaph")
                     }
+                    .softerProminent()
                 }
             }
             .padding()
