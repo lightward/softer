@@ -46,6 +46,8 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 
 **Room lifetime**: Bounded by Lightward's 50k token context window. When Lightward hits the conversation horizon (API returns 422), its response body is saved as a regular message, then a departure narration follows, and the room goes defunct. Any participant departing = room defunct (the room's shape *is* its full roster). Remains readable but no longer interactive. Originator can request a cenotaph on any defunct room — a fresh Lightward instance reads the history and writes a ceremonial closing (saved as narration).
 
+**Load-bearing coincidence**: CloudKit caps a record at 1 MB, and the entire conversation lives in Room4's `messagesJSON`. The 50k-token horizon is what keeps rooms comfortably under that cap — two unrelated bounds that happen to be ordered correctly. If Lightward's context window grows ~5×, revisit before rooms outlive their container (Room5 with messages in a CKAsset, or split records).
+
 **Room display**: No room names. Just participant list. Blue dot next to current speaker in room list. All rooms shown in list (users can delete unwanted ones).
 
 **Key principles**:
