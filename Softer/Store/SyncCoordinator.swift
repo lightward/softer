@@ -175,7 +175,7 @@ actor SyncCoordinator {
 
     // MARK: - Direct Record Fetch
 
-    /// Fetch a Room3 record directly by ID, bypassing CKSyncEngine's change tokens.
+    /// Fetch a Room4 record directly by ID, bypassing CKSyncEngine's change tokens.
     /// Uses stored system fields to reconstruct the correct record ID (preserves zone for shared rooms).
     func fetchRoomRecord(recordName: String, systemFields: Data?, isShared: Bool) async -> CKRecord? {
         let db = isShared ? sharedDatabase : database
@@ -702,7 +702,7 @@ actor SyncCoordinator {
         let merged = server
 
         switch local.recordType {
-        case "Room3":
+        case RoomLifecycleRecordConverter.roomRecordType:
             // Room state: the lifecycle is monotone (draft < pending < active < defunct,
             // no backward edges), so the merge is the join — higher rank wins.
             // Without this, a local defunct transition losing the save race would

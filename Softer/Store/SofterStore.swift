@@ -154,7 +154,7 @@ final class SofterStore {
 
         switch record.recordType {
         case RoomLifecycleRecordConverter.roomRecordType:
-            // Room3 with embedded participants and messages
+            // Room4 with embedded participants and messages
             if let lifecycle = RoomLifecycleRecordConverter.lifecycle(from: record) {
                 let roomID = record.recordID.recordName
                 let participantsJSON = record["participantsJSON"] as? String

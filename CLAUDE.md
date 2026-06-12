@@ -20,15 +20,15 @@ A native SwiftUI iOS app (iOS 18+) for group conversations where Lightward AI pa
 ### CloudKit Setup Requirements
 
 **IMPORTANT**: In CloudKit Console, all record types need `recordName` marked as **Queryable** in their indexes. This is required for queries to work, even simple ones. Add this index to:
-- Room3
+- Room4
 
-Also index any fields you query on (e.g., `stateType` on Room3).
+Also index any fields you query on (e.g., `stateType` on Room4).
 
-**Note**: Room3 embeds both participants and messages as JSON (`participantsJSON` and `messagesJSON` fields) — single record type for the entire room. This eliminates sync ordering issues and simplifies conflict resolution.
+**Note**: Room4 embeds both participants and messages as JSON (`participantsJSON` and `messagesJSON` fields) — single record type for the entire room. This eliminates sync ordering issues and simplifies conflict resolution.
 
 **Environment**: Development CloudKit container for all builds (local and TestFlight). This allows testers to see the same data as local development. When ready for real users, uncomment the Production switch in `fastlane/Fastfile`.
 
-**Important**: The shared database enforces the **deployed (production) schema** even in the Development container. The private database auto-creates new fields, but shared participants will get "Cannot create or modify field" errors if you add a CKRecord field without deploying the schema in CloudKit Console. Any new field on Room3 must be deployed before testing shared rooms.
+**Important**: The shared database enforces the **deployed (production) schema** even in the Development container. The private database auto-creates new fields, but shared participants will get "Cannot create or modify field" errors if you add a CKRecord field without deploying the schema in CloudKit Console. Any new field on Room4 must be deployed before testing shared rooms.
 
 ## Room Creation Model
 

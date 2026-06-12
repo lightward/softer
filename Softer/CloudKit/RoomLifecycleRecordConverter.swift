@@ -1,7 +1,7 @@
 import Foundation
 import CloudKit
 
-/// Embedded participant data for Room3 records.
+/// Embedded participant data for Room4 records.
 /// Stored as JSON in the participantsJSON field.
 struct EmbeddedParticipant: Codable, Equatable {
     let id: String
@@ -64,7 +64,7 @@ struct EmbeddedParticipant: Codable, Equatable {
     }
 }
 
-/// Embedded message data for Room3 records.
+/// Embedded message data for Room4 records.
 /// Stored as JSON in the messagesJSON field.
 struct EmbeddedMessage: Codable, Equatable {
     let id: String
@@ -100,12 +100,12 @@ struct EmbeddedMessage: Codable, Equatable {
 }
 
 /// Converts between RoomLifecycle domain models and CloudKit records.
-/// Uses "Room3" record type with embedded participants (no separate Participant records).
+/// Uses "Room4" record type with embedded participants (no separate Participant records).
 enum RoomLifecycleRecordConverter {
 
     // MARK: - Record Type Name
 
-    static let roomRecordType = "Room3"
+    static let roomRecordType = "Room4"
 
     // MARK: - CKRecord System Fields
 
@@ -138,7 +138,7 @@ enum RoomLifecycleRecordConverter {
         return CKRecord(recordType: roomRecordType, recordID: recordID)
     }
 
-    // MARK: - Room3 Record (RoomSpec + RoomState + Participants)
+    // MARK: - Room4 Record (RoomSpec + RoomState + Participants)
 
     static func record(from lifecycle: RoomLifecycle, zoneID: CKRecordZone.ID) -> CKRecord {
         let recordID = CKRecord.ID(recordName: lifecycle.spec.id, zoneID: zoneID)
@@ -194,7 +194,7 @@ enum RoomLifecycleRecordConverter {
 
     }
 
-    /// Reconstructs a RoomLifecycle from a Room3 record (participants embedded).
+    /// Reconstructs a RoomLifecycle from a Room4 record (participants embedded).
     static func lifecycle(from record: CKRecord) -> RoomLifecycle? {
         guard let originatorID = record["originatorID"] as? String,
               let stateType = record["stateType"] as? String,
