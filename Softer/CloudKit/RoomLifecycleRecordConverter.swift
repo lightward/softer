@@ -192,12 +192,6 @@ enum RoomLifecycleRecordConverter {
         record["stateType"] = encoded.stateType as NSString
         record["defunctReason"] = encoded.defunctReason as NSString?
 
-        // TurnState fields (for active state)
-        if let turn = encoded.turnState {
-            record["currentTurnIndex"] = turn.currentTurnIndex as NSNumber
-        } else {
-            record["currentTurnIndex"] = nil
-        }
     }
 
     /// Reconstructs a RoomLifecycle from a Room3 record (participants embedded).
@@ -226,13 +220,9 @@ enum RoomLifecycleRecordConverter {
             createdAt: record["createdAtDate"] as? Date ?? record.creationDate ?? Date()
         )
 
-        // Decode TurnState if present
-        let turnState = decodeTurnState(from: record)
-
         let state = decodeState(
             stateType: stateType,
             defunctReason: record["defunctReason"] as? String,
-            turnState: turnState,
             signaledParticipantIDs: Array(signaledIDs)
         )
 
@@ -256,23 +246,22 @@ enum RoomLifecycleRecordConverter {
 
     // MARK: - State Encoding/Decoding
 
-    private static func encodeState(_ state: RoomState) -> (stateType: String, defunctReason: String?, turnState: TurnState?) {
+    private static func encodeState(_ state: RoomState) -> (stateType: String, defunctReason: String?) {
         switch state {
         case .draft:
-            return ("draft", nil, nil)
+            return ("draft", nil)
         case .pendingParticipants:
-            return ("pendingParticipants", nil, nil)
-        case .active(let turn):
-            return ("active", nil, turn)
+            return ("pendingParticipants", nil)
+        case .active:
+            return ("active", nil)
         case .defunct(let reason):
-            return ("defunct", encodeDefunctReason(reason), nil)
+            return ("defunct", encodeDefunctReason(reason))
         }
     }
 
     private static func decodeState(
         stateType: String,
         defunctReason: String?,
-        turnState: TurnState?,
         signaledParticipantIDs: [String]
     ) -> RoomState {
         switch stateType {
@@ -281,10 +270,7 @@ enum RoomLifecycleRecordConverter {
         case "pendingParticipants":
             return .pendingParticipants(signaled: Set(signaledParticipantIDs))
         case "active":
-            return .active(turn: turnState ?? .initial)
-        case "locked":
-            // Legacy compat: locked rooms become defunct
-            return .defunct(reason: .cancelled)
+            return .active
         case "defunct":
             return .defunct(reason: decodeDefunctReason(defunctReason))
         default:
@@ -307,13 +293,6 @@ enum RoomLifecycleRecordConverter {
         case .expired:
             return "expired"
         }
-    }
-
-    private static func decodeTurnState(from record: CKRecord) -> TurnState? {
-        guard let turnIndex = record["currentTurnIndex"] as? Int else {
-            return nil
-        }
-        return TurnState(currentTurnIndex: turnIndex)
     }
 
     private static func decodeDefunctReason(_ encoded: String?) -> DefunctReason {
@@ -387,13 +366,12 @@ enum RoomLifecycleRecordConverter {
     /// draft < pendingParticipants < active < defunct. The state machine has
     /// no backward edges, so the lawful merge of two observed states is the
     /// higher rank — a join, never a collapse. Defunct is absorbing.
-    /// ("locked" is a legacy encoding of defunct.)
     static func stateRank(_ stateType: String) -> Int {
         switch stateType {
         case "draft": return 0
         case "pendingParticipants": return 1
         case "active": return 2
-        case "defunct", "locked": return 3
+        case "defunct": return 3
         default: return 0
         }
     }

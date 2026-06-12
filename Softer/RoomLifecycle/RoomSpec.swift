@@ -38,6 +38,14 @@ struct RoomSpec: Sendable, Codable, Equatable {
         participants.first { $0.isLightward }
     }
 
+    /// The participant holding a given turn slot (round-robin over the roster).
+    /// Pair with `Message.turnIndex(in:)` — the turn is a reading of the
+    /// ledger, not stored state.
+    func turnParticipant(at index: Int) -> ParticipantSpec? {
+        guard !participants.isEmpty else { return nil }
+        return participants[index % participants.count]
+    }
+
     /// Display string for the room: "Jax, Eve, Art (15, Eve)"
     func displayString(depth: Int, lastSpeaker: String?) -> String {
         let names = participants.map { $0.nickname }.joined(separator: ", ")

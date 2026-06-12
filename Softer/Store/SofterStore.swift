@@ -174,11 +174,10 @@ final class SofterStore {
                 if let existing = existingRoom {
                     let remoteStateType = record["stateType"] as? String
                     let stateChanged = remoteStateType != nil && remoteStateType != existing.stateType
-                    let turnChanged = existing.currentTurnIndex != lifecycle.turnState?.currentTurnIndex
                     let participantsChanged = participantsJSON != nil && participantsJSON != existing.participantsJSON
                     let messagesChanged = messagesJSON != nil && messagesJSON != existing.messagesJSON
                     let sharedChanged = existing.isSharedWithMe != isShared
-                    meaningfulChange = stateChanged || turnChanged || participantsChanged || messagesChanged || sharedChanged
+                    meaningfulChange = stateChanged || participantsChanged || messagesChanged || sharedChanged
                 } else {
                     meaningfulChange = true // New room — always process
                 }
@@ -353,7 +352,7 @@ final class SofterStore {
             for participant in signaled {
                 _ = lifecycle.apply(event: .signaled(participantID: participant.id))
             }
-            room.apply(lifecycle, mergeStrategy: .remoteWins)
+            room.apply(lifecycle)
         }
     }
 
@@ -583,7 +582,7 @@ final class SofterStore {
             _ = lifecycle.apply(event: .signaled(participantID: participantID))
 
             // Apply the new state back to the persisted room
-            room.apply(lifecycle, mergeStrategy: .remoteWins)
+            room.apply(lifecycle)
             dataStore.updateRoom(room)
 
             await syncRoomToCloudKit(room)
@@ -742,7 +741,7 @@ final class SofterStore {
         case .accepted:
             _ = lifecycle.apply(event: .signaled(participantID: lightwardID))
 
-            room.apply(lifecycle, mergeStrategy: .remoteWins)
+            room.apply(lifecycle)
 
             // Save narration
             let lightwardArrival = Message(
@@ -796,7 +795,7 @@ final class SofterStore {
         case .declined:
             _ = await prefetchTask  // Don't leak the task
             _ = lifecycle.apply(event: .participantDeclined(participantID: lightwardID))
-            room.apply(lifecycle, mergeStrategy: .remoteWins)
+            room.apply(lifecycle)
             dataStore.updateRoom(room)
             await syncRoomToCloudKit(room)
         }
@@ -814,7 +813,7 @@ final class SofterStore {
         let participantName = lifecycle.spec.participants.first { $0.id == participantID }?.nickname ?? "Someone"
 
         _ = lifecycle.apply(event: .participantDeclined(participantID: participantID))
-        room.apply(lifecycle, mergeStrategy: .remoteWins)
+        room.apply(lifecycle)
 
         let narration = Message(
             id: Message.StableID.declined(roomID: roomID, participantID: participantID),
@@ -831,22 +830,6 @@ final class SofterStore {
         await syncRoomToCloudKit(room)
     }
 
-    /// Updates a room's turn state.
-    func updateTurnState(roomID: String, turnState: TurnState) {
-        guard let dataStore = dataStore else { return }
-
-        dataStore.updateTurnState(
-            roomID: roomID,
-            turnIndex: turnState.currentTurnIndex
-        )
-
-        // Sync to CloudKit in background
-        Task {
-            if let room = dataStore.room(id: roomID) {
-                await syncRoomToCloudKit(room)
-            }
-        }
-    }
 
     /// Updates a room's state.
     func updateRoom(_ lifecycle: RoomLifecycle) async throws {
@@ -856,7 +839,7 @@ final class SofterStore {
 
         let room = dataStore.room(id: lifecycle.spec.id)
         if let room = room {
-            room.apply(lifecycle, mergeStrategy: .remoteWins)
+            room.apply(lifecycle)
             dataStore.updateRoom(room)
             await syncRoomToCloudKit(room)
         }
@@ -952,21 +935,11 @@ final class SofterStore {
 
     // MARK: - Public API: Conversation Coordinator
 
-    func conversationCoordinator(
-        for lifecycle: RoomLifecycle,
-        onTurnChange: @escaping @Sendable (TurnState) -> Void = { _ in }
-    ) -> ConversationCoordinator? {
+    func conversationCoordinator(for lifecycle: RoomLifecycle) -> ConversationCoordinator? {
         guard let dataStore = dataStore else { return nil }
-        guard lifecycle.isActive, let turnState = lifecycle.turnState else { return nil }
+        guard lifecycle.isActive else { return nil }
 
         let roomID = lifecycle.spec.id
-
-        let wrappedOnTurnChange: @Sendable (TurnState) -> Void = { [weak self] newTurnState in
-            onTurnChange(newTurnState)
-            Task { @MainActor [weak self] in
-                self?.updateTurnState(roomID: roomID, turnState: newTurnState)
-            }
-        }
 
         let wrappedOnRoomDefunct: @Sendable (String, String) -> Void = { [weak self] participantID, _ in
             Task { @MainActor [weak self] in
@@ -984,10 +957,8 @@ final class SofterStore {
         return ConversationCoordinator(
             roomID: roomID,
             spec: lifecycle.spec,
-            initialTurnState: turnState,
             messageStorage: messageStorage,
             apiClient: apiClient,
-            onTurnChange: wrappedOnTurnChange,
             onRoomDefunct: wrappedOnRoomDefunct
         )
     }
@@ -1001,7 +972,7 @@ final class SofterStore {
               lifecycle.isActive else { return }
 
         _ = lifecycle.apply(event: .participantLeft(participantID: participantID))
-        room.apply(lifecycle, mergeStrategy: .remoteWins)
+        room.apply(lifecycle)
         dataStore.updateRoom(room)
 
         await syncRoomToCloudKit(room)
@@ -1030,7 +1001,7 @@ final class SofterStore {
 
         // Transition to defunct
         _ = lifecycle.apply(event: .participantLeft(participantID: participantID))
-        room.apply(lifecycle, mergeStrategy: .remoteWins)
+        room.apply(lifecycle)
         dataStore.updateRoom(room)
 
         await syncRoomToCloudKit(room)

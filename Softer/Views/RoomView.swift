@@ -14,10 +14,8 @@ struct RoomView: View {
     @State private var lifecycle: RoomLifecycle?
     @State private var composeText = ""
     @State private var isLoading = true
-    @State private var turnState: TurnState?
     @State private var conversationCoordinator: ConversationCoordinator?
     @State private var isSending = false
-    @State private var isLightwardThinking = false
     @State private var showYieldConfirmation = false
     @State private var showLeaveConfirmation = false
     @State private var isCurrentlyComposing = false
@@ -46,6 +44,18 @@ struct RoomView: View {
 
     private var messages: [Message] {
         persistedRoom?.messages() ?? []
+    }
+
+    /// The current turn: a fold over the ledger, never stored.
+    private var turnIndex: Int {
+        Message.turnIndex(in: messages)
+    }
+
+    /// Lightward holds the turn — shown as the thinking indicator until their
+    /// response lands in the ledger (locally or via sync, same signal).
+    private var isLightwardThinking: Bool {
+        guard let lifecycle, lifecycle.isActive else { return false }
+        return lifecycle.spec.turnParticipant(at: turnIndex)?.isLightward == true
     }
 
     var body: some View {
@@ -89,9 +99,6 @@ struct RoomView: View {
             }
         }
         .onChange(of: persistedRoom?.stateType) {
-            refreshLifecycle()
-        }
-        .onChange(of: persistedRoom?.currentTurnIndex) {
             refreshLifecycle()
         }
         .onChange(of: persistedRoom?.participantsJSON) {
@@ -209,12 +216,6 @@ struct RoomView: View {
                 withAnimation {
                     proxy.scrollTo("bottom")
                 }
-                // Clear thinking indicator when a Lightward message appears
-                if isLightwardThinking {
-                    if messages.last?.isLightward == true {
-                        isLightwardThinking = false
-                    }
-                }
             }
             .onChange(of: isLightwardThinking) {
                 if isLightwardThinking {
@@ -229,7 +230,7 @@ struct RoomView: View {
 
     @ViewBuilder
     private func navigationTitleView(lifecycle: RoomLifecycle) -> some View {
-        let currentIndex = turnState?.currentTurnIndex ?? 0
+        let currentIndex = turnIndex
         let participants = lifecycle.spec.participants
 
         HStack(spacing: 0) {
@@ -330,9 +331,7 @@ struct RoomView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 22))
             } else {
                 // Not my turn: whose turn it is + hand raise
-                let currentIndex = turnState?.currentTurnIndex ?? 0
-                let participants = lifecycle.spec.participants
-                let currentName = participants.isEmpty ? "" : participants[currentIndex % participants.count].nickname
+                let currentName = lifecycle.spec.turnParticipant(at: turnIndex)?.nickname ?? ""
 
                 HStack {
                     Text("\(currentName)'s turn")
@@ -417,12 +416,6 @@ struct RoomView: View {
         } message: {
             Text("Enable microphone and speech recognition access in Settings to use voice input.")
         }
-    }
-
-    private func currentTurnParticipant(lifecycle: RoomLifecycle) -> ParticipantSpec? {
-        guard let turnIdx = turnState?.currentTurnIndex,
-              turnIdx < lifecycle.spec.participants.count else { return nil }
-        return lifecycle.spec.participants[turnIdx]
     }
 
     private func canSend(myTurn: Bool) -> Bool {
@@ -592,13 +585,9 @@ struct RoomView: View {
     }
 
     private func isMyTurn(lifecycle: RoomLifecycle) -> Bool {
-        guard let turnIdx = turnState?.currentTurnIndex else { return false }
-
-        let participants = lifecycle.spec.participants
-        guard !participants.isEmpty else { return false }
-        let current = participants[turnIdx % participants.count]
-
-        guard let myID = myParticipantID(in: lifecycle) else { return false }
+        guard lifecycle.isActive,
+              let current = lifecycle.spec.turnParticipant(at: turnIndex),
+              let myID = myParticipantID(in: lifecycle) else { return false }
         return current.id == myID
     }
 
@@ -623,42 +612,17 @@ struct RoomView: View {
 
             // Set up conversation coordinator if room is active
             if let lifecycle = lifecycle {
-                let convCoord = store.conversationCoordinator(
-                    for: lifecycle,
-                    onTurnChange: { [self] newState in
-                        Task { @MainActor in
-                            turnState = newState
-                            // Show thinking indicator if it's now Lightward's turn
-                            let participants = lifecycle.spec.participants
-                            if !participants.isEmpty {
-                                let currentIndex = newState.currentTurnIndex % participants.count
-                                if participants[currentIndex].isLightward {
-                                    isLightwardThinking = true
-                                }
-                            }
-                        }
-                    }
-                )
+                let convCoord = store.conversationCoordinator(for: lifecycle)
                 conversationCoordinator = convCoord
-                turnState = lifecycle.turnState
 
-                // Done loading — show the room before triggering Lightward
+                // Done loading — show the room before settling the turn
                 isLoading = false
 
-                // If it's Lightward's turn, trigger their response
-                // Only show typing indicator if Lightward hasn't already responded
+                // Settle: orient the first round, generate Lightward's response
+                // if the ledger points at them. Idempotent — racing devices
+                // collapse in the merge.
                 if let convCoord = convCoord {
-                    let isLightwardNext = await convCoord.isLightwardTurn
-                    let lastMessageIsLightward = messages.last?.isLightward ?? false
-
-                    if isLightwardNext && !lastMessageIsLightward {
-                        isLightwardThinking = true
-                        try await convCoord.triggerLightwardIfTheirTurn()
-                        isLightwardThinking = false
-                    } else if isLightwardNext && lastMessageIsLightward {
-                        // Turn state is stale, repair it
-                        try await convCoord.triggerLightwardIfTheirTurn()
-                    }
+                    try await convCoord.settle()
                 }
             }
         } catch {
@@ -668,48 +632,17 @@ struct RoomView: View {
     }
 
     /// Rebuild lifecycle from the @Query-observed persisted room.
-    /// Called when stateType or turnIndex changes in SwiftData.
+    /// Called when stateType or participants change in SwiftData.
+    /// (Turn changes need no handling: the turn is derived from messages.)
     private func refreshLifecycle() {
         guard let newLifecycle = persistedRoom?.toRoomLifecycle() else { return }
 
         let wasActive = lifecycle?.isActive ?? false
         lifecycle = newLifecycle
-        turnState = newLifecycle.turnState
-
-        // Sync ConversationCoordinator's internal turn state with remote changes
-        if let convCoord = conversationCoordinator, let newTurnState = newLifecycle.turnState {
-            Task {
-                await convCoord.syncTurnState(newTurnState)
-            }
-
-            // Show thinking indicator if it's now Lightward's turn and they haven't responded yet
-            let participants = newLifecycle.spec.participants
-            if !participants.isEmpty {
-                let currentIndex = newTurnState.currentTurnIndex % participants.count
-                if participants[currentIndex].isLightward && messages.last?.isLightward != true {
-                    isLightwardThinking = true
-                }
-            }
-        }
 
         // If room just became active, set up ConversationCoordinator
         if newLifecycle.isActive && (!wasActive || conversationCoordinator == nil) {
-            let convCoord = store.conversationCoordinator(
-                for: newLifecycle,
-                onTurnChange: { [self] newState in
-                    Task { @MainActor in
-                        turnState = newState
-                        let participants = newLifecycle.spec.participants
-                        if !participants.isEmpty {
-                            let currentIndex = newState.currentTurnIndex % participants.count
-                            if participants[currentIndex].isLightward {
-                                isLightwardThinking = true
-                            }
-                        }
-                    }
-                }
-            )
-            conversationCoordinator = convCoord
+            conversationCoordinator = store.conversationCoordinator(for: newLifecycle)
         }
     }
 
@@ -768,7 +701,7 @@ struct RoomView: View {
             id: Message.StableID.handRaise(
                 roomID: roomID,
                 participantID: myID,
-                turnIndex: turnState?.currentTurnIndex ?? 0
+                turnIndex: turnIndex
             ),
             roomID: roomID,
             authorID: "narrator",

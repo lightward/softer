@@ -74,15 +74,6 @@ final class PersistenceStore {
         }
     }
 
-    // MARK: - Turn State
-
-    func updateTurnState(roomID: String, turnIndex: Int) {
-        guard let room = room(id: roomID) else { return }
-        room.currentTurnIndex = turnIndex
-        room.modifiedAt = Date()
-        try? modelContext.save()
-    }
-
     // MARK: - Messages
 
     func messages(roomID: String) -> [Message] {
@@ -105,8 +96,7 @@ final class PersistenceStore {
         if let existing = room(id: lifecycle.spec.id) {
             // Capture local participants before apply() overwrites them
             let localParticipants = existing.embeddedParticipants()
-            // Update existing - merge turn state (higher wins)
-            existing.apply(lifecycle, mergeStrategy: .higherTurnWins)
+            existing.apply(lifecycle)
             // Merge remote participants, preserving locally-populated fields
             if let json = remoteParticipantsJSON {
                 if let data = json.data(using: .utf8),
@@ -141,13 +131,6 @@ final class PersistenceStore {
     }
 }
 
-// MARK: - Merge Strategy
-
-enum MergeStrategy {
-    case higherTurnWins  // For turn state: max(local, remote)
-    case remoteWins      // For state transitions: trust server
-}
-
 // MARK: - Converters: PersistedRoom <-> RoomLifecycle
 
 extension PersistedRoom {
@@ -173,7 +156,7 @@ extension PersistedRoom {
         )
         room.createdAt = lifecycle.spec.createdAt
         room.modifiedAt = lifecycle.modifiedAt
-        room.apply(lifecycle, mergeStrategy: .remoteWins)
+        room.apply(lifecycle)
         return room
     }
 
@@ -184,11 +167,12 @@ extension PersistedRoom {
         return []
     }
 
-    /// Update this room from a RoomLifecycle with merge strategy.
+    /// Update this room from a RoomLifecycle.
     /// State is monotone (draft < pendingParticipants < active < defunct, no
     /// backward edges), so an incoming state below the stored rank never
     /// regresses it — the merge is the join. Signaled flags union (grow-only).
-    func apply(_ lifecycle: RoomLifecycle, mergeStrategy: MergeStrategy) {
+    /// Turn state has no field here: it's a fold over the message ledger.
+    func apply(_ lifecycle: RoomLifecycle) {
         // Preserve existing userRecordIDs and signaled flags (lifecycle doesn't
         // carry recordIDs, and a roster built from a stale lifecycle must not
         // un-signal anyone)
@@ -220,20 +204,6 @@ extension PersistedRoom {
         // Update state fields
         self.stateType = incomingStateType
         self.defunctReason = encodeDefunctReason(lifecycle.state)
-
-        switch lifecycle.state {
-        case .draft, .pendingParticipants, .defunct:
-            self.currentTurnIndex = nil
-        case .active(let turn):
-            switch mergeStrategy {
-            case .higherTurnWins:
-                let localTurn = self.currentTurnIndex ?? 0
-                self.currentTurnIndex = max(localTurn, turn.currentTurnIndex)
-            case .remoteWins:
-                self.currentTurnIndex = turn.currentTurnIndex
-            }
-        }
-
         self.modifiedAt = lifecycle.modifiedAt
     }
 
@@ -273,10 +243,7 @@ extension PersistedRoom {
         case "pendingParticipants":
             return .pendingParticipants(signaled: signaledIDs)
         case "active":
-            return .active(turn: TurnState(currentTurnIndex: currentTurnIndex ?? 0))
-        case "locked":
-            // Legacy compat: locked rooms become defunct
-            return .defunct(reason: .cancelled)
+            return .active
         case "defunct":
             return .defunct(reason: decodeDefunctReason())
         default:

@@ -13,12 +13,6 @@ struct RoomLifecycle: Sendable {
         self.modifiedAt = modifiedAt
     }
 
-    /// Creates a copy with the specified turn state. Only valid for active rooms.
-    func withTurnState(_ newTurn: TurnState) -> RoomLifecycle {
-        guard case .active = state else { return self }
-        return RoomLifecycle(spec: spec, state: .active(turn: newTurn), modifiedAt: Date())
-    }
-
     /// Apply an event to the lifecycle, returning any effects that should be executed.
     mutating func apply(event: RoomEvent) -> [RoomEffect] {
         modifiedAt = Date()
@@ -48,7 +42,7 @@ struct RoomLifecycle: Sendable {
             signaled.insert(participantID)
             let allParticipants = Set(spec.participants.map { $0.id })
             if signaled == allParticipants {
-                state = .active(turn: .initial)
+                state = .active
                 return []
             } else {
                 state = .pendingParticipants(signaled: signaled)
@@ -67,12 +61,7 @@ struct RoomLifecycle: Sendable {
             state = .defunct(reason: .cancelled)
             return []
 
-        // MARK: - Active state transitions (turn management)
-
-        case (.active(var turn), .messageSent):
-            turn.advanceTurn(participantCount: spec.participants.count)
-            state = .active(turn: turn)
-            return []
+        // MARK: - Active state transitions
 
         case (.active, .participantLeft(let participantID)):
             state = .defunct(reason: .participantLeft(participantID: participantID))
@@ -126,27 +115,5 @@ struct RoomLifecycle: Sendable {
     var unsignaledParticipants: Set<String> {
         let all = Set(spec.participants.map { $0.id })
         return all.subtracting(signaledParticipants)
-    }
-
-    // MARK: - Turn queries (active rooms only)
-
-    /// The turn state, if the room is active.
-    var turnState: TurnState? {
-        switch state {
-        case .active(let turn): return turn
-        default: return nil
-        }
-    }
-
-    /// The participant whose turn it currently is.
-    var currentTurnParticipant: ParticipantSpec? {
-        guard let turn = turnState, !spec.participants.isEmpty else { return nil }
-        let index = turn.currentTurnIndex % spec.participants.count
-        return spec.participants[index]
-    }
-
-    /// Whether it's currently Lightward's turn.
-    var isLightwardTurn: Bool {
-        currentTurnParticipant?.isLightward ?? false
     }
 }

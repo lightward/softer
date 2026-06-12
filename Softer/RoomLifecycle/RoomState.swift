@@ -1,21 +1,9 @@
 import Foundation
 
-/// Turn state for an active room conversation.
-struct TurnState: Sendable, Codable, Equatable {
-    var currentTurnIndex: Int
-
-    static let initial = TurnState(currentTurnIndex: 0)
-
-    mutating func advanceTurn(participantCount: Int) {
-        guard participantCount > 0 else { return }
-        // Don't modulo here - let index grow for higherTurnWins merge strategy
-        // Display code does % participantCount when showing whose turn
-        currentTurnIndex += 1
-    }
-}
-
 /// The lifecycle state of a room.
 /// Each state transition is explicit; invalid transitions don't exist.
+/// Turn state is not part of room state: the current turn is a fold over the
+/// message ledger (`Message.turnIndex(in:)`), derived wherever it's read.
 enum RoomState: Sendable, Codable, Equatable {
     /// Room specification created, participants not yet resolved via CloudKit.
     case draft
@@ -24,8 +12,7 @@ enum RoomState: Sendable, Codable, Equatable {
     case pendingParticipants(signaled: Set<String>)  // participant IDs who have signaled
 
     /// Room is live. Conversation can proceed.
-    /// Turn state is tracked here: current turn index, raised hands, and any pending need.
-    case active(turn: TurnState)
+    case active
 
     /// Room is no longer active. Creation failed, cancelled, or a participant departed.
     case defunct(reason: DefunctReason)
@@ -53,7 +40,6 @@ enum RoomEvent: Sendable, Equatable {
     case expired
 
     // Active room events
-    case messageSent  // Advances turn
     case participantLeft(participantID: String)
 }
 

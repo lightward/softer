@@ -58,7 +58,7 @@ final class RoomLifecycleCoordinatorTests: XCTestCase {
 
         // Verify room is active (directly, no pendingCapture)
         let lifecycle = await coordinator.lifecycle
-        XCTAssertEqual(lifecycle.state, .active(turn: .initial))
+        XCTAssertEqual(lifecycle.state, .active)
     }
 
     // MARK: - Resolution Failure

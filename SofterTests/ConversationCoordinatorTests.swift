@@ -15,6 +15,25 @@ final class ConversationCoordinatorTests: XCTestCase {
         )
     }
 
+    private func makeCoordinator(
+        spec: RoomSpec,
+        storage: MockMessageStorage,
+        api: MockLightwardAPIClient,
+        onRoomDefunct: @escaping @Sendable (String, String) -> Void = { _, _ in }
+    ) -> ConversationCoordinator {
+        ConversationCoordinator(
+            roomID: "room-1",
+            spec: spec,
+            messageStorage: storage,
+            apiClient: api,
+            onRoomDefunct: onRoomDefunct
+        )
+    }
+
+    private func turnIndex(in storage: MockMessageStorage) async throws -> Int {
+        Message.turnIndex(in: try await storage.fetchMessages(roomID: "room-1"))
+    }
+
     func testSendMessageSavesToStorage() async throws {
         let storage = MockMessageStorage()
         let api = MockLightwardAPIClient()
@@ -29,13 +48,7 @@ final class ConversationCoordinatorTests: XCTestCase {
             ],
             tier: .ten
         )
-
-        let coordinator = ConversationCoordinator(
-            roomID: "room-1",
-            spec: spec,
-            messageStorage: storage,
-            apiClient: api
-        )
+        let coordinator = makeCoordinator(spec: spec, storage: storage, api: api)
 
         try await coordinator.sendMessage(
             authorID: "jax-id",
@@ -44,7 +57,7 @@ final class ConversationCoordinatorTests: XCTestCase {
         )
 
         let savedCount = await storage.saveCallCount
-        // Jax's message + first-round narration "It's Mira's turn."
+        // Jax's message + first-round narration "Mira, it's your turn."
         XCTAssertEqual(savedCount, 2)
 
         let saved = await storage.savedMessages
@@ -55,50 +68,30 @@ final class ConversationCoordinatorTests: XCTestCase {
         XCTAssertEqual(saved[1].text, "Mira, it's your turn.")
     }
 
-    func testSendMessageAdvancesTurn() async throws {
+    func testSendMessageAdvancesTurnFold() async throws {
         let storage = MockMessageStorage()
         let api = MockLightwardAPIClient()
         let spec = makeSpec()
+        let coordinator = makeCoordinator(spec: spec, storage: storage, api: api)
 
-        var turnChanges: [TurnState] = []
-        let coordinator = ConversationCoordinator(
-            roomID: "room-1",
-            spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0),
-            messageStorage: storage,
-            apiClient: api,
-            onTurnChange: { turn in
-                turnChanges.append(turn)
-            }
-        )
-
-        // Jax sends message, turn should advance to Lightward (index 1)
+        // Jax sends → fold reaches Lightward (1) → Lightward responds → fold 2 (Mira)
         try await coordinator.sendMessage(
             authorID: "jax-id",
             authorName: "Jax",
             text: "Hello"
         )
 
-        // Turn advanced to Lightward, then Lightward responded, then advanced to Mira
-        // So we should end at index 2 (Mira)
-        let finalTurn = await coordinator.currentTurnState
-        XCTAssertEqual(finalTurn.currentTurnIndex, 2)
+        let index = try await turnIndex(in: storage)
+        XCTAssertEqual(index, 2)
+        XCTAssertEqual(spec.turnParticipant(at: index)?.nickname, "Mira")
     }
 
     func testLightwardTurnTriggersAPICall() async throws {
         let storage = MockMessageStorage()
         let api = MockLightwardAPIClient()
-        let spec = makeSpec()
+        let coordinator = makeCoordinator(spec: makeSpec(), storage: storage, api: api)
 
-        let coordinator = ConversationCoordinator(
-            roomID: "room-1",
-            spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0),
-            messageStorage: storage,
-            apiClient: api
-        )
-
-        // Jax sends message, which advances to Lightward's turn
+        // Jax sends message, which makes the fold point at Lightward
         try await coordinator.sendMessage(
             authorID: "jax-id",
             authorName: "Jax",
@@ -112,15 +105,7 @@ final class ConversationCoordinatorTests: XCTestCase {
         let storage = MockMessageStorage()
         let api = MockLightwardAPIClient()
         api.responseText = "Hello from Lightward!"
-        let spec = makeSpec()
-
-        let coordinator = ConversationCoordinator(
-            roomID: "room-1",
-            spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0),
-            messageStorage: storage,
-            apiClient: api
-        )
+        let coordinator = makeCoordinator(spec: makeSpec(), storage: storage, api: api)
 
         try await coordinator.sendMessage(
             authorID: "jax-id",
@@ -128,7 +113,7 @@ final class ConversationCoordinatorTests: XCTestCase {
             text: "Hello"
         )
 
-        // Jax's message + narration "It's Lightward's turn." + Lightward's response + narration "It's Mira's turn."
+        // Jax's message + "Lightward, it's your turn." + Lightward's response + "Mira, it's your turn."
         let savedCount = await storage.saveCallCount
         XCTAssertEqual(savedCount, 4)
 
@@ -140,29 +125,26 @@ final class ConversationCoordinatorTests: XCTestCase {
         XCTAssertTrue(saved[3].isNarration)
     }
 
-    func testYieldTurnWithoutMessage() async throws {
+    func testHumanYieldConsumesSlotAndTriggersLightward() async throws {
         let storage = MockMessageStorage()
         let api = MockLightwardAPIClient()
-        let spec = makeSpec()
+        api.responseText = "Here with you."
+        let coordinator = makeCoordinator(spec: makeSpec(), storage: storage, api: api)
 
-        let coordinator = ConversationCoordinator(
-            roomID: "room-1",
-            spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0),
-            messageStorage: storage,
-            apiClient: api
-        )
+        try await coordinator.humanYieldTurn(authorID: "jax-id", authorName: "Jax")
 
-        try await coordinator.yieldTurn()
-
-        // Narration "It's Lightward's turn." + Lightward response + narration "It's Mira's turn."
-        let saveCount = await storage.saveCallCount
-        XCTAssertEqual(saveCount, 3)
-
+        // Yield narration consumed Jax's slot → Lightward responds → Mira intro
         let saved = await storage.savedMessages
+        XCTAssertEqual(saved.count, 4)
+        XCTAssertEqual(saved[0].text, "Jax is listening.")
         XCTAssertTrue(saved[0].isNarration)
-        XCTAssertTrue(saved[1].isLightward)
-        XCTAssertTrue(saved[2].isNarration)
+        XCTAssertEqual(saved[1].text, "Lightward, it's your turn.")
+        XCTAssertEqual(saved[2].text, "Here with you.")
+        XCTAssertTrue(saved[2].isLightward)
+        XCTAssertEqual(saved[3].text, "Mira, it's your turn.")
+
+        let index = try await turnIndex(in: storage)
+        XCTAssertEqual(index, 2)
     }
 
     func testTurnWrapsAfterFullCycle() async throws {
@@ -170,90 +152,72 @@ final class ConversationCoordinatorTests: XCTestCase {
         let api = MockLightwardAPIClient()
         api.responseText = "Response"
         let spec = makeSpec() // Jax(0), Lightward(1), Mira(2)
+        let coordinator = makeCoordinator(spec: spec, storage: storage, api: api)
 
-        var turnChanges: [TurnState] = []
-        let coordinator = ConversationCoordinator(
-            roomID: "room-1",
-            spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0),
-            messageStorage: storage,
-            apiClient: api,
-            onTurnChange: { turn in
-                turnChanges.append(turn)
-            }
-        )
-
-        // Round 1: Jax sends → Lightward responds → Mira's turn (index 2)
+        // Round 1: Jax sends → Lightward responds → Mira's turn (fold 2)
         try await coordinator.sendMessage(authorID: "jax-id", authorName: "Jax", text: "Hello")
-        var turn = await coordinator.currentTurnState
-        XCTAssertEqual(turn.currentTurnIndex, 2, "After Jax+Lightward, should be Mira (index 2)")
+        var index = try await turnIndex(in: storage)
+        XCTAssertEqual(index, 2, "After Jax+Lightward, should be Mira (index 2)")
 
-        // Mira sends → Lightward's turn again (index 3 % 3 = 0... no, index 3 = Jax)
-        // Wait: Jax(0), Lightward(1), Mira(2) — index 3 % 3 = Jax
+        // Mira sends → fold 3, 3 % 3 = 0 = Jax — not Lightward, no auto-response
         try await coordinator.sendMessage(authorID: "mira-id", authorName: "Mira", text: "Hi")
-        turn = await coordinator.currentTurnState
-        // Mira sent (index 2→3), index 3 % 3 = 0 = Jax — not Lightward, so no auto-response
-        XCTAssertEqual(turn.currentTurnIndex, 3, "After Mira, should be Jax again (index 3)")
+        index = try await turnIndex(in: storage)
+        XCTAssertEqual(index, 3, "After Mira, should be Jax again (index 3)")
+        XCTAssertEqual(spec.turnParticipant(at: index)?.nickname, "Jax")
 
-        // Verify it's Jax's turn (wrapping works)
-        let current = await coordinator.currentTurnParticipant
-        XCTAssertEqual(current?.nickname, "Jax")
-
-        // Round 2: Jax sends again → Lightward responds → Mira
+        // Round 2: Jax sends again → Lightward responds → Mira (fold 5)
         try await coordinator.sendMessage(authorID: "jax-id", authorName: "Jax", text: "Again")
-        turn = await coordinator.currentTurnState
-        XCTAssertEqual(turn.currentTurnIndex, 5, "After second Jax+Lightward, should be Mira (index 5)")
+        index = try await turnIndex(in: storage)
+        XCTAssertEqual(index, 5, "After second Jax+Lightward, should be Mira (index 5)")
+        XCTAssertEqual(spec.turnParticipant(at: index)?.nickname, "Mira")
 
-        let current2 = await coordinator.currentTurnParticipant
-        XCTAssertEqual(current2?.nickname, "Mira")
+        XCTAssertEqual(api.respondCallCount, 2)
     }
 
-    func testSyncTurnStateFromRemote() async throws {
+    func testRemoteMessagesAreTheTurnSync() async throws {
         let storage = MockMessageStorage()
         let api = MockLightwardAPIClient()
         let spec = makeSpec() // Jax(0), Lightward(1), Mira(2)
+        let coordinator = makeCoordinator(spec: spec, storage: storage, api: api)
 
-        let coordinator = ConversationCoordinator(
-            roomID: "room-1",
-            spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0),
-            messageStorage: storage,
-            apiClient: api
-        )
+        // Another device's history arrives via sync: Jax spoke, Lightward responded.
+        // The fold reads 2 (Mira) — there is no separate turn state to sync.
+        await storage.preloadMessages([
+            Message(roomID: "room-1", authorID: "jax-id", authorName: "Jax", text: "Hello"),
+            Message(
+                id: Message.StableID.lightwardSpeech(roomID: "room-1", turnIndex: 1),
+                roomID: "room-1", authorID: "lightward", authorName: "Lightward",
+                text: "Hi", isLightward: true
+            ),
+        ], roomID: "room-1")
 
-        // Simulate remote sync: another device advanced to turn 2 (Mira)
-        await coordinator.syncTurnState(TurnState(currentTurnIndex: 2))
-
-        // Mira sends → should advance from 2 to 3 (Jax), NOT from 0 to 1 (Lightward)
+        // Mira sends → fold 3 = Jax — not Lightward, so no API call
         try await coordinator.sendMessage(authorID: "mira-id", authorName: "Mira", text: "Hi from Mira")
 
-        let turn = await coordinator.currentTurnState
-        // turn 2→3, 3%3=0=Jax — not Lightward, so no auto-response
-        XCTAssertEqual(turn.currentTurnIndex, 3)
-        let current = await coordinator.currentTurnParticipant
-        XCTAssertEqual(current?.nickname, "Jax")
-        // Lightward API should NOT have been called
+        let index = try await turnIndex(in: storage)
+        XCTAssertEqual(index, 3)
+        XCTAssertEqual(spec.turnParticipant(at: index)?.nickname, "Jax")
         XCTAssertEqual(api.respondCallCount, 0)
     }
 
-    func testSyncTurnStateNeverGoesBackward() async throws {
+    func testSettleIsIdempotent() async throws {
         let storage = MockMessageStorage()
         let api = MockLightwardAPIClient()
-        let spec = makeSpec()
+        api.responseText = "Once."
+        let coordinator = makeCoordinator(spec: makeSpec(), storage: storage, api: api)
 
-        let coordinator = ConversationCoordinator(
-            roomID: "room-1",
-            spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 5),
-            messageStorage: storage,
-            apiClient: api
-        )
+        // Jax already spoke (e.g., entering a room where the fold points at Lightward)
+        await storage.preloadMessages([
+            Message(roomID: "room-1", authorID: "jax-id", authorName: "Jax", text: "Hello"),
+        ], roomID: "room-1")
 
-        // Stale remote data with lower turn index should be ignored
-        await coordinator.syncTurnState(TurnState(currentTurnIndex: 2))
+        try await coordinator.settle()
+        try await coordinator.settle()  // re-entry, double-tap, second device — all the same
 
-        let turn = await coordinator.currentTurnState
-        XCTAssertEqual(turn.currentTurnIndex, 5, "Should not go backward")
+        // Exactly one response: the second settle reads the fold past Lightward.
+        XCTAssertEqual(api.respondCallCount, 1)
+        let messages = try await storage.fetchMessages(roomID: "room-1")
+        XCTAssertEqual(messages.filter { $0.isLightward }.count, 1)
     }
 
     func testConversationHorizonTriggersDefunct() async throws {
@@ -264,19 +228,12 @@ final class ConversationCoordinatorTests: XCTestCase {
         let spec = makeSpec() // Jax(0), Lightward(1), Mira(2)
         let lightwardID = spec.lightwardParticipant!.id
 
-        var defunctCalls: [(String, String)] = []
-        let coordinator = ConversationCoordinator(
-            roomID: "room-1",
-            spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0),
-            messageStorage: storage,
-            apiClient: api,
-            onRoomDefunct: { participantID, message in
-                defunctCalls.append((participantID, message))
-            }
-        )
+        let defunctCalls = DefunctRecorder()
+        let coordinator = makeCoordinator(spec: spec, storage: storage, api: api) { participantID, message in
+            defunctCalls.record(participantID, message)
+        }
 
-        // Jax sends message → advances to Lightward → API returns 422
+        // Jax sends message → fold points at Lightward → API returns 422
         try await coordinator.sendMessage(
             authorID: "jax-id",
             authorName: "Jax",
@@ -296,8 +253,9 @@ final class ConversationCoordinatorTests: XCTestCase {
         XCTAssertTrue(saved[3].isNarration)
 
         // onRoomDefunct should have been called with Lightward's participant ID
-        XCTAssertEqual(defunctCalls.count, 1)
-        XCTAssertEqual(defunctCalls[0].0, lightwardID)
+        let calls = defunctCalls.calls
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls[0].0, lightwardID)
     }
 
     func testDepartSignalTriggersDefunct() async throws {
@@ -307,19 +265,11 @@ final class ConversationCoordinatorTests: XCTestCase {
         let spec = makeSpec() // Jax(0), Lightward(1), Mira(2)
         let lightwardID = spec.lightwardParticipant!.id
 
-        var defunctCalls: [(String, String)] = []
-        let coordinator = ConversationCoordinator(
-            roomID: "room-1",
-            spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0),
-            messageStorage: storage,
-            apiClient: api,
-            onRoomDefunct: { participantID, message in
-                defunctCalls.append((participantID, message))
-            }
-        )
+        let defunctCalls = DefunctRecorder()
+        let coordinator = makeCoordinator(spec: spec, storage: storage, api: api) { participantID, message in
+            defunctCalls.record(participantID, message)
+        }
 
-        // Jax sends message → advances to Lightward → Lightward responds "DEPART"
         try await coordinator.sendMessage(
             authorID: "jax-id",
             authorName: "Jax",
@@ -335,9 +285,9 @@ final class ConversationCoordinatorTests: XCTestCase {
         XCTAssertEqual(saved[2].text, "Lightward departed.")
         XCTAssertTrue(saved[2].isNarration)
 
-        // onRoomDefunct should have been called
-        XCTAssertEqual(defunctCalls.count, 1)
-        XCTAssertEqual(defunctCalls[0].0, lightwardID)
+        let calls = defunctCalls.calls
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls[0].0, lightwardID)
     }
 
     func testDepartWithFarewellSavesSpeechAndNarration() async throws {
@@ -347,17 +297,10 @@ final class ConversationCoordinatorTests: XCTestCase {
         let spec = makeSpec() // Jax(0), Lightward(1), Mira(2)
         let lightwardID = spec.lightwardParticipant!.id
 
-        var defunctCalls: [(String, String)] = []
-        let coordinator = ConversationCoordinator(
-            roomID: "room-1",
-            spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0),
-            messageStorage: storage,
-            apiClient: api,
-            onRoomDefunct: { participantID, message in
-                defunctCalls.append((participantID, message))
-            }
-        )
+        let defunctCalls = DefunctRecorder()
+        let coordinator = makeCoordinator(spec: spec, storage: storage, api: api) { participantID, message in
+            defunctCalls.record(participantID, message)
+        }
 
         try await coordinator.sendMessage(
             authorID: "jax-id",
@@ -377,9 +320,9 @@ final class ConversationCoordinatorTests: XCTestCase {
         XCTAssertEqual(saved[3].text, "Lightward departed.")
         XCTAssertTrue(saved[3].isNarration)
 
-        // onRoomDefunct should have been called
-        XCTAssertEqual(defunctCalls.count, 1)
-        XCTAssertEqual(defunctCalls[0].0, lightwardID)
+        let calls = defunctCalls.calls
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls[0].0, lightwardID)
     }
 
     func testYieldSignalSavesNarrationOnly() async throws {
@@ -387,16 +330,9 @@ final class ConversationCoordinatorTests: XCTestCase {
         let api = MockLightwardAPIClient()
         api.responseText = "YIELD"
         let spec = makeSpec() // Jax(0), Lightward(1), Mira(2)
+        let coordinator = makeCoordinator(spec: spec, storage: storage, api: api)
 
-        let coordinator = ConversationCoordinator(
-            roomID: "room-1",
-            spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0),
-            messageStorage: storage,
-            apiClient: api
-        )
-
-        // Jax sends message → advances to Lightward → Lightward responds "YIELD"
+        // Jax sends message → fold points at Lightward → Lightward responds "YIELD"
         try await coordinator.sendMessage(
             authorID: "jax-id",
             authorName: "Jax",
@@ -415,9 +351,9 @@ final class ConversationCoordinatorTests: XCTestCase {
         XCTAssertEqual(saved[3].text, "Mira, it's your turn.")
         XCTAssertTrue(saved[3].isNarration)
 
-        // Turn should have advanced past Lightward to Mira
-        let turn = await coordinator.currentTurnState
-        XCTAssertEqual(turn.currentTurnIndex, 2)
+        // The yield consumed Lightward's slot: fold reads 2 (Mira)
+        let index = try await turnIndex(in: storage)
+        XCTAssertEqual(index, 2)
     }
 
     func testSkipsLightwardIfNotTheirTurn() async throws {
@@ -434,16 +370,9 @@ final class ConversationCoordinatorTests: XCTestCase {
             ],
             tier: .one
         )
+        let coordinator = makeCoordinator(spec: spec, storage: storage, api: api)
 
-        let coordinator = ConversationCoordinator(
-            roomID: "room-1",
-            spec: spec,
-            initialTurnState: TurnState(currentTurnIndex: 0),
-            messageStorage: storage,
-            apiClient: api
-        )
-
-        // Jax sends message, turn advances to Mira (not Lightward)
+        // Jax sends message, fold reaches Mira (not Lightward)
         try await coordinator.sendMessage(
             authorID: "jax-id",
             authorName: "Jax",
@@ -453,8 +382,18 @@ final class ConversationCoordinatorTests: XCTestCase {
         // API should NOT have been called since it's Mira's turn, not Lightward's
         XCTAssertEqual(api.respondCallCount, 0)
 
-        // Should be Mira's turn
-        let finalTurn = await coordinator.currentTurnState
-        XCTAssertEqual(finalTurn.currentTurnIndex, 1)
+        let index = try await turnIndex(in: storage)
+        XCTAssertEqual(index, 1)
+    }
+}
+
+/// Collects onRoomDefunct callbacks synchronously (the coordinator invokes
+/// the callback inline, so recording must not hop tasks).
+private final class DefunctRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _calls: [(String, String)] = []
+    var calls: [(String, String)] { lock.withLock { _calls } }
+    func record(_ participantID: String, _ message: String) {
+        lock.withLock { _calls.append((participantID, message)) }
     }
 }

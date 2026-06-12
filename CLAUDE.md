@@ -12,7 +12,7 @@ A native SwiftUI iOS app (iOS 18+) for group conversations where Lightward AI pa
 - **CloudKit persistence**: Rooms, messages, participants sync to iCloud (requires Lightward Inc team signing)
 - **Multi-user sharing**: CKShare for rooms with multiple humans. Dual CKSyncEngines (private + shared databases). Share acceptance via `ckshare://` URL handling. Share previews show "A Softer Room: Isaac, Lightward, Abe" with app icon.
 - **Lightward API integration**: Plaintext request/response via `/api/plain` — full message arrives at once, all devices see "thinking" indicator until CloudKit syncs the response
-- **Turn coordination**: ConversationCoordinator handles turn advancement and Lightward responses, with multi-device sync via `syncTurnState()`
+- **Turn coordination**: The turn is a fold over the message ledger (`Message.turnIndex(in:)` — count of turn-consuming messages: speech + yields). Never stored, so devices sharing a ledger agree with no merge policy and nothing to repair. `ConversationCoordinator.settle()` reads the fold and does whatever the turn requires (first-round intros, Lightward generation); it's idempotent.
 - **Composing indicator**: "Abe is typing..." visible cross-device via transient CKRecord fields (`composingParticipantID`, `composingTimestamp`). 30-second staleness expiry. Two syncs per message (start typing + send).
 - **Room creation UI**: Polished form with system contact picker, nickname suggestions, payment tier picker, auto-focus nickname
 - **CI/CD pipeline**: GitHub Actions runs tests on push, deploys to TestFlight on push to main
@@ -64,7 +64,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 - `RoomState` — draft → pendingParticipants → active → defunct (single terminal state)
 - `RoomSpec` — complete room specification
 - `RoomLifecycle` — the state machine, takes events, returns effects
-- `TurnState` — current turn index
+- Turn state — not a type: `Message.turnIndex(in:)`, a fold over the ledger
 - `StoreKitCoordinator` — StoreKit 2 consumable IAP (DEBUG builds bypass with synthetic success)
 
 **Coordinator layer** (executes effects):
@@ -76,7 +76,7 @@ The "eigenstate commitment" model replaced the old invite-via-share flow.
 **Conversation layer** (active room messaging):
 - `MessageStorage` protocol — save/fetch/observe messages (used for testing abstraction)
 - `LightwardAPI` protocol — plaintext request/response to Lightward (in API/LightwardAPIClient.swift)
-- `ConversationCoordinator` — actor that handles message sending, turn advancement, Lightward responses
+- `ConversationCoordinator` — actor that handles message sending and Lightward responses; `settle()` derives the turn from the ledger and acts on it
 
 **Mocks** (SofterTests/Mocks/):
 - MockParticipantResolver, MockPaymentCoordinator, MockLightwardEvaluator
@@ -180,7 +180,6 @@ SofterStore (actions) → SyncCoordinator → CKSyncEngine → CloudKit
 - **Record Converter**: `RoomLifecycleRecordConverter` handles CKRecord ↔ domain model conversion, including message encoding/decoding.
 - **Unified save path**: `syncRoomToCloudKit(_:resolvedParticipants:)` reconstructs CKRecord from stored system fields (`ckSystemFields` on PersistedRoom), preserves zone ID and change tag. `isSharedWithMe` flag routes to the correct engine (private vs shared). All save paths go through this single method.
 - **Shared room deletion**: Deleting a shared-with-me room only removes it locally — participants can't delete the owner's record.
-- **Legacy compat**: `"locked"` state in CloudKit/SwiftData decodes as `defunct(.cancelled)` for older records.
 
 ### Conflict Resolution Policies
 
@@ -191,7 +190,7 @@ device's progress.
 | Data | Join | Reason |
 |------|------|--------|
 | Room state | Rank max (draft < pendingParticipants < active < defunct) | State machine has no backward edges; defunct is absorbing. `stateRank` in RoomLifecycleRecordConverter, applied in both `SyncCoordinator.mergeRecords` and `PersistedRoom.apply` |
-| Turn index | Higher wins | Turns only advance (index grows, never wraps) |
+| Turn index | (derived — no field, no merge) | `Message.turnIndex(in:)` is a fold over the ledger; the message union IS the turn merge |
 | Messages | Union by ID; same ID → earliest createdAt wins | Append-only ledger. Earliest-wins is deterministic in both merge directions, so racing devices converge |
 | Signaled flags | Union (grow-only set) | Once signaled, stays signaled — merged inside participantsJSON, preserving resolved userRecordIDs |
 
@@ -249,9 +248,10 @@ Some messages are *narration* rather than speech. These are:
 When Lightward responds with "YIELD":
 - Don't save their response as a message
 - Save a narration message: "Lightward is listening."
-- Advance turn to next participant
 
-Human pass uses "Pass" button with confirmation dialog, same narration pattern.
+The yield narration is itself turn-consuming (the only narration that is), so
+saving it IS the turn advance — the fold counts it. Human pass uses "Pass"
+button with confirmation dialog, same narration pattern.
 
 ## Key Implementation Details
 
@@ -265,7 +265,7 @@ Human pass uses "Pass" button with confirmation dialog, same narration pattern.
 - Detects YIELD responses and handles them specially (narration instead of message)
 - Catches `APIError.conversationHorizon(message:)` — saves body as Lightward speech, departure narration, calls `onRoomDefunct`
 - `onRoomDefunct` callback: `(participantID, departureMessage)` — caller handles state transition to defunct + CloudKit sync
-- `syncTurnState()` must be called from `refreshLifecycle` when remote turn changes arrive — the coordinator's internal `turnState` is separate from the View's `@State turnState`
+- No internal turn state: every operation re-derives the turn from storage, so remote changes need no synchronization and stale-state repair doesn't exist as a category. `settle()` is safe to call on room entry, after sends, and from multiple devices — all writes are keyed by causal position and collapse in the merge.
 
 ### Debug Views
 - `#if DEBUG` section in RoomListView shows CloudKit environment, user ID, room/share status

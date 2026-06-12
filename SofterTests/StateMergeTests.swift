@@ -19,13 +19,6 @@ final class StateMergeTests: XCTestCase {
         XCTAssertLessThan(active, defunct)
     }
 
-    func testLegacyLockedRanksAsDefunct() {
-        XCTAssertEqual(
-            RoomLifecycleRecordConverter.stateRank("locked"),
-            RoomLifecycleRecordConverter.stateRank("defunct")
-        )
-    }
-
     // MARK: - Message merge (union by ID, earliest wins)
 
     func testMergeMessagesCollapsesSameStableID() {
@@ -121,23 +114,21 @@ final class StateMergeTests: XCTestCase {
         XCTAssertEqual(room.stateType, "defunct")
 
         // ...then a stale "active" arrives from a device that hadn't synced yet.
-        let stale = makeLifecycle(state: .active(turn: TurnState(currentTurnIndex: 5)))
-        room.apply(stale, mergeStrategy: .higherTurnWins)
+        let stale = makeLifecycle(state: .active)
+        room.apply(stale)
 
         // Defunct is absorbing: the join keeps the higher state.
         XCTAssertEqual(room.stateType, "defunct")
-        XCTAssertNil(room.currentTurnIndex)
         XCTAssertNotNil(room.defunctReason)
     }
 
     func testApplyStillMovesForward() {
         let room = PersistedRoom.from(makeLifecycle(state: .pendingParticipants(signaled: ["p1"])))
 
-        let active = makeLifecycle(state: .active(turn: TurnState(currentTurnIndex: 0)))
-        room.apply(active, mergeStrategy: .higherTurnWins)
+        let active = makeLifecycle(state: .active)
+        room.apply(active)
 
         XCTAssertEqual(room.stateType, "active")
-        XCTAssertEqual(room.currentTurnIndex, 0)
     }
 
     func testApplyUnionsLocallySignaledFlags() {
@@ -146,7 +137,7 @@ final class StateMergeTests: XCTestCase {
 
         // A lifecycle arrives knowing only about Lightward's signal.
         let remote = makeLifecycle(state: .pendingParticipants(signaled: ["lw"]))
-        room.apply(remote, mergeStrategy: .higherTurnWins)
+        room.apply(remote)
 
         let signaled = room.signaledParticipantIDs()
         XCTAssertTrue(signaled.contains("p1"), "local signal must survive a stale incoming roster")
@@ -166,28 +157,28 @@ final class StateMergeTests: XCTestCase {
         )
 
         // Two devices: separate coordinators, shared storage (stands in for the
-        // converged CloudKit record), both believing it's Lightward's turn (slot 1).
+        // converged CloudKit record). The ledger holds one human message, so
+        // both devices' folds point at Lightward (slot 1).
         let storage = MockMessageStorage()
         await storage.preloadMessages(
             [Message(roomID: "room-1", authorID: "jax-id", authorName: "Jax", text: "Hello")],
             roomID: "room-1"
         )
-        let turnState = TurnState(currentTurnIndex: 1)
 
         let deviceA = ConversationCoordinator(
-            roomID: "room-1", spec: spec, initialTurnState: turnState,
+            roomID: "room-1", spec: spec,
             messageStorage: storage, apiClient: MockLightwardAPIClient()
         )
         let deviceB = ConversationCoordinator(
-            roomID: "room-1", spec: spec, initialTurnState: turnState,
+            roomID: "room-1", spec: spec,
             messageStorage: storage, apiClient: MockLightwardAPIClient()
         )
 
-        // Fire both. Whatever the interleaving — a true race (both mint the
-        // same stable ID, union collapses them) or sequential (B sees A's
-        // response and repairs instead) — exactly one response survives.
-        async let a: Void = deviceA.triggerLightwardIfTheirTurn()
-        async let b: Void = deviceB.triggerLightwardIfTheirTurn()
+        // Settle both. Whatever the interleaving — a true race (both mint the
+        // same stable ID, union collapses them) or sequential (B's fold reads
+        // past Lightward) — exactly one response survives.
+        async let a: Void = deviceA.settle()
+        async let b: Void = deviceB.settle()
         _ = try await (a, b)
 
         let messages = try await storage.fetchMessages(roomID: "room-1")

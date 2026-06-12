@@ -1,51 +1,39 @@
 import Foundation
 
 /// Coordinates conversation flow within an active room.
-/// Handles message sending, turn advancement, and Lightward responses.
+/// Handles message sending and Lightward responses.
+///
+/// Turn state is never stored: the current turn index is a fold over the
+/// message ledger (`Message.turnIndex(in:)`) — the count of turn-consuming
+/// messages. Devices that share a ledger agree on the turn with no merge
+/// policy and nothing to repair, and every machine-generated write is keyed
+/// by causal position, so settling twice (or from two devices at once)
+/// collapses in the union-by-ID merge.
 actor ConversationCoordinator {
     private let roomID: String
     private let spec: RoomSpec
-    private var turnState: TurnState
 
     private let messageStorage: MessageStorage
     private let apiClient: any LightwardAPI
 
-    private let onTurnChange: @Sendable (TurnState) -> Void
     private let onRoomDefunct: @Sendable (String, String) -> Void  // (participantID, departureMessage)
 
     init(
         roomID: String,
         spec: RoomSpec,
-        initialTurnState: TurnState = .initial,
         messageStorage: MessageStorage,
         apiClient: any LightwardAPI,
-        onTurnChange: @escaping @Sendable (TurnState) -> Void = { _ in },
         onRoomDefunct: @escaping @Sendable (String, String) -> Void = { _, _ in }
     ) {
         self.roomID = roomID
         self.spec = spec
-        self.turnState = initialTurnState
         self.messageStorage = messageStorage
         self.apiClient = apiClient
-        self.onTurnChange = onTurnChange
         self.onRoomDefunct = onRoomDefunct
     }
 
-    /// Current participant whose turn it is.
-    var currentTurnParticipant: ParticipantSpec? {
-        guard !spec.participants.isEmpty else { return nil }
-        return spec.participants[turnState.currentTurnIndex % spec.participants.count]
-    }
-
-    /// Whether it's currently Lightward's turn.
-    var isLightwardTurn: Bool {
-        currentTurnParticipant?.isLightward ?? false
-    }
-
-    /// Send a message from a human participant.
-    /// Saves the message, advances turn, and triggers Lightward if it's their turn.
+    /// Send a message from a human participant, then settle the turn.
     func sendMessage(authorID: String, authorName: String, text: String) async throws {
-        // Create and save the message
         let message = Message(
             roomID: roomID,
             authorID: authorID,
@@ -54,30 +42,14 @@ actor ConversationCoordinator {
             isLightward: false
         )
         try await messageStorage.save(message, roomID: roomID)
-
-        // Advance turn
-        try await advanceTurn()
-
-        // If it's now Lightward's turn, generate response
-        if isLightwardTurn {
-            try await generateLightwardResponse()
-        }
+        try await settle()
     }
 
-    /// Yield turn without sending a message (for programmatic use).
-    func yieldTurn() async throws {
-        try await advanceTurn()
-
-        if isLightwardTurn {
-            try await generateLightwardResponse()
-        }
-    }
-
-    /// Human participant yields their turn.
-    /// Saves a narration message and advances the turn.
+    /// Human participant yields their turn: the narration consumes the slot.
     func humanYieldTurn(authorID: String, authorName: String) async throws {
+        let turnIndex = try await currentTurnIndex()
         let narrationMessage = Message(
-            id: Message.StableID.yieldNarration(roomID: roomID, turnIndex: turnState.currentTurnIndex),
+            id: Message.StableID.yieldNarration(roomID: roomID, turnIndex: turnIndex),
             roomID: roomID,
             authorID: "narrator",
             authorName: "Narrator",
@@ -86,66 +58,40 @@ actor ConversationCoordinator {
             isNarration: true
         )
         try await messageStorage.save(narrationMessage, roomID: roomID)
-
-        try await advanceTurn()
-
-        if isLightwardTurn {
-            try await generateLightwardResponse()
-        }
+        try await settle()
     }
 
-    /// Get current turn state.
-    var currentTurnState: TurnState {
-        turnState
-    }
+    /// Read the ledger and do whatever the turn now requires: orient the
+    /// first round, and generate Lightward's response if the ledger points
+    /// at them. Idempotent — safe to call on entering a room, after any
+    /// send, or from multiple devices.
+    func settle() async throws {
+        let index = try await currentTurnIndex()
 
-    /// Sync internal turn state with externally-observed changes (e.g., from CloudKit).
-    /// Uses higherTurnWins: only advances, never goes backward.
-    func syncTurnState(_ externalState: TurnState) {
-        if externalState.currentTurnIndex > turnState.currentTurnIndex {
-            turnState.currentTurnIndex = externalState.currentTurnIndex
-        }
-    }
-
-    /// If it's Lightward's turn, generate their response.
-    /// Call this when entering a room to resume conversation if Lightward was mid-turn.
-    /// If the last message is already from Lightward (stale turn state), just advances the turn.
-    func triggerLightwardIfTheirTurn() async throws {
-        guard isLightwardTurn else { return }
-
-        // Check if last message is already from Lightward (turn state out of sync)
-        let messages = try await messageStorage.fetchMessages(roomID: roomID)
-        if let lastMessage = messages.last, lastMessage.isLightward {
-            // Turn state is stale — Lightward already responded, just advance
-            print("Turn state repair: last message is from Lightward, advancing turn")
-            try await advanceTurn()
-            return
-        }
-
-        try await generateLightwardResponse()
-    }
-
-    // MARK: - Private
-
-    private func advanceTurn() async throws {
-        turnState.advanceTurn(participantCount: spec.participants.count)
-        onTurnChange(turnState)
-
-        // During first round, narrate turn changes to orient participants
-        let newIndex = turnState.currentTurnIndex
-        if newIndex > 0 && newIndex < spec.participants.count {
-            let nextParticipant = spec.participants[newIndex % spec.participants.count]
+        // During the first round, narrate turn changes to orient participants
+        if index > 0 && index < spec.participants.count,
+           let next = spec.turnParticipant(at: index) {
             let narration = Message(
-                id: Message.StableID.turnIntro(roomID: roomID, turnIndex: newIndex),
+                id: Message.StableID.turnIntro(roomID: roomID, turnIndex: index),
                 roomID: roomID,
                 authorID: "narrator",
                 authorName: "Narrator",
-                text: "\(nextParticipant.nickname), it's your turn.",
+                text: "\(next.nickname), it's your turn.",
                 isLightward: false,
                 isNarration: true
             )
             try await messageStorage.save(narration, roomID: roomID)
         }
+
+        if spec.turnParticipant(at: index)?.isLightward == true {
+            try await generateLightwardResponse()
+        }
+    }
+
+    // MARK: - Private
+
+    private func currentTurnIndex() async throws -> Int {
+        Message.turnIndex(in: try await messageStorage.fetchMessages(roomID: roomID))
     }
 
     private func generateLightwardResponse() async throws {
@@ -169,7 +115,7 @@ actor ConversationCoordinator {
         // racing devices generating this same turn mint the same IDs and the
         // union-by-ID merge collapses the duplicates — exactly one outcome
         // per slot survives.
-        let turnIndex = turnState.currentTurnIndex
+        let turnIndex = Message.turnIndex(in: messages)
 
         // Response detection order matters:
         // 1. Conversation horizon (API error with body) — caught before we have a response string
@@ -218,7 +164,7 @@ actor ConversationCoordinator {
         let didDepart = trimmed == "DEPART" || trimmed.hasPrefix("DEPART.")
 
         if didYield {
-            // Lightward yielded - save narration message
+            // Lightward yielded - save narration message (consumes the slot)
             let narrationMessage = Message(
                 id: Message.StableID.yieldNarration(roomID: roomID, turnIndex: turnIndex),
                 roomID: roomID,
@@ -229,7 +175,7 @@ actor ConversationCoordinator {
                 isNarration: true
             )
             try await messageStorage.save(narrationMessage, roomID: roomID)
-            try await advanceTurn()
+            try await settle()
         } else if didDepart {
             // Lightward is voluntarily departing
             // Extract farewell text after "DEPART." if present
@@ -264,7 +210,7 @@ actor ConversationCoordinator {
 
             onRoomDefunct(lightwardID, "")
         } else {
-            // Save Lightward's message
+            // Save Lightward's message (consumes the slot)
             let lightwardMessage = Message(
                 id: Message.StableID.lightwardSpeech(roomID: roomID, turnIndex: turnIndex),
                 roomID: roomID,
@@ -274,9 +220,7 @@ actor ConversationCoordinator {
                 isLightward: true
             )
             try await messageStorage.save(lightwardMessage, roomID: roomID)
-
-            // Advance turn past Lightward
-            try await advanceTurn()
+            try await settle()
         }
     }
 }

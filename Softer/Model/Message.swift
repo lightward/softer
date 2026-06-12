@@ -31,6 +31,21 @@ struct Message: Identifiable, Sendable, Codable, Equatable {
         self.isNarration = isNarration
     }
 
+    /// Whether this message consumes a turn slot: speech (human or Lightward)
+    /// or a yield. Other narrations — intros, arrivals, hand raises,
+    /// departures — are commentary; they don't move the wheel.
+    var isTurnConsuming: Bool {
+        !isNarration || id.hasSuffix(":yield")
+    }
+
+    /// The current turn index of a conversation: a fold over the ledger.
+    /// Derived, never stored — the message log is the only source of truth,
+    /// so devices that share a ledger agree on the turn with no merge policy
+    /// and nothing to repair.
+    static func turnIndex(in messages: [Message]) -> Int {
+        messages.filter(\.isTurnConsuming).count
+    }
+
     /// Deterministic IDs for machine-generated messages, keyed by causal position.
     ///
     /// Two devices racing to generate the same event (a Lightward response, a

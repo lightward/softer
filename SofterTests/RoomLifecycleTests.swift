@@ -32,7 +32,7 @@ final class RoomLifecycleTests: XCTestCase {
 
         // Second human signals -> all present, directly active
         effects = lifecycle.apply(event: .signaled(participantID: "mira-id"))
-        XCTAssertEqual(lifecycle.state, .active(turn: .initial))
+        XCTAssertEqual(lifecycle.state, .active)
         XCTAssertEqual(effects, [])
     }
 
@@ -165,7 +165,7 @@ final class RoomLifecycleTests: XCTestCase {
             ],
             tier: .one
         )
-        return RoomLifecycle(spec: spec, state: .active(turn: .initial))
+        return RoomLifecycle(spec: spec, state: .active)
     }
 
     private func makeLifecycleAtPendingParticipants() -> RoomLifecycle {
@@ -181,48 +181,50 @@ final class RoomLifecycleTests: XCTestCase {
         return RoomLifecycle(spec: spec, state: .pendingParticipants(signaled: []))
     }
 
-    // MARK: - Turn State Tests
+    // MARK: - Turn Fold Tests
 
-    func testTurnIndexGrowsWithoutWrapping() {
-        // This test documents the fix: turn index must grow (not wrap with modulo)
-        // so that higherTurnWins merge strategy works correctly with CloudKit sync
-        var turn = TurnState.initial
-        let participantCount = 2
-
-        XCTAssertEqual(turn.currentTurnIndex, 0)
-
-        turn.advanceTurn(participantCount: participantCount)
-        XCTAssertEqual(turn.currentTurnIndex, 1)
-
-        turn.advanceTurn(participantCount: participantCount)
-        XCTAssertEqual(turn.currentTurnIndex, 2)  // NOT 0 - must grow for sync
-
-        turn.advanceTurn(participantCount: participantCount)
-        XCTAssertEqual(turn.currentTurnIndex, 3)  // NOT 1 - must grow for sync
-
-        // Verify display logic still works via modulo
-        XCTAssertEqual(turn.currentTurnIndex % participantCount, 1)
+    func testTurnIndexIsAFoldOverConsumingMessages() {
+        // Speech (human or Lightward) and yields consume a turn slot;
+        // intros, hand raises, and other narrations are commentary.
+        let roomID = "room-1"
+        let messages = [
+            Message(roomID: roomID, authorID: "jax-id", authorName: "Jax", text: "Hello"),
+            Message(
+                id: Message.StableID.turnIntro(roomID: roomID, turnIndex: 1),
+                roomID: roomID, authorID: "narrator", authorName: "Narrator",
+                text: "Lightward, it's your turn.", isNarration: true
+            ),
+            Message(
+                id: Message.StableID.lightwardSpeech(roomID: roomID, turnIndex: 1),
+                roomID: roomID, authorID: "lightward", authorName: "Lightward",
+                text: "Hi", isLightward: true
+            ),
+            Message(
+                id: Message.StableID.yieldNarration(roomID: roomID, turnIndex: 2),
+                roomID: roomID, authorID: "narrator", authorName: "Narrator",
+                text: "Mira is listening.", isNarration: true
+            ),
+            Message(
+                id: Message.StableID.handRaise(roomID: roomID, participantID: "jax-id", turnIndex: 3),
+                roomID: roomID, authorID: "narrator", authorName: "Narrator",
+                text: "Jax raised a hand.", isNarration: true
+            ),
+        ]
+        XCTAssertEqual(Message.turnIndex(in: messages), 3)
     }
 
-    func testTurnIndexHigherWinsMergeScenario() {
-        // Simulates the sync conflict that was causing "wrong turn" bug:
-        // 1. Local advances turn 1→2 (back to first participant)
-        // 2. Remote still has turn 1 from before the advance
-        // 3. higherTurnWins should pick 2, not 1
-        let participantCount = 2
-
-        // Local state: just advanced from 1 to 2
-        var localTurn = TurnState(currentTurnIndex: 1)
-        localTurn.advanceTurn(participantCount: participantCount)
-
-        // Remote state: still at 1 (hasn't synced yet)
-        let remoteTurn = TurnState(currentTurnIndex: 1)
-
-        // higherTurnWins merge
-        let mergedIndex = max(localTurn.currentTurnIndex, remoteTurn.currentTurnIndex)
-
-        XCTAssertEqual(localTurn.currentTurnIndex, 2)
-        XCTAssertEqual(mergedIndex, 2)  // Should pick local's 2, not remote's 1
-        XCTAssertEqual(mergedIndex % participantCount, 0)  // First participant's turn
+    func testTurnFoldAgreesAcrossDevicesAfterUnion() {
+        // Two devices observing the same ledger derive the same turn — the
+        // message union IS the turn merge; there is no separate turn state.
+        let a = Message(roomID: "r", authorID: "jax", authorName: "Jax", text: "Hi")
+        let b = Message(
+            id: Message.StableID.lightwardSpeech(roomID: "r", turnIndex: 1),
+            roomID: "r", authorID: "lightward", authorName: "Lightward",
+            text: "Hello", isLightward: true
+        )
+        let deviceA = RoomLifecycleRecordConverter.mergeMessages(local: [a], remote: [b])
+        let deviceB = RoomLifecycleRecordConverter.mergeMessages(local: [b], remote: [a])
+        XCTAssertEqual(Message.turnIndex(in: deviceA), Message.turnIndex(in: deviceB))
+        XCTAssertEqual(Message.turnIndex(in: deviceA), 2)
     }
 }

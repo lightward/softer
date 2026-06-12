@@ -42,9 +42,10 @@ struct RoomListView: View {
                     }
                 } else {
                     List(selection: $selectedRoomID) {
-                        ForEach(rooms, id: \.spec.id) { lifecycle in
+                        ForEach(persistedRooms, id: \.id) { room in
+                            if let lifecycle = room.toRoomLifecycle() {
                             NavigationLink(value: lifecycle.spec.id) {
-                                RoomRow(lifecycle: lifecycle)
+                                RoomRow(lifecycle: lifecycle, turnIndex: Message.turnIndex(in: room.messages()))
                             }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button(role: .destructive) {
@@ -54,13 +55,14 @@ struct RoomListView: View {
                                 }
                             }
                             .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                if let urlString = persistedRooms.first(where: { $0.id == lifecycle.spec.id })?.shareURL,
+                                if let urlString = room.shareURL,
                                    let url = URL(string: urlString) {
                                     ShareLink(item: url) {
                                         Label("Share", systemImage: "square.and.arrow.up")
                                     }
                                     .tint(.blue)
                                 }
+                            }
                             }
                         }
                     }
@@ -153,6 +155,7 @@ struct RoomListView: View {
 
 struct RoomRow: View {
     let lifecycle: RoomLifecycle
+    let turnIndex: Int  // Message.turnIndex(in:) — the ledger fold
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -194,8 +197,8 @@ struct RoomRow: View {
 
     /// Returns the current turn participant index only if room is active, nil otherwise
     private var currentTurnParticipantIndex: Int? {
-        guard case .active(let turn) = lifecycle.state else { return nil }
-        return turn.currentTurnIndex % lifecycle.spec.participants.count
+        guard case .active = lifecycle.state, !lifecycle.spec.participants.isEmpty else { return nil }
+        return turnIndex % lifecycle.spec.participants.count
     }
 
     @ViewBuilder
@@ -216,9 +219,8 @@ struct RoomRow: View {
         case .pendingParticipants(let signaled):
             let remaining = lifecycle.spec.participants.count - signaled.count
             return "Waiting for \(remaining) participant\(remaining == 1 ? "" : "s")..."
-        case .active(let turn):
-            let index = turn.currentTurnIndex % lifecycle.spec.participants.count
-            let participant = lifecycle.spec.participants[index]
+        case .active:
+            guard let participant = lifecycle.spec.turnParticipant(at: turnIndex) else { return "Active" }
             return "\(participant.nickname)'s turn"
         case .defunct(let reason):
             switch reason {

@@ -714,11 +714,8 @@ actor SyncCoordinator {
                 merged["defunctReason"] = local["defunctReason"] as? String as NSString?
             }
 
-            // Turn index: higher wins
-            if let localTurn = local["currentTurnIndex"] as? Int,
-               let serverTurn = server["currentTurnIndex"] as? Int {
-                merged["currentTurnIndex"] = max(localTurn, serverTurn) as NSNumber
-            }
+            // Turn state has no field: it's a fold over messagesJSON, so the
+            // message union below is also the turn merge.
 
             // Participants: signaled flags are a grow-only set — union them,
             // and keep any userRecordID either side has resolved.
